@@ -298,3 +298,109 @@ test('Login con PIN de dueña y de trabajadora (humo)', async () => {
   assert.equal(mal.statusCode, 401);
   await t.cerrar();
 });
+
+// --- Permiso "Teléfonos de clientas" de una trabajadora (v49) ---
+
+async function salonConClienta(t) {
+  const salonId = await salonDePrueba(t.sql, { trabajadoras: [{ nombre: 'Aly', pin_hash: pepperedPinHash('222222') }] });
+  await t.sql`
+    insert into clientas (salon_id, clienta, clienta_normalizada, nota_fija, telefono)
+    values (${salonId}, 'María López', 'maria lopez', 'Alergia al amoniaco', '8110000000')
+  `;
+  return {
+    salonId,
+    duena: createSessionToken(salonId),
+    aly: createSessionToken(salonId, { role: 'trabajadora', worker: 'Aly' }),
+  };
+}
+
+test('Permisos · sin permiso, la trabajadora no ve teléfonos ni puede guardarlos', async () => {
+  const t = await crearEntorno();
+  const { aly } = await salonConClienta(t);
+  const g = await t.llamar('clientas', { token: aly });
+  assert.equal(g.statusCode, 200);
+  assert.deepEqual(g.body.telefonos, {});
+  assert.deepEqual(g.body.notas_fijas, {});
+  assert.equal(g.body.permiso_telefonos, false);
+  const p = await t.llamar('clientas', { method: 'POST', token: aly, body: { clienta: 'María López', nota_fija: '', telefono: '8119999999' } });
+  assert.equal(p.statusCode, 403);
+  await t.cerrar();
+});
+
+test('Permisos · con permiso ve y guarda teléfonos, pero nunca la nota fija', async () => {
+  const t = await crearEntorno();
+  const { duena, aly } = await salonConClienta(t);
+  const dar = await t.llamar('trabajador-pin', { method: 'POST', token: duena, body: { nombre: 'Aly', permisos: { telefonos: true } } });
+  assert.equal(dar.statusCode, 200, JSON.stringify(dar.body));
+  assert.deepEqual(dar.body.permisos, { telefonos: true });
+
+  const g = await t.llamar('clientas', { token: aly });
+  assert.equal(g.body.permiso_telefonos, true);
+  assert.equal(g.body.telefonos['maria lopez'], '8110000000');
+  assert.deepEqual(g.body.notas_fijas, {}, 'la nota fija sigue oculta');
+
+  // Aunque mande una nota vacía, no borra la de la dueña ni cambia el nombre
+  const p = await t.llamar('clientas', { method: 'POST', token: aly, body: { clienta: 'maria lopez', nota_fija: '', telefono: '8119999999' } });
+  assert.equal(p.statusCode, 200, JSON.stringify(p.body));
+  const [c] = await t.sql`select clienta, nota_fija, telefono from clientas where clienta_normalizada = 'maria lopez'`;
+  assert.deepEqual(c, { clienta: 'María López', nota_fija: 'Alergia al amoniaco', telefono: '8119999999' });
+
+  // Clienta nueva: se crea solo con su teléfono
+  const n = await t.llamar('clientas', { method: 'POST', token: aly, body: { clienta: 'Ana Ruiz', telefono: '8117777777' } });
+  assert.equal(n.statusCode, 200);
+  // Borrar el teléfono no le toca
+  const vacio = await t.llamar('clientas', { method: 'POST', token: aly, body: { clienta: 'Ana Ruiz', telefono: '' } });
+  assert.equal(vacio.statusCode, 400);
+  // El historial sigue siendo solo de la dueña
+  const h = await t.llamar('clientas', { token: aly, query: { historial: '1' } });
+  assert.equal(h.statusCode, 403);
+  await t.cerrar();
+});
+
+test('Permisos · quitarlo corta el acceso al momento, sin cerrar sesión', async () => {
+  const t = await crearEntorno();
+  const { duena, aly } = await salonConClienta(t);
+  await t.llamar('trabajador-pin', { method: 'POST', token: duena, body: { nombre: 'Aly', permisos: { telefonos: true } } });
+  await t.llamar('trabajador-pin', { method: 'POST', token: duena, body: { nombre: 'Aly', permisos: { telefonos: false } } });
+  const g = await t.llamar('clientas', { token: aly });
+  assert.deepEqual(g.body.telefonos, {});
+  const p = await t.llamar('clientas', { method: 'POST', token: aly, body: { clienta: 'María López', telefono: '8119999999' } });
+  assert.equal(p.statusCode, 403);
+  await t.cerrar();
+});
+
+test('Permisos · solo la dueña los cambia y solo acepta permisos conocidos', async () => {
+  const t = await crearEntorno();
+  const { duena, aly } = await salonConClienta(t);
+  const w = await t.llamar('trabajador-pin', { method: 'POST', token: aly, body: { nombre: 'Aly', permisos: { telefonos: true } } });
+  assert.equal(w.statusCode, 403);
+  for (const permisos of [{ telefonos: 'si' }, { dinero: true }, [], null]) {
+    const r = await t.llamar('trabajador-pin', { method: 'POST', token: duena, body: { nombre: 'Aly', permisos } });
+    assert.equal(r.statusCode, 400, JSON.stringify(permisos));
+  }
+  const x = await t.llamar('trabajador-pin', { method: 'POST', token: duena, body: { nombre: 'Nadie', permisos: { telefonos: true } } });
+  assert.equal(x.statusCode, 404);
+  await t.cerrar();
+});
+
+test('Permisos · guardar el catálogo conserva PIN y permisos, y no acepta un pin_hash del cliente', async () => {
+  const t = await crearEntorno();
+  const { salonId, duena } = await salonConClienta(t);
+  await t.llamar('trabajador-pin', { method: 'POST', token: duena, body: { nombre: 'Aly', permisos: { telefonos: true } } });
+  const r = await t.llamar('config', {
+    method: 'POST', token: duena,
+    body: { servicios: ['Corte'], productos: [], trabajadoras: [{ nombre: 'Aly' }, { nombre: 'Bea', pin_hash: 'inyectado', permisos: { telefonos: true } }] },
+  });
+  assert.equal(r.statusCode, 200);
+  const [s] = await t.sql`select trabajadoras from salones where id = ${salonId}`;
+  assert.deepEqual(s.trabajadoras, [
+    { nombre: 'Aly', pin_hash: pepperedPinHash('222222'), permisos: { telefonos: true } },
+    { nombre: 'Bea' },
+  ]);
+  const g = await t.llamar('config', { token: duena });
+  assert.deepEqual(g.body.trabajadoras, [
+    { nombre: 'Aly', tiene_acceso: true, permisos: { telefonos: true } },
+    { nombre: 'Bea', tiene_acceso: false, permisos: { telefonos: false } },
+  ]);
+  await t.cerrar();
+});

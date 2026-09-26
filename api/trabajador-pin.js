@@ -6,6 +6,10 @@
  * Body: { nombre, pin }          → asigna/cambia su PIN de 6 dígitos
  *       { nombre, remove: true } → le quita el acceso (conserva el nombre
  *                                  para comisiones, solo borra `pin_hash`)
+ *       { nombre, permisos: { telefonos: true|false } }
+ *                                → qué más puede hacer en la app (ver
+ *                                  PERMISOS_TRABAJADORA en lib/auth.js).
+ *                                  Todos arrancan apagados.
  *
  * El PIN se guarda con el mismo hash con pepper que el de la dueña
  * (`pepperedPinHash`), dentro del mismo jsonb de `trabajadoras` — sin
@@ -18,7 +22,7 @@
  */
 
 const { getSql } = require('../lib/db');
-const { requireOwnerSession, pepperedPinHash, pinEnUso } = require('../lib/auth');
+const { requireOwnerSession, pepperedPinHash, pinEnUso, PERMISOS_TRABAJADORA, normalizarPermisos } = require('../lib/auth');
 const { isNonEmptyString, isPinStr } = require('../lib/validate');
 
 module.exports = async function handler(req, res) {
@@ -30,12 +34,19 @@ module.exports = async function handler(req, res) {
   if (!salonId) return;
 
   try {
-    const { nombre, pin, remove } = req.body || {};
+    const { nombre, pin, remove, permisos } = req.body || {};
+    const cambiaPermisos = permisos !== undefined;
 
     if (!isNonEmptyString(nombre, 200)) {
       return res.status(400).json({ error: 'Falta el nombre de la trabajadora' });
     }
-    if (remove !== true && !isPinStr(pin)) {
+    if (cambiaPermisos && (
+      !permisos || typeof permisos !== 'object' || Array.isArray(permisos) ||
+      !Object.entries(permisos).every(([k, v]) => PERMISOS_TRABAJADORA.includes(k) && typeof v === 'boolean')
+    )) {
+      return res.status(400).json({ error: 'Permisos inválidos' });
+    }
+    if (!cambiaPermisos && remove !== true && !isPinStr(pin)) {
       return res.status(400).json({ error: 'El PIN debe ser de 6 dígitos' });
     }
 
@@ -45,6 +56,15 @@ module.exports = async function handler(req, res) {
     const trabajadoras = salon?.trabajadoras || [];
     if (!trabajadoras.some((t) => t.nombre === nombre)) {
       return res.status(404).json({ error: 'Esa trabajadora no existe — agrégala primero desde Configuración' });
+    }
+
+    if (cambiaPermisos) {
+      const nuevas = trabajadoras.map((t) => (t.nombre === nombre
+        ? { ...t, permisos: normalizarPermisos({ ...normalizarPermisos(t.permisos), ...permisos }) }
+        : t));
+      await sql`update salones set trabajadoras = ${JSON.stringify(nuevas)}::jsonb where id = ${salonId}`;
+      const actualizada = nuevas.find((t) => t.nombre === nombre);
+      return res.status(200).json({ success: true, permisos: actualizada.permisos });
     }
 
     if (remove === true) {

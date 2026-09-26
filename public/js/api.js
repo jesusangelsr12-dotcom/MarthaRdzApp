@@ -266,6 +266,15 @@ export function setTrabajadorPin(sheetId, { nombre, pin, remove }) {
   });
 }
 
+/** Prende o apaga un permiso de una trabajadora (ej. { telefonos: true }).
+ * Solo la dueña. Responde { success, permisos } con todos sus permisos. */
+export function setPermisosTrabajadora(sheetId, nombre, permisos) {
+  return fetchAPI('trabajador-pin', {
+    method: 'POST',
+    body: { sheet_id: sheetId, nombre, permisos },
+  });
+}
+
 /** Llave pública VAPID, para armar la suscripción push en el navegador */
 export function getPushPublicKey(sheetId) {
   return fetchAPI(`push-subscribe?sheet_id=${encodeURIComponent(sheetId)}`);

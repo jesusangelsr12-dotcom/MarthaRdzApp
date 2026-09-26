@@ -13,6 +13,22 @@ Secciones: **Agregado** · **Cambiado** · **Corregido** · **Seguridad** · **B
 
 ## [Sin publicar]
 
+## v49 · 2026-09-26
+
+### Agregado
+- **Permisos por trabajadora.** En Configuración, cada trabajadora tiene "Puede usar" con el interruptor **Teléfonos de clientas** (apagado por default). Con él puede agregar y cambiar el teléfono de la clienta al agendar y en el menú de una cita pendiente, y "Confirmar por WhatsApp". Nunca ve ni cambia la nota fija (alergias).
+- El permiso se guarda al tocar el interruptor y vale al momento, sin que ella cierre sesión.
+
+### Seguridad
+- El servidor revisa el permiso en cada llamada (`permisosDeTrabajadora()`). Sin él, `GET /api/clientas` no le manda teléfonos y `POST` responde 403. Con él, `POST` solo guarda el teléfono.
+- `POST /api/config` ya solo toma el nombre de cada trabajadora: no se le puede colar un `pin_hash` ni permisos al guardar el catálogo.
+
+### Corregido
+- Los avisos (toast) salían detrás de los menús y modales abiertos: un error como "El teléfono debe tener 10 dígitos" no se veía. Ahora van encima.
+
+### Docs
+- CLAUDE.md, PRD, Security, API Guide, Database, Testing (43 pruebas), AppFlow (F4 y F11, .md y tablero) y Design System (interruptor).
+
 ## v48 · 2026-09-26
 
 ### Cambiado

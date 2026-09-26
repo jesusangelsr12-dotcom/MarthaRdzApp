@@ -50,7 +50,10 @@ El `sheet_id` que manda el frontend se ignora.
 | `getSessionRole(req)` | Ramificar el comportamiento dentro de un endpoint |
 
 Restricciones de trabajadora aplicadas **en el servidor**:
-- `GET /api/clientas` le devuelve nombres sin teléfono ni nota fija. El historial le da 403.
+- `GET /api/clientas` le devuelve nombres sin nota fija. El teléfono solo si tiene el permiso `telefonos`; si no, `telefonos` viene vacío. El historial le da 403.
+- `POST /api/clientas`: 403 sin el permiso `telefonos`. Con él, guarda **solo** el teléfono (10 dígitos, no puede borrarlo) y nunca toca la nota fija ni el nombre.
+- Los permisos se leen de la base en cada llamada (`permisosDeTrabajadora()`), no del token: si la dueña los apaga, dejan de valer al momento.
+- Solo la dueña cambia permisos (`POST /api/trabajador-pin` con `permisos`), y solo se aceptan los de `PERMISOS_TRABAJADORA` con valor booleano.
 - `POST /api/citas`: solo comisiones a su nombre.
 - `citas-agendadas`: puede leer y agendar; editar, borrar y todo lo de ausencias es 403.
 - Gastos, comisiones, dashboard, config, PINs y push: 403.
@@ -66,6 +69,7 @@ comodidad, no seguridad.
 | XSS | `escapeHTML()` en todo dato dinámico + CSP `script-src 'self'` |
 | Datos inválidos | Validadores de `lib/validate.js` en cada endpoint (tipos, rangos, longitudes) |
 | Hash de PIN expuesto | `sanitizeTrabajadoras()` reemplaza `pin_hash` por `tiene_acceso` en cada respuesta |
+| Inyectar un `pin_hash` o permisos al guardar el catálogo | `POST /api/config` solo toma el `nombre` de cada trabajadora; el PIN y los permisos se conservan de la base |
 | Borrado accidental o malicioso | Todo es soft-delete; se puede recuperar con SQL |
 | Acceso directo a la base | `DATABASE_URL` solo vive en Vercel. El navegador nunca habla con Neon |
 

@@ -10,7 +10,7 @@
                           │ id uuid PK               │
                           │ salon_id text (salon_001)│
                           │ servicios / productos    │  jsonb
-                          │ trabajadoras             │  jsonb [{nombre, pin_hash?}]
+                          │ trabajadoras             │  jsonb [{nombre, pin_hash?, permisos?}]
                           └────────────┬─────────────┘
           ┌──────────────┬─────────────┼──────────────┬───────────────┬──────────────────┐
           ▼              ▼             ▼              ▼               ▼                  ▼
@@ -54,7 +54,7 @@ integración lo hacen en cada corrida (ver [Testing.md](Testing.md)).
 | `pin_hash_v2` | text | HMAC-SHA256(PIN, `PIN_PEPPER`). Se llena solo en el primer login (mig. 001) |
 | `servicios` | jsonb | `["Corte", "Tinte", …]` |
 | `productos` | jsonb | `["Shampoo", …]` |
-| `trabajadoras` | jsonb | `[{"nombre":"Ana","pin_hash":"…"}]`. `pin_hash` solo si tiene acceso. **Nunca sale al cliente** |
+| `trabajadoras` | jsonb | `[{"nombre":"Ana","pin_hash":"…","permisos":{"telefonos":true}}]`. `pin_hash` solo si tiene acceso; **nunca sale al cliente**. `permisos` es opcional: lo que falta cuenta como apagado (ver `PERMISOS_TRABAJADORA` en `lib/auth.js`). No necesita migración |
 
 ### `citas` (dinero cobrado)
 

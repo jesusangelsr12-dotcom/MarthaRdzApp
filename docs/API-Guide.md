@@ -134,9 +134,9 @@ Sin `recurso` en el body es una cita agendada. Con `recurso: 'ausencia'` es una 
 
 | Método | Permiso | Entrada | Salida |
 |---|---|---|---|
-| `GET` lista | 👤 | | `{clientas:["Ana", …], notas_fijas:{clave:nota}, telefonos:{clave:tel}}`. Para trabajadora, `notas_fijas` y `telefonos` vienen vacíos |
+| `GET` lista | 👤 | | `{clientas:["Ana", …], notas_fijas:{clave:nota}, telefonos:{clave:tel}, permiso_telefonos}`. Para trabajadora, `notas_fijas` siempre viene vacío y `telefonos` también, salvo que tenga el permiso `telefonos` (`permiso_telefonos: true`) |
 | `GET` historial | 👑 | `?historial=1` | `{clientas:[{nombre, key, nota_fija, telefono, total_visitas, total_gastado, ultima_visita, visitas:[{fecha, timestamp, clienta_raw, items, total, metodo_pago, nota}]}]}` |
-| `POST` | 👑 | `{clienta, nota_fija, telefono}` | `{success}` |
+| `POST` | 👑 · 👤 con permiso | `{clienta, nota_fija, telefono}` | `{success}`. Trabajadora con permiso `telefonos`: solo guarda `telefono` (10 dígitos, obligatorio), ignora `nota_fija`. Sin permiso: `403` |
 
 `clave` = `normalizeNombre(nombre)`. El POST guarda **nota y teléfono juntos**:
 manda siempre los dos valores actuales aunque solo cambie uno. `telefono` es
@@ -178,11 +178,12 @@ Todo se agrega en SQL. Los anticipos suman a ingresos pero no a `num_citas` ni a
 
 | Método | Entrada | Salida |
 |---|---|---|
-| `GET` | | `{salon_nombre, logo_url, servicios, productos, trabajadoras:[{nombre, tiene_acceso}]}` |
+| `GET` | | `{salon_nombre, logo_url, servicios, productos, trabajadoras:[{nombre, tiene_acceso, permisos:{telefonos}}]}` |
 | `POST` | `{servicios:[…], productos:[…], trabajadoras:[{nombre}]}` | `{success}` |
 
-Reemplaza los arreglos completos (máx. 300 elementos cada uno). Conserva el
-`pin_hash` de cada trabajadora que siga en la lista con el mismo nombre. Las
+Reemplaza los arreglos completos (máx. 300 elementos cada uno). De cada
+trabajadora solo toma el `nombre`; conserva su `pin_hash` y sus `permisos` si
+sigue en la lista con el mismo nombre. Las
 trabajadoras que salen de la lista pierden también sus credenciales de Face ID.
 
 #### `POST /api/trabajador-pin`
@@ -191,6 +192,7 @@ trabajadoras que salen de la lista pierden también sus credenciales de Face ID.
 |---|---|
 | `{nombre, pin}` | Da o cambia el PIN. `409` si ya lo usa otra persona en cualquier salón (dueña con hash nuevo o legacy, o trabajadora) |
 | `{nombre, remove:true}` | Quita el acceso (conserva el nombre) y borra sus credenciales de Face ID |
+| `{nombre, permisos:{telefonos:true\|false}}` | Prende o apaga un permiso. Responde `{success, permisos}` con todos sus permisos. `400` si trae una llave desconocida o un valor que no es booleano |
 
 `404` si la trabajadora no está guardada en el catálogo todavía.
 

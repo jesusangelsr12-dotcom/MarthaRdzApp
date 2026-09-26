@@ -24,6 +24,9 @@ let allClientas = [];
 let notasFijas = {};
 let telefonos = {};      // { claveNormalizada: telefono } para prellenar el campo
 let telefonoOriginal = ''; // el que ya traía la clienta al elegirla
+// La dueña siempre ve el campo de teléfono; una trabajadora solo si tiene
+// el permiso de teléfonos (lo confirma el servidor al cargar las clientas).
+let permisoTelefonos = false;
 
 /** Agenda manda la fecha elegida como "#agendar?fecha=2026-10-02" (en vez
  * de una variable compartida entre módulos) — así siempre se lee fresca
@@ -119,6 +122,7 @@ export function init(s) {
   notasFijas = {};
   telefonos = {};
   telefonoOriginal = '';
+  permisoTelefonos = !isTrabajadora();
 
   document.getElementById('agendar-back').addEventListener('click', goBack);
   renderStep();
@@ -129,6 +133,9 @@ export function init(s) {
         allClientas = res.clientas || [];
         notasFijas = res.notas_fijas || {};
         telefonos = res.telefonos || {};
+        permisoTelefonos = res.permiso_telefonos !== false;
+        // Mostrar el campo sin re-renderizar (no se pierde lo ya escrito)
+        document.getElementById('bloque-telefono-clienta')?.classList.toggle('hidden', !permisoTelefonos);
       })
       .catch(() => { /* silencioso */ });
   }
@@ -175,11 +182,11 @@ function renderStepClienta(el) {
         <div class="clienta-suggestions hidden" id="clienta-suggestions"></div>
       </div>
 
-      ${isTrabajadora() ? '' : `
-        <label class="input-label mt-16">Teléfono (opcional)</label>
+      <div id="bloque-telefono-clienta" class="${permisoTelefonos ? '' : 'hidden'}">
+        <label class="input-label mt-16" for="input-telefono-clienta">Teléfono (opcional)</label>
         <input type="tel" class="input" id="input-telefono-clienta" inputmode="numeric" maxlength="10"
           placeholder="10 dígitos" value="${escapeHTML(agenda.telefono)}" autocomplete="off">
-      `}
+      </div>
 
       <label class="input-label mt-24">Fecha de la cita</label>
       <input type="date" class="date-picker-input" id="input-fecha" min="${todayISO()}"
@@ -468,7 +475,7 @@ async function submitAgendarCita() {
     // Guardar el teléfono es aparte porque vive en `clientas`, no en la
     // cita agendada — si falla, no debe tumbar el agendado (que ya se
     // guardó bien). Solo se manda si cambió de lo que ya traía la clienta.
-    if (agenda.telefono && agenda.telefono !== telefonoOriginal) {
+    if (permisoTelefonos && agenda.telefono && agenda.telefono !== telefonoOriginal) {
       try {
         await saveNotaFija(session.sheet_id, agenda.clienta, notasFijas[normalizeNombre(agenda.clienta)] || '', agenda.telefono);
       } catch {

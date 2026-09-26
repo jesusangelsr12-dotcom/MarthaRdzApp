@@ -1,6 +1,6 @@
 # Pruebas · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-09-26 · **Estado actual:** 38 pruebas, 38 en verde (`npm test`)
+**Última revisión:** 2026-09-26 · **Estado actual:** 43 pruebas, 43 en verde (`npm test`)
 
 ## 1. Cómo correrlas
 
@@ -21,7 +21,7 @@ El ayudante vive en `test/helpers/db.js`.
 | `test/auth.test.js` | Crear y verificar tokens, rol de trabajadora, tokens legacy sin `role`, firma alterada, token de otro salón, expiración, entradas basura, hash de PIN con pepper | Un error aquí abre el acceso a todos los salones |
 | `test/validate.test.js` | Fechas, números con rango, strings, métodos de pago, horas, estados de agenda, PIN, teléfono | Es la única barrera contra datos con forma inválida |
 | `test/normalize-parity.test.js` | Que `normalizeNombre` dé lo mismo en frontend y backend | Si difieren, una misma clienta se parte en dos |
-| `test/api.test.js` | Handlers contra Postgres real: cobro atómico y sin duplicar, cita cobrada que no se borra, anticipo con fecha de México, pendientes pasadas, PIN repetido, Face ID revocado, limpieza del cron, login por rol, permisos de trabajadora | Aquí vive el dinero y los permisos. Cubre los cabos sueltos C1 a C14 que son de backend |
+| `test/api.test.js` | Handlers contra Postgres real: cobro atómico y sin duplicar, cita cobrada que no se borra, anticipo con fecha de México, pendientes pasadas, PIN repetido, Face ID revocado, limpieza del cron, login por rol, permisos de trabajadora (incluido el de teléfonos: sin permiso, con permiso sin tocar la nota fija, apagarlo al momento, validación y que guardar el catálogo lo conserve) | Aquí vive el dinero y los permisos. Cubre los cabos sueltos C1 a C14 que son de backend |
 
 ## 3. Qué NO se prueba todavía
 

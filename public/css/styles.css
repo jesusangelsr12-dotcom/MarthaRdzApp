@@ -720,7 +720,9 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
   font-size: 0.9rem;
   font-weight: 500;
   box-shadow: var(--shadow-lg);
-  z-index: 1000;
+  /* Encima de modales y menús (1001): si no, un aviso que sale con un menú
+     abierto (ej. "El teléfono debe tener 10 dígitos") quedaba tapado. */
+  z-index: 1002;
   transition: opacity var(--transition), transform var(--transition);
   /* Sin max-content, al estar anclado en left: 50% solo "ve" la mitad de
      la pantalla y parte un aviso corto en varios renglones. */
@@ -1299,6 +1301,100 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 .config-worker-actions {
   display: flex;
   gap: 18px;
+}
+
+/* --- Permisos de una trabajadora (Configuración) --- */
+.config-permisos {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-gray-200);
+}
+
+.config-permisos-titulo {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-gray-500);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.config-permiso {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  cursor: pointer;
+}
+
+.config-permiso-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.config-permiso-nombre {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.config-permiso-detalle {
+  font-size: 0.8rem;
+  color: var(--color-gray-500);
+  line-height: 1.35;
+}
+
+/* Interruptor: apagado en Gris Plata con borde gris (3:1 contra el blanco,
+   lo que pide WCAG para controles), encendido en menta profundo. */
+.config-permiso-input {
+  appearance: none;
+  -webkit-appearance: none;
+  flex-shrink: 0;
+  position: relative;
+  width: 48px;
+  height: 28px;
+  margin: 0;
+  border-radius: var(--radius-full);
+  background: var(--color-gray-200);
+  box-shadow: inset 0 0 0 1.5px var(--color-gray-500);
+  cursor: pointer;
+  transition: background var(--transition), box-shadow var(--transition);
+}
+
+.config-permiso-input::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm), 0 0 0 1px var(--color-gray-300);
+  transition: transform var(--transition);
+}
+
+.config-permiso-input:checked {
+  background: var(--color-accent);
+  box-shadow: none;
+}
+
+.config-permiso-input:checked::after {
+  transform: translateX(20px);
+  box-shadow: var(--shadow-sm);
+}
+
+.config-permiso-input:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.config-permiso-input:disabled {
+  opacity: 0.6;
+  cursor: progress;
 }
 
 /* --- Face ID / Touch ID: lista de dispositivos --- */

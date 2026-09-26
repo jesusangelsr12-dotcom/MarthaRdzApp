@@ -15,15 +15,17 @@
  * filtre en el navegador sin round-trips por tecla.
  *
  * Una trabajadora solo puede usar el modo lista (nombres, para el
- * autocomplete al registrar una cita) y sin `notas_fijas`/`telefonos` — ahí
- * viven alergias/preferencias y el celular, "detalle de clientas" fuera de
- * su alcance por completo (no ve el teléfono de ninguna clienta ya
- * registrada, ni el de una nueva). El modo historial y el POST (editar
- * nota fija/teléfono) son solo de la dueña.
+ * autocomplete al registrar una cita) y nunca recibe `notas_fijas` — ahí
+ * viven alergias/preferencias. El teléfono tampoco, salvo que la dueña le
+ * haya dado el permiso "telefonos" (Configuración): entonces recibe
+ * `telefonos` y puede guardar el teléfono de una clienta con el POST, sin
+ * tocar su nota fija. El permiso se lee de la base en cada llamada.
+ * `permiso_telefonos` en la respuesta le dice al frontend qué mostrar.
+ * El modo historial es solo de la dueña.
  */
 
 const { getSql } = require('../lib/db');
-const { requireSession, getSessionRole } = require('../lib/auth');
+const { requireSession, getSessionRole, permisosDeTrabajadora } = require('../lib/auth');
 const { isNonEmptyString, isTelefonoStr } = require('../lib/validate');
 const { fechaMexico } = require('../lib/fecha');
 
@@ -45,10 +47,11 @@ function normalizeNombre(nombre) {
 module.exports = async function handler(req, res) {
   const salonId = requireSession(req, res);
   if (!salonId) return;
-  const { role } = getSessionRole(req);
+  const { role, worker } = getSessionRole(req);
 
   try {
     const sql = getSql();
+    const permisoTelefonos = role !== 'trabajadora' || (await permisosDeTrabajadora(sql, salonId, worker)).telefonos;
 
     if (req.method === 'GET') {
       const { historial } = req.query;
@@ -175,15 +178,17 @@ module.exports = async function handler(req, res) {
 
       return res.status(200).json({
         clientas: [...names].sort(),
-        // Alergias/preferencias/teléfono son "detalle de clientas" — fuera
-        // del alcance de una trabajadora, aunque el nombre sí lo necesite.
+        // Alergias/preferencias son "detalle de clientas" — fuera del
+        // alcance de una trabajadora, aunque el nombre sí lo necesite. El
+        // teléfono solo si la dueña le dio ese permiso.
         notas_fijas: role === 'trabajadora' ? {} : notas_fijas,
-        telefonos: role === 'trabajadora' ? {} : telefonos,
+        telefonos: permisoTelefonos ? telefonos : {},
+        permiso_telefonos: permisoTelefonos,
       });
     }
 
     if (req.method === 'POST') {
-      if (role === 'trabajadora') {
+      if (!permisoTelefonos) {
         return res.status(403).json({ error: 'Esta cuenta no tiene acceso a esto' });
       }
 
@@ -191,6 +196,23 @@ module.exports = async function handler(req, res) {
 
       if (!isNonEmptyString(clienta, 200)) {
         return res.status(400).json({ error: 'Faltan datos requeridos' });
+      }
+
+      // Trabajadora con permiso de teléfonos: guarda SOLO el teléfono. La
+      // nota fija (alergias) no la ve, así que tampoco la puede cambiar ni
+      // borrar; el nombre de la clienta se queda como lo dejó la dueña.
+      if (role === 'trabajadora') {
+        if (!isTelefonoStr(telefono) || telefono === '') {
+          return res.status(400).json({ error: 'Teléfono inválido — deben ser 10 dígitos' });
+        }
+        const nombre = String(clienta).trim();
+        await sql`
+          insert into clientas (salon_id, clienta, clienta_normalizada, nota_fija, telefono, actualizado)
+          values (${salonId}, ${nombre}, ${normalizeNombre(nombre)}, '', ${telefono}, ${fechaMexico()})
+          on conflict (salon_id, clienta_normalizada)
+          do update set telefono = excluded.telefono, actualizado = excluded.actualizado
+        `;
+        return res.status(200).json({ success: true });
       }
       // Vaciar la nota es válido
       if (typeof nota_fija !== 'string' || nota_fija.length > 2000) {

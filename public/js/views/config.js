@@ -7,7 +7,7 @@
  * detrás; si falla, se vuelve a cargar lo que de verdad quedó en el servidor.
  */
 
-import { getConfig, updateConfig, setTrabajadorPin, getWebauthnRegisterOptions, verifyWebauthnRegister, getWebauthnDevices, deleteWebauthnDevice } from '../api.js';
+import { getConfig, updateConfig, setTrabajadorPin, setPermisosTrabajadora, getWebauthnRegisterOptions, verifyWebauthnRegister, getWebauthnDevices, deleteWebauthnDevice } from '../api.js';
 import { showToast, showLoader, hideLoader, escapeHTML, loadingHTML } from '../utils.js';
 import { getSession, saveSession } from '../auth.js';
 import { navigateTo } from '../app.js';
@@ -18,7 +18,7 @@ import { versionAppHTML, pintarVersionApp, actualizarApp } from '../app-version.
 let session = null;
 let servicios = [];
 let productos = [];
-let trabajadoras = []; // [{nombre, tiene_acceso}]  (el % se pone al registrar cada cita)
+let trabajadoras = []; // [{nombre, tiene_acceso, permisos}]  (el % se pone al registrar cada cita)
 let pinEditorIndex = -1; // índice de la trabajadora con el editor de PIN abierto, o -1
 let notifStatus = 'loading'; // 'loading' | 'subscribed' | 'unsubscribed' | 'unsupported'
 let configLoaded = false; // evita que loadNotifStatus() re-renderice sobre el loader inicial
@@ -78,6 +78,7 @@ export function init(s) {
   // solo clic dispararía el manejador varias veces, pisándose entre sí
   // (ej. abrir y cerrar el editor de PIN en el mismo clic).
   document.getElementById('config-content').addEventListener('click', handleContentClick);
+  document.getElementById('config-content').addEventListener('change', handleContentChange);
   document.getElementById('config-delete-backdrop').addEventListener('click', cerrarConfirmarEliminar);
   document.getElementById('config-delete-cancel').addEventListener('click', cerrarConfirmarEliminar);
   document.getElementById('config-delete-confirm').addEventListener('click', () => {
@@ -129,6 +130,7 @@ async function load() {
     trabajadoras = (data.trabajadoras || []).map((t) => ({
       nombre: t.nombre,
       tiene_acceso: !!t.tiene_acceso,
+      permisos: { telefonos: !!t.permisos?.telefonos },
     }));
 
     configLoaded = true;
@@ -183,6 +185,58 @@ function handleContentClick(e) {
   } else if (actionBtn.dataset.action === 'actualizar-app') {
     actualizarApp();
   }
+}
+
+/** Interruptores de permisos de una trabajadora (se guardan al momento). */
+function handleContentChange(e) {
+  const input = e.target.closest('.config-permiso-input');
+  if (!input) return;
+  cambiarPermiso(parseInt(input.dataset.index, 10), input.dataset.permiso, input.checked, input);
+}
+
+const PERMISOS = {
+  telefonos: {
+    titulo: 'Teléfonos de clientas',
+    detalle: 'Agregar teléfonos en la Agenda y confirmar citas por WhatsApp.',
+    si: (n) => `${n} ya puede usar los teléfonos de las clientas`,
+    no: (n) => `${n} ya no ve los teléfonos de las clientas`,
+  },
+};
+
+async function cambiarPermiso(index, permiso, activo, input) {
+  const t = trabajadoras[index];
+  if (!t || !PERMISOS[permiso]) return;
+  input.disabled = true;
+  try {
+    // Si se acaba de agregar, su guardado puede seguir en camino.
+    await colaGuardado;
+    const res = await setPermisosTrabajadora(session.sheet_id, t.nombre, { [permiso]: activo });
+    t.permisos = { telefonos: !!res.permisos?.telefonos };
+    showToast(activo ? PERMISOS[permiso].si(t.nombre) : PERMISOS[permiso].no(t.nombre), 'success', 2500);
+  } catch (error) {
+    input.checked = !activo;
+    showToast(error.message || 'No se pudo cambiar el permiso', 'error');
+  } finally {
+    input.disabled = false;
+  }
+}
+
+function renderPermisos(t, i) {
+  return `
+    <div class="config-permisos">
+      <span class="config-permisos-titulo">Puede usar</span>
+      ${Object.entries(PERMISOS).map(([clave, p]) => `
+        <label class="config-permiso" for="permiso-${clave}-${i}">
+          <span class="config-permiso-texto">
+            <span class="config-permiso-nombre">${p.titulo}</span>
+            <span class="config-permiso-detalle">${p.detalle}</span>
+          </span>
+          <input type="checkbox" role="switch" class="config-permiso-input" id="permiso-${clave}-${i}"
+            data-index="${i}" data-permiso="${clave}" ${t.permisos?.[clave] ? 'checked' : ''}>
+        </label>
+      `).join('')}
+    </div>
+  `;
 }
 
 function isIOS() {
@@ -430,6 +484,7 @@ function renderConfig() {
               <button class="btn-link" data-action="pin-toggle" data-index="${i}">${t.tiene_acceso ? 'Cambiar PIN' : 'Dar acceso a la app'}</button>
               ${t.tiene_acceso ? `<button class="btn-link" style="color: var(--color-error)" data-action="pin-remove" data-index="${i}">Quitar acceso</button>` : ''}
             </div>
+            ${renderPermisos(t, i)}
             <div class="config-worker-pin-editor hidden" id="pin-editor-${i}">
               <input type="text" class="input config-add-input" inputmode="numeric" maxlength="6"
                 placeholder="PIN de 6 dígitos" id="pin-input-${i}">
@@ -491,7 +546,7 @@ function renderConfig() {
     const name = inputWorker.value.trim();
     if (!name) { showToast('Ingresa el nombre', 'error'); return; }
     if (trabajadoras.some((t) => t.nombre === name)) { showToast('Esa trabajadora ya existe', 'error'); return; }
-    trabajadoras.push({ nombre: name, tiene_acceso: false });
+    trabajadoras.push({ nombre: name, tiene_acceso: false, permisos: { telefonos: false } });
     renderConfig();
     guardarCatalogo(`Se agregó a ${name}`);
   };

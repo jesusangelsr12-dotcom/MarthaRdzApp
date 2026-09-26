@@ -1,6 +1,6 @@
 # AppFlow · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-09-26 · **Versión de la app:** v48 · **Tablero interactivo:** [AppFlow.html](AppFlow.html) (arrastra, acerca y aleja como en Miro)
+**Última revisión:** 2026-09-26 · **Versión de la app:** v49 · **Tablero interactivo:** [AppFlow.html](AppFlow.html) (arrastra, acerca y aleja como en Miro)
 
 Este documento sigue cada acción desde que la persona toca algo hasta donde
 termina: qué pantalla la recibe, qué endpoint llama, qué tablas toca, qué ve
@@ -160,7 +160,7 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-  A["Agenda → + → Agendar cita<br/>o #agendar?fecha="] --> B[Clienta · teléfono 👑 · fecha · hora]
+  A["Agenda → + → Agendar cita<br/>o #agendar?fecha="] --> B[Clienta · teléfono 👑/permiso · fecha · hora]
   B --> C[Anticipo con teclado]
   C --> D{¿Anticipo > 0?}
   D -- Sí --> E[Método de pago del anticipo] --> F
@@ -171,13 +171,14 @@ flowchart TD
   J -- Sí --> K[(citas insert: item anticipo, fecha = hoy en México)]
   K --> K2[(citas_agendadas.deposito_cita_id)]
   J -- No --> L
-  K2 --> L{¿Teléfono cambió? 👑}
+  K2 --> L{¿Teléfono cambió? 👑/permiso}
   L -- Sí --> M[POST /api/clientas<br/>falla en silencio]
   L -- No --> N
   M --> N["Toast → #agenda"]
 ```
 
 - **Tablas:** `citas_agendadas`, `citas` (si hay anticipo), `clientas` (si cambió el teléfono). Las tres primeras en una sola sentencia.
+- **Teléfono:** lo ve la dueña, y una trabajadora solo si tiene el permiso "Teléfonos de clientas" (el servidor manda `permiso_telefonos`). Con permiso, la trabajadora también puede agregar el teléfono y "Confirmar por WhatsApp" desde el menú de una cita pendiente en la Agenda.
 - **Termina en:** Agenda con la cita nueva.
 - **Regla:** el servidor fecha el anticipo con `fechaMexico()` de `lib/fecha.js`, nunca con la fecha UTC ([C2](#c2), resuelto).
 
@@ -299,12 +300,14 @@ flowchart TD
   P2 -- No --> P3[409 'ya está en uso']
   P2 -- Sí --> F
   B --> Q[Quitar acceso] --> Q1[POST trabajador-pin remove] --> F
+  B --> R[Interruptor 'Teléfonos de clientas'] --> R1[POST trabajador-pin permisos] --> F
   Q1 --> WQ[(borra su webauthn_credentials)]
   E --> WE[(borra el Face ID de las trabajadoras eliminadas)]
 ```
 
 - **Sin botón "Guardar":** cada alta o baja se guarda sola. Los guardados van en fila y cada uno manda el catálogo completo, así dos cambios rápidos no se pisan.
 - **Trabajadora recién agregada:** darle PIN espera a que termine su guardado (antes necesitaba "Guardar Cambios" o daba 404).
+- **Permisos:** sección "Puede usar" en cada trabajadora. Se guardan al momento y el servidor los lee en cada llamada, así que valen sin que ella cierre sesión.
 - **Deshacer:** solo para servicios y productos. Quitar a una trabajadora le borra PIN y Face ID en el servidor, por eso no se ofrece.
 - **PIN libre:** se revisa contra dueñas (hash nuevo y legacy) y trabajadoras de todos los salones, excepto ella misma.
 - **Resueltos:** [C4](#c4) (guardar ya no alarga la sesión local), [C8](#c8) (quitar acceso corta también su Face ID).

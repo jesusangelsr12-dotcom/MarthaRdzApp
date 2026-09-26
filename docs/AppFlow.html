@@ -294,7 +294,7 @@
   <div class="ui card topbar">
     <button class="icon-btn" id="toggle-panel" aria-label="Mostrar u ocultar el panel" aria-expanded="true" title="Panel (P)">☰</button>
     <span class="name">App<span>Flow</span> · Martha Rdz</span>
-    <span class="ver">v48 · 2026-09-26</span>
+    <span class="ver">v49 · 2026-09-26</span>
   </div>
 
   <aside class="ui card panel" id="panel" aria-label="Navegación del tablero">
@@ -480,7 +480,7 @@ const FLOWS = [
     steps: [
       { k: 'screen', t: 'Agenda → + → Agendar cita', d: 'Abre en el día elegido en Mes, o en hoy' },
       { k: 'input', t: 'Clienta, fecha y hora', d: 'Hora en 12 h, minutos de 10 en 10' },
-      { k: 'input', t: 'Teléfono (opcional)', r: 'duena' },
+      { k: 'input', t: 'Teléfono (opcional)', d: 'Dueña, o trabajadora con permiso de teléfonos' },
       { k: 'input', t: 'Anticipo', d: '$0 = sin anticipo' },
       { k: 'decision', t: '¿Anticipo mayor a $0?', b: [
         { c: 'Sí', s: [{ k: 'input', t: 'Método de pago del anticipo' }] },
@@ -493,8 +493,8 @@ const FLOWS = [
         { c: 'Sí', s: [{ k: 'db', t: 'citas · item anticipo', d: 'Fecha = hoy en México (lib/fecha.js)', i: 'C2' }] },
         { c: 'No', s: [] },
       ] },
-      { k: 'decision', t: '¿Cambió el teléfono?', r: 'duena', b: [
-        { c: 'Sí', s: [{ k: 'api', t: 'POST /api/clientas', d: 'Si falla, la cita igual queda', r: 'duena' }] },
+      { k: 'decision', t: '¿Cambió el teléfono?', d: 'Solo si puede ver teléfonos', b: [
+        { c: 'Sí', s: [{ k: 'api', t: 'POST /api/clientas', d: 'Si falla, la cita igual queda. Trabajadora: solo el teléfono' }] },
         { c: 'No', s: [] },
       ] },
       { k: 'ok', t: 'Toast → Agenda' },
@@ -632,6 +632,12 @@ const FLOWS = [
             { c: 'No', s: [{ k: 'err', t: '409 · Ya está en uso' }] },
             { c: 'Sí', s: [{ k: 'ok', t: '“Tiene acceso”' }] },
           ] },
+        ] },
+        { c: 'Permisos', s: [
+          { k: 'input', t: 'Interruptor “Teléfonos de clientas”', d: 'Apagado por default' },
+          { k: 'api', t: 'POST /api/trabajador-pin', d: 'permisos: { telefonos }' },
+          { k: 'db', t: 'salones.trabajadoras[].permisos', d: 'Se lee en cada llamada: vale al momento' },
+          { k: 'ok', t: '“Ya puede / ya no ve los teléfonos”' },
         ] },
         { c: 'Quitar acceso', s: [
           { k: 'api', t: 'POST /api/trabajador-pin', d: 'remove: true' },

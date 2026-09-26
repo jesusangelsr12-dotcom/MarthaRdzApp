@@ -35,6 +35,10 @@ let ausencias = []; // vacaciones/días libres (dueña o una trabajadora)
 let mesSeleccionado = ''; // YYYY-MM (vista "Mes")
 let diaSeleccionado = ''; // YYYY-MM-DD (vista "Mes")
 let telefonosPorClienta = {}; // { "clave normalizada": "4421234567" }
+// ¿Esta sesión puede ver/agregar teléfonos y confirmar por WhatsApp? La
+// dueña siempre; una trabajadora solo si la dueña le dio el permiso en
+// Configuración. Lo dice el servidor (permiso_telefonos) en cada carga.
+let permisoTelefonos = false;
 let sinCerrar = []; // pendientes de días pasados (solo dueña)
 
 const DIAS_RANGO_AGENDA = 60;
@@ -134,12 +138,12 @@ export function init(s) {
   citasAgendadas = [];
   ausencias = [];
   telefonosPorClienta = {};
+  permisoTelefonos = !isTrabajadora();
   sinCerrar = [];
 
-  // Teléfonos para "Confirmar por WhatsApp" — son "detalle de clienta",
-  // fuera del alcance de una trabajadora (el backend igual los omite para
-  // ella, esto solo evita la llamada de más).
-  if (!isTrabajadora()) loadTelefonos();
+  // Teléfonos para "Confirmar por WhatsApp" — son "detalle de clienta". A
+  // una trabajadora el servidor solo se los manda si tiene el permiso.
+  loadTelefonos();
 
   document.getElementById('agenda-back').addEventListener('click', () => navigateTo('home'));
   document.getElementById('btn-nueva-cita-agendada').addEventListener('click', () => {
@@ -172,6 +176,7 @@ async function loadTelefonos() {
   try {
     const res = await getClientas(session.sheet_id);
     telefonosPorClienta = res.telefonos || {};
+    permisoTelefonos = res.permiso_telefonos !== false;
   } catch {
     /* silencioso */
   }
@@ -585,8 +590,12 @@ function openActionSheet(cita) {
 
   // Una trabajadora solo puede ver la información — reagendar/editar nota/
   // no asistió/cancelar/eliminar son de la dueña (ya bloqueadas en el
-  // backend; aquí es para no mostrarle botones que le van a fallar).
+  // backend; aquí es para no mostrarle botones que le van a fallar). Si la
+  // dueña le dio el permiso de teléfonos, también puede agregar el teléfono
+  // y confirmar por WhatsApp una cita pendiente.
   if (isTrabajadora()) {
+    const telefonoT = permisoTelefonos ? telefonosPorClienta[normalizeNombre(cita.clienta)] || '' : '';
+    const conTelefonos = permisoTelefonos && cita.estado === 'pendiente';
     content.innerHTML = `
       <div class="action-sheet-header">
         <span class="action-sheet-clienta">${escapeHTML(cita.clienta)}</span>
@@ -594,10 +603,17 @@ function openActionSheet(cita) {
       </div>
       ${cita.anticipo > 0 ? `<p class="agenda-row-anticipo" style="margin: 0 0 8px">Anticipo ${formatMXN(cita.anticipo)}</p>` : ''}
       ${cita.nota ? `<p class="empty-state-text" style="padding: 0 0 8px; text-align: left">${escapeHTML(cita.nota)}</p>` : ''}
+      ${conTelefonos && telefonoT ? '<button class="action-sheet-btn action-sheet-btn--whatsapp" id="accion-confirmar-whatsapp">Confirmar por WhatsApp</button>' : ''}
+      ${conTelefonos ? `<button class="action-sheet-btn" id="accion-telefono">${telefonoT ? `📱 Cambiar teléfono · ${escapeHTML(formatTelefono(telefonoT))}` : '📱 Agregar teléfono para WhatsApp'}</button>` : ''}
       <button class="btn btn-outline mt-16" id="accion-cerrar">Cerrar</button>
     `;
     sheet.classList.remove('hidden');
     document.getElementById('accion-cerrar').addEventListener('click', closeActionSheet);
+    document.getElementById('accion-confirmar-whatsapp')?.addEventListener('click', () => {
+      abrirWhatsApp(telefonoT, buildMensajeConfirmacion(cita));
+      closeActionSheet();
+    });
+    document.getElementById('accion-telefono')?.addEventListener('click', () => abrirEditorTelefono(cita, telefonoT));
     return;
   }
 
@@ -809,7 +825,9 @@ function abrirEditorTelefono(cita, telefonoActual) {
       showLoader();
       // El POST de clientas guarda nota fija y teléfono juntos: se lee la
       // nota fija vigente justo antes para no borrarla al guardar el
-      // teléfono (la de memoria podría no haber cargado todavía).
+      // teléfono (la de memoria podría no haber cargado todavía). Para una
+      // trabajadora la nota llega vacía, pero el servidor solo le guarda el
+      // teléfono y nunca toca la nota.
       const res = await getClientas(session.sheet_id);
       const notaFija = (res.notas_fijas || {})[key] || '';
       await saveNotaFija(session.sheet_id, cita.clienta, notaFija, telefono);

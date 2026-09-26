@@ -4,13 +4,15 @@
  * GET  → { salon_nombre, logo_url, servicios, productos, trabajadoras }
  * POST { servicios, productos, trabajadoras } → { success }
  *
- * trabajadoras JSON almacenado: [{"nombre":"Ana","pin_hash":"..."}, ...]
- * (pin_hash es opcional — solo lo tiene quien tenga acceso a la app como
- * trabajadora, asignado desde /api/trabajador-pin, NUNCA desde aquí). GET
- * nunca devuelve el hash: cada trabajadora sale como {nombre, tiene_acceso}.
+ * trabajadoras JSON almacenado:
+ *   [{"nombre":"Ana","pin_hash":"...","permisos":{"telefonos":true}}, ...]
+ * (pin_hash y permisos son opcionales y se asignan desde
+ * /api/trabajador-pin, NUNCA desde aquí). GET nunca devuelve el hash: cada
+ * trabajadora sale como {nombre, tiene_acceso, permisos}.
  * POST reemplaza el arreglo completo como siempre, pero conserva el
- * pin_hash existente de cada quien por nombre — así editar servicios/
- * productos no le borra el acceso a nadie por accidente.
+ * pin_hash y los permisos de cada quien por nombre — así editar servicios/
+ * productos no le borra el acceso a nadie por accidente. Del cliente solo
+ * se toma el nombre.
  *
  * Una trabajadora que sale de la lista pierde también sus dispositivos con
  * Face ID/Touch ID (si no, podía seguir entrando con biometría).
@@ -76,14 +78,13 @@ module.exports = async function handler(req, res) {
       // guardar el catálogo por cualquier otro motivo (agregar un servicio,
       // por ejemplo) le borraría el acceso a quien ya lo tenía.
       const [actual] = await sql`select trabajadoras from salones where id = ${salonId}`;
-      const pinesActuales = new Map(
-        (actual?.trabajadoras || [])
-          .filter((t) => t.pin_hash)
-          .map((t) => [t.nombre, t.pin_hash])
-      );
+      const actuales = new Map((actual?.trabajadoras || []).map((t) => [t.nombre, t]));
       const trabajadorasConAcceso = (trabajadoras || []).map((t) => {
-        const pinHash = pinesActuales.get(t.nombre);
-        return pinHash ? { ...t, pin_hash: pinHash } : t;
+        const previa = actuales.get(t.nombre);
+        const fila = { nombre: t.nombre };
+        if (previa?.pin_hash) fila.pin_hash = previa.pin_hash;
+        if (previa?.permisos) fila.permisos = previa.permisos;
+        return fila;
       });
 
       await sql`

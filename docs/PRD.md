@@ -1,6 +1,6 @@
 # PRD · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-09-26 · **Versión de la app:** v48 (`CACHE_NAME` en `public/sw.js`)
+**Última revisión:** 2026-09-26 · **Versión de la app:** v49 (`CACHE_NAME` en `public/sw.js`)
 
 ## 1. El problema
 
@@ -52,7 +52,8 @@ La regla viva está en [CLAUDE.md](../CLAUDE.md). Resumen:
 | Agendar cita (con anticipo) | ✅ | ✅ |
 | Registrar / cobrar cita | ✅ | ✅ |
 | Asignar comisión | A cualquier trabajadora | Solo a sí misma |
-| Ver teléfono y nota fija de clientas | ✅ | ❌ |
+| Ver y agregar teléfono de clientas, confirmar por WhatsApp | ✅ | Solo con permiso (apagado por default) |
+| Ver nota fija (alergias) de clientas | ✅ | ❌ |
 | Reagendar, cambiar estado, editar nota o eliminar cita agendada | ✅ | ❌ |
 | Marcar vacaciones / días libres | ✅ | ❌ |
 | Registrar gasto | ✅ | ❌ |
@@ -63,6 +64,14 @@ La regla viva está en [CLAUDE.md](../CLAUDE.md). Resumen:
 | "Actualizar app" | En Configuración | En su inicio |
 
 Pantallas de la trabajadora: `login`, `home`, `agenda`, `agendar`, `cita`.
+
+**Permisos por trabajadora.** En Configuración, cada trabajadora tiene una
+sección "Puede usar" con interruptores que la dueña prende o apaga (se
+guardan al momento y valen desde la siguiente acción, sin cerrar sesión).
+Hoy hay uno: **Teléfonos de clientas** (apagado por default). Con él, la
+trabajadora ve y agrega el teléfono de la clienta al agendar y en el menú de
+una cita pendiente, y puede "Confirmar por WhatsApp". Nunca ve ni cambia la
+nota fija.
 
 ## 5. Funcionalidades
 
@@ -169,7 +178,8 @@ cuentan como ingreso, pero no como cita.
 ### F11 · Configuración (solo dueña)
 
 Catálogo de servicios y productos (secciones colapsables), trabajadoras,
-dar / cambiar / quitar PIN de trabajadora, notificaciones push, Face ID /
+dar / cambiar / quitar PIN de trabajadora, sus permisos ("Puede usar":
+Teléfonos de clientas), notificaciones push, Face ID /
 Touch ID por dispositivo, versión instalada y "Actualizar app". No hay botón
 "Guardar": agregar o quitar un servicio, producto o trabajadora se guarda al
 momento. Quitar pide confirmación; un servicio o producto quitado se puede

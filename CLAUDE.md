@@ -8,8 +8,16 @@ confidencial, se le aplica igual que a la dueña.
 
 Lo que una trabajadora **nunca** debe ver ni hacer:
 
-- Detalle de clientas: teléfono, nota fija (alergias/preferencias) e historial
-  (`api/clientas.js` ya se los omite).
+- Detalle de clientas: nota fija (alergias/preferencias) e historial
+  (`api/clientas.js` ya se los omite). El teléfono tampoco, **salvo** que la
+  dueña le prenda el permiso "Teléfonos de clientas" en Configuración: ahí
+  puede ver y agregar teléfonos en la Agenda y en Agendar, y confirmar por
+  WhatsApp. El servidor lo revisa en cada llamada (`permisosDeTrabajadora`
+  en `lib/auth.js`) y aun con permiso nunca le deja tocar la nota fija.
+
+Permisos extra de una trabajadora: viven en `salones.trabajadoras[].permisos`,
+todos apagados por default. Uno nuevo se agrega a `PERMISOS_TRABAJADORA`
+(`lib/auth.js`) y a `PERMISOS` (`public/js/views/config.js`).
 - Dinero agregado del salón: resumen, dashboard, registros, gastos y
   comisiones.
 - Configuración (servicios, productos, trabajadoras, PINs).

@@ -154,7 +154,8 @@ evita el zoom por doble tap al teclear el PIN.
 | Botón de acción principal en hoja | `.action-sheet-btn--cobrar` | Menta claro con texto menta profundo. "Registrar cobro" |
 | Nota en hoja de acciones | `.multi-select-hint.action-sheet-nota` | Explica por qué falta una acción (ej. cita ya cobrada) |
 | Fila con fecha | `.agenda-row-fecha` | Fecha corta bajo el nombre, en "Sin cerrar" |
-| Toast | `#toast`, `.toast-success`, `.toast-error`, `.toast-action` | Abajo al centro, del ancho de su texto (`max-content`, tope de pantalla − 40 px). 3 s (5 s si trae "Deshacer") |
+| Toast | `#toast`, `.toast-success`, `.toast-error`, `.toast-action` | Abajo al centro, del ancho de su texto (`max-content`, tope de pantalla − 40 px). 3 s (5 s si trae "Deshacer"). `z-index` 1002: encima de modales y menús |
+| Interruptor | `.config-permiso` + `input.config-permiso-input` (`role="switch"`) | Permisos de una trabajadora. Apagado: Gris Plata con borde gris 500 (3:1). Encendido: `--color-accent`. Se guarda al tocarlo |
 | Loader global | `#loader` | Bloquea la pantalla mientras hay una llamada |
 | Carga en línea | `loadingHTML(texto)` | Spinner chico + texto, no bloquea |
 | Estado vacío | `.empty-state` + emoji + texto | Siempre con salida si aplica ("Agendar cita") |
