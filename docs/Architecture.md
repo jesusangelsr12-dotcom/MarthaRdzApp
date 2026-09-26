@@ -119,7 +119,7 @@ Otras llaves: `jr_install_banner_dismissed`, `jr_biometria_activa`, `jr_biometri
 
 Flujo de actualización:
 
-1. Un deploy sube `CACHE_NAME` (hoy `jr-salones-v47`).
+1. Un deploy sube `CACHE_NAME` (hoy `jr-salones-v48`).
 2. Al volver la app al frente (`visibilitychange`), `registration.update()` baja el SW nuevo.
 3. El SW nuevo hace `skipWaiting()` + `clients.claim()` y borra cachés viejos.
 4. `app.js` marca `actualizacionPendiente` y recarga en el siguiente cambio de hash.

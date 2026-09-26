@@ -722,6 +722,9 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
   box-shadow: var(--shadow-lg);
   z-index: 1000;
   transition: opacity var(--transition), transform var(--transition);
+  /* Sin max-content, al estar anclado en left: 50% solo "ve" la mitad de
+     la pantalla y parte un aviso corto en varios renglones. */
+  width: max-content;
   max-width: calc(100vw - 40px);
   text-align: center;
   display: flex;
@@ -745,6 +748,15 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 
 .toast-action:hover {
   background: rgba(255, 255, 255, 0.28);
+}
+
+/* iPhone SE y similares: menos relleno para que un aviso con "Deshacer"
+   quepa en un renglón. */
+@media (max-width: 360px) {
+  .toast {
+    padding: 12px 16px;
+    gap: 8px;
+  }
 }
 
 .toast.hidden {
@@ -1212,6 +1224,13 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 .config-service-delete:active {
   color: var(--color-error);
   background: var(--color-error-light);
+}
+
+/* Configuración se guarda sola (sin botón "Guardar"): este texto lo dice. */
+.config-autosave-hint {
+  font-size: 0.82rem;
+  color: var(--color-gray-500);
+  text-align: center;
 }
 
 .config-add-row {

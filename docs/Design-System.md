@@ -107,7 +107,7 @@ Clases utilitarias: `.mt-8`, `.mt-16`, `.mt-24`, `.mt-32`, `.mb-16`, `.mb-24`,
 | `--radius-full` | 9999 px | Toast, badges, puntos |
 | `--shadow-sm` | `0 1px 4px rgba(23,20,23,.05)` | Tarjetas en reposo |
 | `--shadow-md` | `0 4px 16px rgba(23,20,23,.07)` | Tarjeta seleccionada |
-| `--shadow-lg` | `0 8px 32px rgba(23,20,23,.10)` | Toast, modales |
+| `--shadow-lg` | `0 8px 32px rgba(17,17,17,.10)` | Toast, modales |
 
 ## 5. Movimiento
 
@@ -154,7 +154,7 @@ evita el zoom por doble tap al teclear el PIN.
 | Botón de acción principal en hoja | `.action-sheet-btn--cobrar` | Menta claro con texto menta profundo. "Registrar cobro" |
 | Nota en hoja de acciones | `.multi-select-hint.action-sheet-nota` | Explica por qué falta una acción (ej. cita ya cobrada) |
 | Fila con fecha | `.agenda-row-fecha` | Fecha corta bajo el nombre, en "Sin cerrar" |
-| Toast | `#toast`, `.toast-success`, `.toast-error`, `.toast-action` | Abajo al centro. 3 s (5 s si trae "Deshacer") |
+| Toast | `#toast`, `.toast-success`, `.toast-error`, `.toast-action` | Abajo al centro, del ancho de su texto (`max-content`, tope de pantalla − 40 px). 3 s (5 s si trae "Deshacer") |
 | Loader global | `#loader` | Bloquea la pantalla mientras hay una llamada |
 | Carga en línea | `loadingHTML(texto)` | Spinner chico + texto, no bloquea |
 | Estado vacío | `.empty-state` + emoji + texto | Siempre con salida si aplica ("Agendar cita") |
@@ -176,6 +176,7 @@ evita el zoom por doble tap al teclear el PIN.
 **Feedback**
 - Botón de confirmar se desactiva al tocarlo (evita el doble registro).
 - Éxito: toast verde con check y regreso a la pantalla anterior.
+- **Pantallas de ajustes se guardan solas** (Configuración): sin botón "Guardar". Cada cambio se guarda al momento, avisa con un toast corto y, si falla, recarga lo que de verdad está guardado. El texto "Los cambios se guardan solos" (`.config-autosave-hint`) lo dice al final de la pantalla.
 - Error: toast rojo con un mensaje entendible. Nunca un stack ni un código.
 - Carga fallida de una pantalla: mensaje + botón "Reintentar".
 - Cargas secundarias (autocompletado, teléfonos) fallan en silencio; la pantalla sigue funcionando.

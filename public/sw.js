@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jr-salones-v47';
+const CACHE_NAME = 'jr-salones-v48';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

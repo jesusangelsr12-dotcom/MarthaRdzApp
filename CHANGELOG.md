@@ -13,6 +13,19 @@ Secciones: **Agregado** · **Cambiado** · **Corregido** · **Seguridad** · **B
 
 ## [Sin publicar]
 
+## v48 · 2026-09-26
+
+### Cambiado
+- Configuración se guarda sola: ya no existe el botón "Guardar Cambios". Agregar o quitar un servicio, producto o trabajadora se guarda al momento, con el aviso "Se agregó…" o "Se eliminó…".
+- Quitar un servicio o producto ofrece "Deshacer" en el aviso. Quitar a una trabajadora sigue pidiendo confirmación y avisa que pierde su acceso y su Face ID.
+- A una trabajadora recién agregada se le puede dar PIN de inmediato.
+
+### Corregido
+- Los avisos con botón (ej. "Deshacer") ya no se parten en varios renglones: toman el ancho de su texto.
+
+### Docs
+- PRD, AppFlow (F11 en el .md y el tablero) y Design System con el guardado automático.
+
 ## v47 · 2026-09-26
 
 La app se separa como **Martha Rdz Hair Artist**, con su propio repositorio y su propia base de datos de Neon.

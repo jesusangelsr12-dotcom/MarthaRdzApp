@@ -294,7 +294,7 @@
   <div class="ui card topbar">
     <button class="icon-btn" id="toggle-panel" aria-label="Mostrar u ocultar el panel" aria-expanded="true" title="Panel (P)">☰</button>
     <span class="name">App<span>Flow</span> · Martha Rdz</span>
-    <span class="ver">v47 · 2026-09-26</span>
+    <span class="ver">v48 · 2026-09-26</span>
   </div>
 
   <aside class="ui card panel" id="panel" aria-label="Navegación del tablero">
@@ -614,14 +614,19 @@ const FLOWS = [
       { k: 'api', t: 'GET /api/config', d: 'Siempre fresco del servidor' },
       { k: 'decision', t: '¿Qué hace?', b: [
         { c: 'Catálogo', s: [
-          { k: 'input', t: 'Agrega o quita', d: 'Quitar pide confirmación' },
-          { k: 'api', t: 'POST /api/config', d: 'Conserva pin_hash por nombre' },
-          { k: 'db', t: 'salones + webauthn_credentials', d: 'Borra el Face ID de las trabajadoras eliminadas', i: 'C8' },
-          { k: 'sys', t: 'Actualiza la sesión local', d: 'Conserva la expiración del token', i: 'C4' },
-          { k: 'ok', t: 'Inicio' },
+          { k: 'input', t: 'Agrega o quita', d: 'Quitar pide confirmación · sin botón Guardar' },
+          { k: 'api', t: 'POST /api/config', d: 'Al momento, en fila · conserva pin_hash por nombre' },
+          { k: 'decision', t: '¿Se guardó?', b: [
+            { c: 'No', s: [{ k: 'err', t: 'Aviso + recarga del servidor', d: 'No queda en pantalla lo que no se guardó' }] },
+            { c: 'Sí', s: [
+              { k: 'db', t: 'salones + webauthn_credentials', d: 'Borra el Face ID de las trabajadoras eliminadas', i: 'C8' },
+              { k: 'sys', t: 'Actualiza la sesión local', d: 'Conserva la expiración del token', i: 'C4' },
+              { k: 'ok', t: '“Se agregó / Se eliminó”', d: 'Servicio o producto: Deshacer' },
+            ] },
+          ] },
         ] },
         { c: 'PIN de trabajadora', s: [
-          { k: 'input', t: 'PIN de 6 dígitos', d: 'Ella debe estar guardada antes' },
+          { k: 'input', t: 'PIN de 6 dígitos', d: 'Espera a que termine su guardado' },
           { k: 'api', t: 'POST /api/trabajador-pin' },
           { k: 'decision', t: '¿PIN libre en todo el sistema?', d: 'Dueñas (nuevo y legacy) y trabajadoras, menos ella', i: 'C6', b: [
             { c: 'No', s: [{ k: 'err', t: '409 · Ya está en uso' }] },

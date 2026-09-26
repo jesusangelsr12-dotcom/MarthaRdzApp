@@ -1,6 +1,6 @@
 # AppFlow · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-09-26 · **Versión de la app:** v47 · **Tablero interactivo:** [AppFlow.html](AppFlow.html) (arrastra, acerca y aleja como en Miro)
+**Última revisión:** 2026-09-26 · **Versión de la app:** v48 · **Tablero interactivo:** [AppFlow.html](AppFlow.html) (arrastra, acerca y aleja como en Miro)
 
 Este documento sigue cada acción desde que la persona toca algo hasta donde
 termina: qué pantalla la recibe, qué endpoint llama, qué tablas toca, qué ve
@@ -288,10 +288,13 @@ flowchart TD
   A[Más → Configuración] --> B[GET /api/config fresco]
   A -. paralelo .-> N[Estado de push del dispositivo]
   A -. paralelo .-> W[GET /api/webauthn dispositivos]
-  B --> C[Editar catálogo y trabajadoras en memoria]
-  C --> C1[× pide confirmación · se aplica al guardar]
-  C --> D[Guardar Cambios] --> E[POST /api/config<br/>conserva pin_hash por nombre] --> F[(salones)]
-  F --> G[Actualiza sesión local] --> H["#home"]
+  B --> C[Agregar o quitar servicio, producto o trabajadora]
+  C --> C1[× pide confirmación]
+  C --> E[POST /api/config al momento, en fila<br/>conserva pin_hash por nombre]
+  E --> E1{¿Se guardó?}
+  E1 -- No --> E2[Aviso de error + recarga desde el servidor]
+  E1 -- Sí --> F[(salones)]
+  F --> G[Actualiza sesión local] --> H[Aviso 'Se agregó / Se eliminó'<br/>servicio o producto: Deshacer]
   B --> P[Dar / cambiar PIN] --> P1[POST trabajador-pin] --> P2{¿PIN libre?}
   P2 -- No --> P3[409 'ya está en uso']
   P2 -- Sí --> F
@@ -300,7 +303,9 @@ flowchart TD
   E --> WE[(borra el Face ID de las trabajadoras eliminadas)]
 ```
 
-- **Arista importante:** una trabajadora recién agregada necesita "Guardar Cambios" **antes** de darle PIN (si no, 404).
+- **Sin botón "Guardar":** cada alta o baja se guarda sola. Los guardados van en fila y cada uno manda el catálogo completo, así dos cambios rápidos no se pisan.
+- **Trabajadora recién agregada:** darle PIN espera a que termine su guardado (antes necesitaba "Guardar Cambios" o daba 404).
+- **Deshacer:** solo para servicios y productos. Quitar a una trabajadora le borra PIN y Face ID en el servidor, por eso no se ofrece.
 - **PIN libre:** se revisa contra dueñas (hash nuevo y legacy) y trabajadoras de todos los salones, excepto ella misma.
 - **Resueltos:** [C4](#c4) (guardar ya no alarga la sesión local), [C8](#c8) (quitar acceso corta también su Face ID).
 

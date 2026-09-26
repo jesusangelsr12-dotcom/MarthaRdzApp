@@ -1,6 +1,10 @@
 /**
  * Pantalla Configuración
- * Editar catálogo de servicios, productos y trabajadoras del salón
+ * Editar catálogo de servicios, productos y trabajadoras del salón.
+ *
+ * Sin botón "Guardar": cada alta o baja se guarda al momento (ver
+ * guardarCatalogo). La pantalla se actualiza primero y el guardado corre
+ * detrás; si falla, se vuelve a cargar lo que de verdad quedó en el servidor.
  */
 
 import { getConfig, updateConfig, setTrabajadorPin, getWebauthnRegisterOptions, verifyWebauthnRegister, getWebauthnDevices, deleteWebauthnDevice } from '../api.js';
@@ -295,13 +299,29 @@ function confirmarEliminar(type, index) {
   const item = tipo?.lista()[index];
   if (item === undefined) return;
   const nombre = type === 'trabajadora' ? item.nombre : item;
+  const aviso = type === 'trabajadora'
+    ? 'Se elimina en este momento, junto con su acceso a la app y su Face ID. Sus comisiones ya registradas no se borran.'
+    : 'Se elimina en este momento. Las citas ya registradas no cambian.';
 
   document.getElementById('config-delete-title').textContent = tipo.titulo;
   document.getElementById('config-delete-text').innerHTML =
-    `<strong>${escapeHTML(nombre)}</strong><br><br>Se quita al tocar "Guardar Cambios".`;
+    `<strong>${escapeHTML(nombre)}</strong><br><br>${aviso}`;
   eliminarPendiente = () => {
     tipo.lista().splice(index, 1);
     renderConfig();
+    // Servicios y productos se pueden recuperar al instante. Una trabajadora
+    // no: el servidor le borra el PIN y el Face ID al quitarla.
+    const deshacer = type === 'trabajadora' ? null : {
+      label: 'Deshacer',
+      onClick: () => {
+        const lista = tipo.lista();
+        if (lista.includes(item)) return;
+        lista.splice(Math.min(index, lista.length), 0, item);
+        renderConfig();
+        guardarCatalogo(`Se recuperó ${nombre}`);
+      },
+    };
+    guardarCatalogo(type === 'trabajadora' ? `Se eliminó a ${nombre}` : `Se eliminó ${nombre}`, deshacer);
   };
   document.getElementById('config-delete-modal').classList.remove('hidden');
 }
@@ -424,7 +444,7 @@ function renderConfig() {
         <button class="btn btn-gold config-add-btn" id="btn-add-worker">Agregar</button>
       </div>
 
-      <button class="btn btn-primary mt-24" id="btn-save-config">Guardar Cambios</button>
+      <p class="config-autosave-hint mt-24">Los cambios se guardan solos.</p>
 
       ${versionAppHTML()}
     </div>
@@ -446,6 +466,7 @@ function renderConfig() {
     if (servicios.includes(val)) { showToast('Ese servicio ya existe', 'error'); return; }
     servicios.push(val);
     renderConfig();
+    guardarCatalogo(`Se agregó ${val}`);
   };
   btnAddService.addEventListener('click', addService);
   inputService.addEventListener('keydown', (e) => { if (e.key === 'Enter') addService(); });
@@ -459,6 +480,7 @@ function renderConfig() {
     if (productos.includes(val)) { showToast('Ese producto ya existe', 'error'); return; }
     productos.push(val);
     renderConfig();
+    guardarCatalogo(`Se agregó ${val}`);
   };
   btnAddProduct.addEventListener('click', addProduct);
   inputProduct.addEventListener('keydown', (e) => { if (e.key === 'Enter') addProduct(); });
@@ -471,18 +493,16 @@ function renderConfig() {
     if (trabajadoras.some((t) => t.nombre === name)) { showToast('Esa trabajadora ya existe', 'error'); return; }
     trabajadoras.push({ nombre: name, tiene_acceso: false });
     renderConfig();
+    guardarCatalogo(`Se agregó a ${name}`);
   };
   document.getElementById('btn-add-worker').addEventListener('click', addWorker);
   inputWorker.addEventListener('keydown', (e) => { if (e.key === 'Enter') addWorker(); });
-
-  // Guardar
-  document.getElementById('btn-save-config').addEventListener('click', saveConfig);
 }
 
 /**
- * Asigna/cambia el PIN de una trabajadora ya guardada. Si es una
- * trabajadora nueva que todavía no se guardó (botón "Guardar Cambios"),
- * se avisa primero — el endpoint de PIN exige que ya exista en el catálogo.
+ * Asigna/cambia el PIN de una trabajadora. Espera a que termine cualquier
+ * guardado pendiente: el endpoint de PIN exige que ella ya exista en el
+ * catálogo, y si se acaba de agregar su guardado puede seguir en camino.
  */
 async function confirmarPin(index) {
   const t = trabajadoras[index];
@@ -496,6 +516,7 @@ async function confirmarPin(index) {
 
   try {
     showLoader();
+    await colaGuardado;
     await setTrabajadorPin(session.sheet_id, { nombre: t.nombre, pin });
     hideLoader();
     t.tiene_acceso = true;
@@ -589,27 +610,38 @@ async function quitarAcceso(index) {
   }
 }
 
-async function saveConfig() {
-  try {
-    showLoader();
-    // El servidor nunca espera pin_hash/tiene_acceso aquí — eso se maneja
-    // por separado en /api/trabajador-pin y el servidor lo conserva solo.
-    const trabajadorasParaGuardar = trabajadoras.map((t) => ({ nombre: t.nombre }));
-    await updateConfig(session.sheet_id, servicios, productos, trabajadorasParaGuardar);
+// Guardados en fila: cada uno manda el catálogo completo tal como está al
+// momento de salir, así dos cambios rápidos nunca se pisan ni llegan en
+// desorden.
+let colaGuardado = Promise.resolve();
 
-    const currentSession = getSession();
-    if (currentSession) {
-      currentSession.servicios = servicios;
-      currentSession.productos = productos;
-      currentSession.trabajadoras = trabajadoras;
-      saveSession(currentSession);
+/**
+ * Guarda servicios, productos y trabajadoras tal como están en pantalla.
+ * `mensaje` se muestra al terminar; `accion` es el botón opcional del aviso
+ * (ej. "Deshacer"). Si falla, recarga desde el servidor para no dejar en
+ * pantalla algo que en realidad no se guardó.
+ */
+function guardarCatalogo(mensaje, accion = null) {
+  colaGuardado = colaGuardado.then(async () => {
+    try {
+      // El servidor nunca espera pin_hash/tiene_acceso aquí — eso se maneja
+      // por separado en /api/trabajador-pin y el servidor lo conserva solo.
+      const trabajadorasParaGuardar = trabajadoras.map((t) => ({ nombre: t.nombre }));
+      await updateConfig(session.sheet_id, servicios, productos, trabajadorasParaGuardar);
+
+      const currentSession = getSession();
+      if (currentSession) {
+        currentSession.servicios = [...servicios];
+        currentSession.productos = [...productos];
+        currentSession.trabajadoras = trabajadoras.map((t) => ({ ...t }));
+        saveSession(currentSession);
+      }
+
+      showToast(mensaje, 'success', accion ? 5000 : 2000, accion);
+    } catch (error) {
+      showToast('No se pudo guardar. Revisa tu conexión e intenta de nuevo.', 'error');
+      await load();
     }
-
-    hideLoader();
-    showToast('Configuración guardada', 'success');
-    navigateTo('home');
-  } catch (error) {
-    hideLoader();
-    showToast('Error al guardar configuración', 'error');
-  }
+  });
+  return colaGuardado;
 }

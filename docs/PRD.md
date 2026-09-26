@@ -1,6 +1,6 @@
 # PRD · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-09-26 · **Versión de la app:** v47 (`CACHE_NAME` en `public/sw.js`)
+**Última revisión:** 2026-09-26 · **Versión de la app:** v48 (`CACHE_NAME` en `public/sw.js`)
 
 ## 1. El problema
 
@@ -170,8 +170,11 @@ cuentan como ingreso, pero no como cita.
 
 Catálogo de servicios y productos (secciones colapsables), trabajadoras,
 dar / cambiar / quitar PIN de trabajadora, notificaciones push, Face ID /
-Touch ID por dispositivo, versión instalada y "Actualizar app". Borrar algo
-pide confirmación y se aplica al tocar "Guardar Cambios".
+Touch ID por dispositivo, versión instalada y "Actualizar app". No hay botón
+"Guardar": agregar o quitar un servicio, producto o trabajadora se guarda al
+momento. Quitar pide confirmación; un servicio o producto quitado se puede
+recuperar con "Deshacer" en el aviso. Si no se pudo guardar, avisa y vuelve a
+cargar lo que de verdad está guardado.
 
 ### F12 · Notificaciones push (solo dueña)
 
