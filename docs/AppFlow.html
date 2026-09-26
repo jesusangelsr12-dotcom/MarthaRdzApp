@@ -1,0 +1,1635 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AppFlow · Martha Rdz Hairartist</title>
+<meta name="description" content="Tablero interactivo de los flujos de Martha Rdz Hairartist: arrastra, acerca y aleja para ver cada flujo de punta a punta, con sus decisiones, tablas y cabos sueltos.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #FDF9FA;
+    --surface: #FFFFFF;
+    --ink: #171417;
+    --ink-muted: #5C5459;
+    --pink: #C41478;
+    --pink-bg: #F8E3EF;
+    --rose: #96526B;
+    --rose-light: #F0E7EA;
+    --g100: #FAF6F7;
+    --g200: #F0EAEC;
+    --g300: #DDD2D6;
+    --g400: #B0A2A7;
+    --g500: #7A6C71;
+    --green: #1E6E44;
+    --green-light: #E0F3E7;
+    --red: #BE3A3A;
+    --red-light: #FCE5E3;
+    --amber: #8A5A00;
+    --amber-light: #FBF0DA;
+    --blue: #2F5E8C;
+    --blue-light: #E4EDF6;
+    --edge: #B8A9AF;
+    --shadow: 0 1px 3px rgba(23, 20, 23, .06), 0 1px 2px rgba(23, 20, 23, .04);
+    --shadow-lg: 0 10px 30px rgba(23, 20, 23, .12);
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --inv: 1;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: var(--font); color: var(--ink); background: var(--bg);
+    -webkit-font-smoothing: antialiased; font-size: 14px; line-height: 1.45;
+    overscroll-behavior: none;
+  }
+  button, input { font-family: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--pink); outline-offset: 2px; }
+
+  /* ================= Lienzo ================= */
+  #viewport {
+    position: fixed; inset: 0; overflow: hidden; touch-action: none; cursor: grab;
+    background-color: var(--bg);
+    background-image: radial-gradient(circle, #D8CBD0 1.1px, transparent 1.3px);
+    background-size: 24px 24px;
+  }
+  #viewport.is-panning { cursor: grabbing; }
+  #viewport.is-panning * { cursor: grabbing !important; }
+  #world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+  #world.is-loading { visibility: hidden; }
+
+  /* ================= Encabezado del tablero ================= */
+  .board-title { position: absolute; }
+  .board-title .eyebrow { font-size: 22px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--pink); }
+  .board-title h1 { font-size: 88px; font-weight: 800; letter-spacing: -.035em; line-height: 1.05; margin: 8px 0 14px; }
+  .board-title p { font-size: 26px; color: var(--ink-muted); max-width: 1100px; line-height: 1.4; }
+  .board-title .chips { display: flex; gap: 12px; margin-top: 22px; flex-wrap: wrap; }
+  .board-title .chips span { font-size: 20px; padding: 8px 18px; border-radius: 999px; background: var(--surface); border: 1.5px solid var(--g300); color: var(--ink-muted); }
+  .board-title .chips b { color: var(--ink); }
+
+  .section-label {
+    position: absolute; font-size: max(44px, calc(15px * var(--inv))); font-weight: 800; letter-spacing: -.02em; color: var(--ink);
+    display: flex; align-items: center; gap: .4em; white-space: nowrap; line-height: 1.1;
+    transform: translateY(calc(-100% - 30px * var(--inv)));
+  }
+  .section-label::before { content: ''; width: .4em; height: .4em; border-radius: .14em; background: var(--pink); flex-shrink: 0; }
+
+  /* ================= Marcos ================= */
+  .frame {
+    position: absolute; background: var(--surface); border-radius: 18px;
+    box-shadow: var(--shadow); border: 1px solid var(--g200); transition: opacity .25s;
+  }
+  .frame.is-off { opacity: .28; }
+  .frame-far {
+    position: absolute; left: 0; right: 0; bottom: 100%; margin-bottom: calc(8px * var(--inv));
+    font-size: calc(13px * var(--inv)); line-height: 1.25; font-weight: 800; color: var(--ink);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    display: none; pointer-events: auto; cursor: pointer;
+  }
+  .frame-far span { color: var(--pink); margin-right: .4em; }
+  #world.is-far .frame-far { display: block; }
+  .frame-head { padding: 22px 26px 0; display: flex; align-items: baseline; gap: 10px 12px; flex-wrap: wrap; cursor: pointer; }
+  .frame-id { font-size: 13px; font-weight: 800; color: var(--pink); }
+  .frame-head h2 { font-size: 21px; font-weight: 800; letter-spacing: -.01em; }
+  .roles { display: inline-flex; gap: 4px; }
+  .role { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+  .role--duena { background: var(--pink-bg); color: var(--pink); }
+  .role--trab { background: var(--rose-light); color: var(--rose); }
+  .frame-sum { padding: 6px 26px 0; color: var(--ink-muted); font-size: 13px; }
+  .frame-sum b { color: var(--ink); font-weight: 600; }
+  .frame-body { position: relative; margin: 8px 0; }
+  .frame-body > svg { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+  .frame-foot {
+    margin: 0 26px; padding: 14px 0 20px; border-top: 1px dashed var(--g300);
+    display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; color: var(--g500);
+  }
+  .chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 6px; font-size: 11.5px; font-weight: 600; border: 0; }
+  .chip--db { background: var(--rose-light); color: var(--rose); }
+  .sev-alta { background: var(--red-light); color: var(--red); }
+  .sev-media { background: var(--amber-light); color: var(--amber); }
+  .sev-baja { background: var(--g200); color: var(--g500); }
+
+  /* ================= Nodos ================= */
+  .node {
+    position: absolute; width: 240px; border-radius: 12px; padding: 10px 12px 11px;
+    background: var(--surface); border: 1.5px solid var(--g300); transition: opacity .25s, box-shadow .25s;
+  }
+  .node-kind { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--g500); }
+  .node-kind .ic { width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center; font-size: 10px; font-weight: 800; letter-spacing: 0; }
+  .node-t { font-weight: 650; font-size: 14px; line-height: 1.3; margin-top: 5px; }
+  .node-d { font-size: 12px; color: var(--ink-muted); margin-top: 3px; line-height: 1.35; }
+  .node .badge {
+    position: absolute; top: -10px; right: -10px; font-size: 11px; font-weight: 800;
+    padding: 3px 7px; border-radius: 999px; box-shadow: var(--shadow); white-space: nowrap;
+  }
+  .node.is-dim { opacity: .25; }
+  .k-screen { border-color: var(--ink); }
+  .k-screen .ic { background: var(--ink); color: #fff; }
+  .k-input { background: var(--g100); }
+  .k-input .ic { background: var(--g200); color: var(--ink); }
+  .k-sys { border-style: dashed; border-color: var(--g400); }
+  .k-sys .ic { background: var(--g200); color: var(--g500); }
+  .k-api { border-color: var(--pink); }
+  .k-api .ic { background: var(--pink-bg); color: var(--pink); }
+  .k-api .node-t { font-family: var(--mono); font-size: 12.5px; font-weight: 700; }
+  .k-db { border-color: var(--rose); background: var(--rose-light); border-radius: 12px 12px 26px 26px; }
+  .k-db .ic { background: var(--rose); color: #fff; }
+  .k-ext { border-color: var(--blue); background: var(--blue-light); }
+  .k-ext .ic { background: var(--blue); color: #fff; }
+  .k-ok { border-color: var(--green); background: var(--green-light); }
+  .k-ok .ic { background: var(--green); color: #fff; }
+  .k-err { border-color: var(--red); background: var(--red-light); }
+  .k-err .ic { background: var(--red); color: #fff; }
+  .k-decision { border-color: var(--amber); background: var(--amber-light); border-radius: 26px; text-align: center; padding: 10px 16px 11px; }
+  .k-decision .node-kind { justify-content: center; color: var(--amber); }
+  .k-decision .ic { background: var(--amber); color: #fff; transform: rotate(45deg); border-radius: 4px; }
+  .k-decision .ic i { transform: rotate(-45deg); font-style: normal; }
+  .k-decision .node-t { color: var(--amber); }
+  .k-state { width: 190px; text-align: center; border-radius: 16px; padding: 14px 12px; }
+  .k-state .node-t { font-size: 16px; margin: 0; }
+  .st-pend { background: var(--pink-bg); color: var(--pink); border-color: var(--pink); }
+  .st-comp { background: var(--green-light); color: var(--green); border-color: var(--green); }
+  .st-noas { background: var(--red-light); color: var(--red); border-color: var(--red); }
+  .st-canc { background: var(--g200); color: var(--g500); border-color: var(--g400); }
+  .st-del { background: var(--surface); color: var(--ink-muted); border-color: var(--g400); border-style: dashed; }
+
+  .edge { fill: none; stroke: var(--edge); stroke-width: 1.8; }
+  .edge--issue { stroke: var(--red); stroke-dasharray: 6 5; }
+  .elabel {
+    position: absolute; transform: translate(-50%, -50%); white-space: nowrap;
+    font-size: 11px; font-weight: 800; letter-spacing: .03em; padding: 2px 9px; border-radius: 999px;
+    background: var(--surface); border: 1.5px solid var(--amber); color: var(--amber);
+  }
+  .elabel--state { border-color: var(--g300); color: var(--ink-muted); font-weight: 600; letter-spacing: 0; font-size: 12px; }
+  .elabel--issue { border-color: var(--red); color: var(--red); }
+
+  .is-pulse { animation: pulse 1.6s ease-out 1; }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(196, 20, 120, .55); }
+    40% { box-shadow: 0 0 0 16px rgba(196, 20, 120, .18); }
+    100% { box-shadow: 0 0 0 26px rgba(196, 20, 120, 0); }
+  }
+
+  /* ================= Notas adhesivas ================= */
+  .sticky {
+    position: relative; width: 250px; padding: 16px 16px 14px; border-radius: 3px 3px 14px 3px;
+    box-shadow: 0 2px 0 rgba(0, 0, 0, .03), 0 8px 18px rgba(23, 20, 23, .1); font-size: 12.5px; line-height: 1.4;
+  }
+  .sticky.alta { background: #FFD8EA; }
+  .sticky.media { background: #FFF1B8; }
+  .sticky.baja { background: #EAE6F0; }
+  .sticky.resuelto { background: #DDF2E3; }
+  .badge--ok { background: var(--green-light); color: var(--green); }
+  .note-sticky.note-sticky--ok { background: #DDF2E3; }
+  .sticky:nth-child(3n+1) { transform: rotate(-1.2deg); }
+  .sticky:nth-child(3n+2) { transform: rotate(.8deg); }
+  .sticky:nth-child(3n) { transform: rotate(-.4deg); }
+  .sticky-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .sticky-id { font-size: 18px; font-weight: 800; }
+  .sticky-sev { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; opacity: .7; }
+  .sticky h3 { font-size: 14px; line-height: 1.3; margin-bottom: 8px; }
+  .sticky p { color: rgba(23, 20, 23, .78); }
+  .sticky p + p { margin-top: 8px; }
+  .sticky .go {
+    margin-top: 12px; border: 0; background: rgba(23, 20, 23, .85); color: #fff; font-weight: 700;
+    font-size: 12px; padding: 6px 12px; border-radius: 999px;
+  }
+  .sticky .where { margin-top: 12px; font-size: 11px; font-weight: 700; opacity: .6; }
+  .stickies { display: grid; grid-template-columns: repeat(4, 250px); gap: 34px 28px; padding: 18px 26px 30px; }
+  .note-sticky { position: absolute; width: 220px; background: #FFF1B8; padding: 12px 14px; border-radius: 3px 3px 12px 3px; box-shadow: 0 6px 14px rgba(23, 20, 23, .1); font-size: 12px; transform: rotate(-1.5deg); }
+  .note-sticky b { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; opacity: .6; margin-bottom: 4px; }
+
+  /* ================= Tablas dentro de marcos ================= */
+  .tbl { padding: 6px 26px 22px; }
+  table { border-collapse: collapse; font-size: 13px; width: 100%; }
+  th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--g500); font-weight: 700; padding: 8px 10px; border-bottom: 1.5px solid var(--g300); white-space: nowrap; }
+  td { padding: 9px 10px; border-bottom: 1px solid var(--g200); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  td.mono { font-family: var(--mono); font-size: 12px; }
+  .yes { color: var(--green); font-weight: 800; }
+  .no { color: var(--g400); }
+  .warn { color: var(--red); font-weight: 700; }
+  tr.is-pulse td { animation: rowpulse 1.8s ease-out 1; }
+  @keyframes rowpulse { 0%, 50% { background: var(--pink-bg); } 100% { background: transparent; } }
+
+  /* ================= Interfaz fija ================= */
+  .ui { position: fixed; z-index: 10; }
+  .card { background: rgba(255, 255, 255, .96); border: 1px solid var(--g200); border-radius: 14px; box-shadow: var(--shadow-lg); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+
+  .topbar { top: max(12px, env(safe-area-inset-top)); left: 12px; display: flex; align-items: center; gap: 8px; padding: 6px 12px 6px 6px; }
+  .icon-btn { width: 36px; height: 36px; border-radius: 10px; border: 0; background: transparent; display: grid; place-items: center; font-size: 17px; font-weight: 700; }
+  .icon-btn:hover { background: var(--g200); }
+  .topbar .name { font-weight: 800; font-size: 14px; white-space: nowrap; }
+  .topbar .name span { color: var(--pink); }
+  .topbar .ver { font-size: 12px; color: var(--g500); white-space: nowrap; }
+
+  .panel {
+    top: calc(max(12px, env(safe-area-inset-top)) + 58px); left: 12px; bottom: 12px; width: 290px;
+    display: flex; flex-direction: column; overflow: hidden; transition: transform .25s ease, opacity .25s;
+  }
+  .panel.is-closed { transform: translateX(calc(-100% - 24px)); opacity: 0; pointer-events: none; }
+  .panel-scroll { overflow-y: auto; padding: 14px 14px 18px; flex: 1; }
+  .panel h3 { font-size: 10.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--g500); margin: 18px 4px 8px; }
+  .panel h3:first-child { margin-top: 0; }
+  .search { width: 100%; border: 1.5px solid var(--g300); border-radius: 10px; padding: 9px 12px; font-size: 13.5px; background: var(--surface); outline: none; }
+  .search:focus { border-color: var(--pink); }
+  .results { margin-top: 6px; }
+  .results button, .frame-list button {
+    width: 100%; text-align: left; border: 0; background: transparent; padding: 7px 8px; border-radius: 8px;
+    display: flex; gap: 8px; align-items: baseline; font-size: 13px; line-height: 1.3; color: var(--ink-muted);
+  }
+  .results button:hover, .frame-list button:hover, .frame-list button.is-current { background: var(--g200); color: var(--ink); }
+  .results .id, .frame-list .id { font-size: 11px; font-weight: 800; color: var(--g400); min-width: 30px; }
+  .results .empty { font-size: 12.5px; color: var(--g500); padding: 6px 8px; }
+  .frame-list button.is-off { opacity: .4; }
+  .seg { display: flex; background: var(--g200); border-radius: 10px; padding: 3px; }
+  .seg button { flex: 1; border: 0; background: transparent; padding: 7px 6px; border-radius: 8px; font-size: 12.5px; font-weight: 700; color: var(--ink-muted); }
+  .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+  .legend { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 8px; font-size: 12px; color: var(--ink-muted); padding: 0 4px; }
+  .legend span { display: flex; align-items: center; gap: 6px; }
+  .legend i { width: 12px; height: 12px; border-radius: 4px; border: 1.8px solid; flex-shrink: 0; }
+
+  .zoombar { right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 2px; padding: 4px; }
+  .zoombar .pct { min-width: 56px; text-align: center; font-size: 12.5px; font-weight: 700; border: 0; background: transparent; padding: 8px 4px; border-radius: 8px; }
+  .zoombar .pct:hover { background: var(--g200); }
+  .zoombar .fit { font-size: 12.5px; font-weight: 700; padding: 0 12px; width: auto; }
+  .sep { width: 1px; height: 22px; background: var(--g300); margin: 0 4px; }
+
+  .minimap { right: 12px; bottom: calc(max(12px, env(safe-area-inset-bottom)) + 56px); width: 220px; height: 150px; padding: 8px; overflow: hidden; cursor: pointer; touch-action: none; }
+  .minimap-inner { position: relative; width: 100%; height: 100%; }
+  .mm-frame { position: absolute; background: var(--g300); border-radius: 2px; }
+  .mm-frame.is-off { opacity: .35; }
+  .mm-view { position: absolute; border: 2px solid var(--pink); border-radius: 3px; background: rgba(196, 20, 120, .06); pointer-events: none; }
+
+  .hint { left: 50%; transform: translateX(-50%); bottom: max(12px, env(safe-area-inset-bottom)); padding: 8px 14px; font-size: 12px; color: var(--ink-muted); white-space: nowrap; }
+  .hint kbd { font-family: var(--font); font-weight: 700; font-size: 11px; background: var(--g200); border-radius: 5px; padding: 1px 6px; color: var(--ink); }
+
+  .toast { left: 50%; top: calc(max(12px, env(safe-area-inset-top)) + 62px); transform: translate(-50%, -8px); opacity: 0; transition: .25s; pointer-events: none; background: var(--ink); color: #fff; padding: 9px 16px; border-radius: 999px; font-size: 13px; font-weight: 600; box-shadow: var(--shadow-lg); max-width: calc(100vw - 32px); text-align: center; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  @media (max-width: 900px) {
+    .hint { display: none; }
+    .minimap { width: 150px; height: 104px; }
+  }
+  @media (max-width: 600px) {
+    .panel { width: auto; right: 12px; }
+    .minimap { display: none; }
+    .topbar .ver { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .is-pulse, tr.is-pulse td { animation: none; }
+    .panel, .toast, .frame, .node { transition: none; }
+  }
+</style>
+</head>
+<body>
+  <div id="viewport" aria-label="Tablero de flujos. Arrastra para moverte, rueda o pellizco para hacer zoom.">
+    <div id="world" class="is-loading"></div>
+  </div>
+
+  <div class="ui card topbar">
+    <button class="icon-btn" id="toggle-panel" aria-label="Mostrar u ocultar el panel" aria-expanded="true" title="Panel (P)">☰</button>
+    <span class="name">App<span>Flow</span> · Martha Rdz</span>
+    <span class="ver">v46 · 2026-09-26</span>
+  </div>
+
+  <aside class="ui card panel" id="panel" aria-label="Navegación del tablero">
+    <div class="panel-scroll">
+      <h3>Buscar en el tablero</h3>
+      <input class="search" id="search" type="search" placeholder="Ej: anticipo, /api/citas, PIN…" autocomplete="off">
+      <div class="results" id="results"></div>
+
+      <h3>Ver como</h3>
+      <div class="seg" role="group" aria-label="Filtrar por rol">
+        <button type="button" data-role="todos" aria-pressed="true">Todos</button>
+        <button type="button" data-role="duena" aria-pressed="false">Dueña</button>
+        <button type="button" data-role="trab" aria-pressed="false">Trabajadora</button>
+      </div>
+
+      <h3>Ir a</h3>
+      <div class="frame-list" id="frame-list"></div>
+
+      <h3>Leyenda</h3>
+      <div class="legend" id="legend"></div>
+    </div>
+  </aside>
+
+  <div class="ui card minimap" id="minimap" aria-label="Minimapa: toca para ir a esa zona">
+    <div class="minimap-inner" id="minimap-inner"><div class="mm-view" id="mm-view"></div></div>
+  </div>
+
+  <div class="ui card zoombar" role="group" aria-label="Zoom">
+    <button class="icon-btn" id="zoom-out" aria-label="Alejar" title="Alejar (−)">−</button>
+    <button class="pct" id="zoom-pct" title="Zoom al 100% (0)">100%</button>
+    <button class="icon-btn" id="zoom-in" aria-label="Acercar" title="Acercar (+)">+</button>
+    <span class="sep"></span>
+    <button class="icon-btn fit" id="zoom-fit" title="Ver todo (F)">Ver todo</button>
+  </div>
+
+  <div class="ui card hint">
+    Arrastra para moverte · <kbd>rueda</kbd> o pellizco: zoom · doble clic: acercar · <kbd>F</kbd> ver todo · <kbd>N</kbd>/<kbd>B</kbd> siguiente/anterior
+  </div>
+
+  <div class="ui toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* =====================================================================
+   DATOS. Mantener en sincronía con docs/AppFlow.md (mismos flujos,
+   mismos pasos y mismos cabos sueltos).
+
+   Tipos de nodo: screen · input · sys · api · db · ext · ok · err
+   Decisión: { k:'decision', t, d?, b:[{ c:'Sí', s:[...] }] }  (s vacío = sigue al siguiente paso)
+   r:'duena' marca un paso que la trabajadora no ve. i:'C1' lo liga a un cabo suelto.
+   ok y err terminan el camino: no se conectan con el paso siguiente.
+   ===================================================================== */
+
+const KINDS = {
+  screen: { ic: '▢', label: 'Pantalla', color: 'var(--ink)' },
+  input: { ic: '✎', label: 'Acción de la usuaria', color: 'var(--g400)' },
+  sys: { ic: '⚙', label: 'Proceso interno', color: 'var(--g400)' },
+  api: { ic: '↗', label: 'Endpoint', color: 'var(--pink)' },
+  db: { ic: '◉', label: 'Tabla', color: 'var(--rose)' },
+  ext: { ic: '↔', label: 'Servicio externo', color: 'var(--blue)' },
+  ok: { ic: '✓', label: 'Termina bien', color: 'var(--green)' },
+  err: { ic: '!', label: 'Termina en error', color: 'var(--red)' },
+  decision: { ic: '<i>?</i>', label: 'Decisión', color: 'var(--amber)' },
+};
+const TERMINAL = new Set(['ok', 'err']);
+
+const FLOWS = [
+  {
+    id: 'F0', title: 'Arranque y navegación', roles: ['duena', 'trab'],
+    entrada: 'Abrir la app o cambiar de pantalla', fin: 'La vista pedida, Login o Inicio',
+    steps: [
+      { k: 'screen', t: 'Abre la app', d: 'index.html carga app.js y registra sw.js' },
+      { k: 'decision', t: '¿Hay sesión local vigente?', d: 'Vence junto con el token', b: [
+        { c: 'No', s: [{ k: 'ok', t: 'Va a Login' }] },
+        { c: 'Sí', s: [{ k: 'decision', t: '¿La ruta es de su rol?', b: [
+          { c: 'No', s: [{ k: 'ok', t: 'Va a Inicio', d: 'Trabajadora fuera de login, home, agenda, agendar y cita' }] },
+          { c: 'Sí', s: [{ k: 'sys', t: 'render() + init() de la vista' }] },
+        ] }] },
+      ] },
+      { k: 'api', t: 'Llamadas a /api con el token' },
+      { k: 'decision', t: '¿Responde 401?', d: 'Token vencido o inválido', i: 'C4', b: [
+        { c: 'Sí', s: [{ k: 'ok', t: 'Borra la sesión → Login', d: 'Toast “Tu sesión expiró”' }] },
+        { c: 'No', s: [] },
+      ] },
+      { k: 'input', t: 'Cambia de pantalla', d: 'Cambio de hash' },
+      { k: 'decision', t: '¿Hay versión nueva activa?', b: [
+        { c: 'Sí', s: [{ k: 'ok', t: 'Recarga con el código nuevo' }] },
+        { c: 'No', s: [{ k: 'ok', t: 'Pinta la ruta' }] },
+      ] },
+    ],
+    tablas: [], issues: ['C4'],
+  },
+  {
+    id: 'F1', title: 'Entrar con PIN', roles: ['duena', 'trab'],
+    entrada: '6 dígitos en el teclado de Login', fin: 'Inicio según el rol, o error en Login',
+    steps: [
+      { k: 'input', t: 'Teclea 6 dígitos', d: 'Se envía solo al sexto' },
+      { k: 'api', t: 'POST /api/login' },
+      { k: 'db', t: 'login_attempts', d: 'Cuenta los fallos de esta IP en 15 min. El cron borra los de más de 30 días', i: 'C12' },
+      { k: 'decision', t: '¿5 o más fallos?', b: [
+        { c: 'Sí', s: [{ k: 'err', t: '429 · Demasiados intentos' }] },
+        { c: 'No', s: [] },
+      ] },
+      { k: 'decision', t: '¿Es el PIN de una dueña?', d: 'pin_hash_v2, luego hash legacy (y lo migra)', b: [
+        { c: 'Sí', s: [{ k: 'ok', t: 'Token rol dueña → Inicio completo' }] },
+        { c: 'No', s: [{ k: 'decision', t: '¿Es de una trabajadora?', b: [
+          { c: 'Sí', s: [{ k: 'ok', t: 'Token rol trabajadora → Inicio reducido' }] },
+          { c: 'No', s: [{ k: 'err', t: '401 · Puntos rojos, se limpian' }] },
+        ] }] },
+      ] },
+    ],
+    tablas: ['login_attempts', 'salones'], issues: ['C12'],
+  },
+  {
+    id: 'F2', title: 'Face ID / Touch ID', roles: ['duena', 'trab'],
+    entrada: 'Botón en Configuración (activar) o en Login (entrar)', fin: 'Credencial guardada, o sesión abierta',
+    steps: [
+      { k: 'decision', t: '¿Qué quiere hacer?', b: [
+        { c: 'Activar (dueña)', s: [
+          { k: 'screen', t: 'Configuración → Activar', r: 'duena' },
+          { k: 'api', t: 'POST /api/webauthn', d: 'register · options', r: 'duena' },
+          { k: 'ext', t: 'Face ID del sistema', r: 'duena' },
+          { k: 'api', t: 'POST /api/webauthn', d: 'register · verify', r: 'duena' },
+          { k: 'db', t: 'webauthn_credentials', r: 'duena' },
+          { k: 'ok', t: 'Bandera local + toast', r: 'duena' },
+        ] },
+        { c: 'Entrar', s: [
+          { k: 'screen', t: 'Login', d: 'El botón sale si hay bandera local y el equipo lo soporta' },
+          { k: 'api', t: 'POST /api/webauthn', d: 'login · options (sin sesión)' },
+          { k: 'ext', t: 'Face ID del sistema' },
+          { k: 'api', t: 'POST /api/webauthn', d: 'login · verify' },
+          { k: 'decision', t: '¿Credencial conocida y firma válida?', b: [
+            { c: 'No existe', s: [{ k: 'err', t: 'Borra la bandera · “usa tu PIN”' }] },
+            { c: 'Sí', s: [{ k: 'decision', t: '¿Trabajadora sin acceso vigente?', b: [
+              { c: 'Sí', s: [{ k: 'err', t: 'Borra la credencial · 401', d: '“Usa tu PIN”', i: 'C8' }] },
+              { c: 'No', s: [{ k: 'ok', t: 'Token con el rol guardado → Inicio' }] },
+            ] }] },
+          ] },
+        ] },
+      ] },
+    ],
+    tablas: ['webauthn_credentials', 'salones'], issues: ['C8'],
+  },
+  {
+    id: 'F3', title: 'Registrar Cita', roles: ['duena', 'trab'],
+    entrada: 'Clienta, items con precio, comisiones, nota y método de pago', fin: 'Inicio con toast verde',
+    steps: [
+      { k: 'screen', t: 'Inicio → Registrar Cita' },
+      { k: 'decision', t: '¿El salón tiene servicios o productos?', b: [
+        { c: 'No', s: [{ k: 'err', t: 'Estado vacío', d: 'Dueña: “Ir a Configuración”. Trabajadora: “Pídele a la dueña”', i: 'C10' }] },
+        { c: 'Sí', s: [] },
+      ] },
+      { k: 'input', t: 'Clienta y fecha', d: 'Autocompleta y muestra citas agendadas pendientes de esa fecha. La Agenda puede abrirlo en otro día (#cita?fecha=)' },
+      { k: 'decision', t: '¿Toca un recuadro de cita agendada?', b: [
+        { c: 'Sí', s: [{ k: 'sys', t: 'Guarda agendaId y anticipo', d: 'Se sueltan si luego cambia el nombre o la fecha', i: 'C7' }] },
+        { c: 'No', s: [] },
+      ] },
+      { k: 'input', t: 'Servicios y productos', d: 'Al menos uno. Pasos ocultos si no hay catálogo' },
+      { k: 'input', t: 'Precio de cada item', d: 'Teclado numérico, uno por uno' },
+      { k: 'input', t: 'Comisiones', d: 'Trabajadora + %. La trabajadora solo se elige a sí misma' },
+      { k: 'input', t: 'Fórmula o notas', d: 'Muestra la nota fija (alergias) si hay' },
+      { k: 'input', t: 'Método de pago' },
+      { k: 'screen', t: 'Confirmar', d: 'Con agenda: a cobrar hoy = total − anticipo' },
+      { k: 'api', t: 'POST /api/citas' },
+      { k: 'decision', t: '¿Viene de una cita agendada?', b: [
+        { c: 'Sí', s: [{ k: 'decision', t: '¿Sigue pendiente?', b: [
+          { c: 'No', s: [{ k: 'err', t: '400 · Ya fue registrada' }] },
+          { c: 'Sí', s: [{ k: 'db', t: 'citas_agendadas → completada', d: 'Misma sentencia que el cobro', i: 'C3' }] },
+        ] }] },
+        { c: 'No', s: [] },
+      ] },
+      { k: 'db', t: 'citas + comisiones', d: 'Una sola sentencia: todo o nada', i: 'C3' },
+      { k: 'decision', t: '¿La registró una trabajadora?', b: [
+        { c: 'Sí', s: [{ k: 'ext', t: 'Push a la dueña' }] },
+        { c: 'No', s: [] },
+      ] },
+      { k: 'ok', t: 'Toast verde → Inicio' },
+    ],
+    tablas: ['citas', 'comisiones', 'citas_agendadas', 'clientas', 'push_subscriptions'], issues: ['C3', 'C7', 'C10'],
+  },
+  {
+    id: 'F4', title: 'Agendar Cita', roles: ['duena', 'trab'],
+    entrada: 'Clienta, fecha, hora, anticipo y nota', fin: 'Agenda con la cita nueva',
+    steps: [
+      { k: 'screen', t: 'Agenda → + → Agendar cita', d: 'Abre en el día elegido en Mes, o en hoy' },
+      { k: 'input', t: 'Clienta, fecha y hora', d: 'Hora en 12 h, minutos de 10 en 10' },
+      { k: 'input', t: 'Teléfono (opcional)', r: 'duena' },
+      { k: 'input', t: 'Anticipo', d: '$0 = sin anticipo' },
+      { k: 'decision', t: '¿Anticipo mayor a $0?', b: [
+        { c: 'Sí', s: [{ k: 'input', t: 'Método de pago del anticipo' }] },
+        { c: 'No', s: [] },
+      ] },
+      { k: 'input', t: 'Nota opcional' },
+      { k: 'api', t: 'POST /api/citas-agendadas' },
+      { k: 'db', t: 'citas_agendadas', d: 'Misma sentencia que el anticipo (CTEs)' },
+      { k: 'decision', t: '¿Hubo anticipo?', b: [
+        { c: 'Sí', s: [{ k: 'db', t: 'citas · item anticipo', d: 'Fecha = hoy en México (lib/fecha.js)', i: 'C2' }] },
+        { c: 'No', s: [] },
+      ] },
+      { k: 'decision', t: '¿Cambió el teléfono?', r: 'duena', b: [
+        { c: 'Sí', s: [{ k: 'api', t: 'POST /api/clientas', d: 'Si falla, la cita igual queda', r: 'duena' }] },
+        { c: 'No', s: [] },
+      ] },
+      { k: 'ok', t: 'Toast → Agenda' },
+    ],
+    tablas: ['citas_agendadas', 'citas', 'clientas'], issues: ['C2'],
+  },
+  {
+    id: 'F5', title: 'Ciclo de vida de una cita agendada', roles: ['duena'], type: 'states',
+    entrada: 'Tocar una cita en la Agenda', fin: 'La cita en su nuevo estado',
+    tablas: ['citas_agendadas', 'citas'], issues: ['C1', 'C14'],
+  },
+  {
+    id: 'F6', title: 'Vacaciones y días libres', roles: ['duena'],
+    entrada: 'Quién, desde, hasta y nota', fin: 'Banner en Agenda y día coloreado en Mes',
+    steps: [
+      { k: 'screen', t: 'Agenda → + → Vacaciones / día libre' },
+      { k: 'input', t: 'Quién, desde, hasta, nota' },
+      { k: 'decision', t: '¿“Hasta” es igual o después de “desde”?', b: [
+        { c: 'No', s: [{ k: 'err', t: 'Toast de error' }] },
+        { c: 'Sí', s: [
+          { k: 'api', t: 'POST /api/citas-agendadas', d: 'recurso: ausencia' },
+          { k: 'db', t: 'ausencias' },
+          { k: 'sys', t: 'Banner en Agenda + día coloreado en Mes' },
+        ] },
+      ] },
+      { k: 'input', t: '× Eliminar ausencia' },
+      { k: 'decision', t: '¿Eliminar estos días libres?', d: 'Quién, rango y nota', i: 'C11', b: [
+        { c: 'No, volver', s: [{ k: 'ok', t: 'Sin cambios' }] },
+        { c: 'Sí, eliminar', s: [
+          { k: 'api', t: 'DELETE /api/citas-agendadas', d: 'recurso: ausencia' },
+          { k: 'ok', t: 'Toast con Deshacer' },
+        ] },
+      ] },
+    ],
+    tablas: ['ausencias'], issues: ['C11'],
+  },
+  {
+    id: 'F7', title: 'Registrar Gasto', roles: ['duena'],
+    entrada: 'Descripción, monto y método de pago', fin: 'Inicio con toast verde',
+    steps: [
+      { k: 'screen', t: 'Inicio → Registrar Gasto' },
+      { k: 'input', t: 'Descripción' },
+      { k: 'input', t: 'Monto', d: 'Teclado numérico' },
+      { k: 'input', t: 'Método de pago' },
+      { k: 'screen', t: 'Confirmar' },
+      { k: 'api', t: 'POST /api/gastos', d: 'Fecha = hoy del dispositivo' },
+      { k: 'db', t: 'gastos' },
+      { k: 'ok', t: 'Toast verde → Inicio' },
+    ],
+    tablas: ['gastos'], issues: [],
+  },
+  {
+    id: 'F8', title: 'Registros del día', roles: ['duena'],
+    entrada: 'Fecha elegida', fin: 'Nota guardada, recibo compartido o registro borrado',
+    steps: [
+      { k: 'screen', t: 'Más → Ver Registros' },
+      { k: 'api', t: 'GET /api/citas + /api/gastos', d: 'Si la respuesta no es JSON (ej. 502), mensaje claro', i: 'C9' },
+      { k: 'screen', t: 'Totales y tarjetas del día' },
+      { k: 'decision', t: '¿Qué hace?', b: [
+        { c: 'Editar nota', s: [{ k: 'api', t: 'PATCH /api/citas' }, { k: 'ok', t: 'Nota guardada' }] },
+        { c: 'Compartir recibo', s: [{ k: 'decision', t: '¿Hay hoja nativa?', b: [
+          { c: 'Sí', s: [{ k: 'ok', t: 'WhatsApp, iMessage…' }] },
+          { c: 'No', s: [{ k: 'decision', t: '¿Hay teléfono?', b: [
+            { c: 'Sí', s: [{ k: 'ok', t: 'Abre wa.me' }] },
+            { c: 'No', s: [{ k: 'err', t: 'Toast: agrega el teléfono' }] },
+          ] }] },
+        ] }] },
+        { c: 'Eliminar', s: [
+          { k: 'screen', t: 'Modal de confirmación' },
+          { k: 'api', t: 'DELETE /api/citas o /gastos' },
+          { k: 'db', t: 'deleted_at', d: 'La cita y sus comisiones' },
+          { k: 'ok', t: 'Toast con Deshacer (5 s)' },
+        ] },
+      ] },
+    ],
+    tablas: ['citas', 'gastos', 'comisiones', 'clientas'], issues: ['C9'],
+  },
+  {
+    id: 'F9', title: 'Clientas', roles: ['duena'],
+    entrada: 'Nombre a buscar', fin: 'Ficha de la clienta actualizada',
+    steps: [
+      { k: 'screen', t: 'Inicio → Clientas' },
+      { k: 'api', t: 'GET /api/clientas?historial=1', d: 'Una sola llamada' },
+      { k: 'input', t: 'Busca por nombre', d: 'Filtra en el navegador, sin llamadas por tecla' },
+      { k: 'screen', t: 'Tarjeta: visitas, total, última fórmula' },
+      { k: 'decision', t: '¿Qué edita?', b: [
+        { c: 'Teléfono o nota fija', s: [{ k: 'api', t: 'POST /api/clientas', d: 'Manda nota y teléfono juntos' }, { k: 'db', t: 'clientas' }] },
+        { c: 'Nota de una visita', s: [{ k: 'api', t: 'PATCH /api/citas' }, { k: 'db', t: 'citas' }] },
+      ] },
+      { k: 'ok', t: 'Toast verde, sin recargar' },
+    ],
+    tablas: ['citas', 'clientas'], issues: [],
+  },
+  {
+    id: 'F10', title: 'Reportes', roles: ['duena'],
+    entrada: 'Semana, rango o mes', fin: 'Números del negocio',
+    steps: [
+      { k: 'decision', t: '¿Qué pantalla?', b: [
+        { c: 'Inicio', s: [
+          { k: 'api', t: 'GET dashboard + comisiones', d: 'Lunes a domingo de esta semana' },
+          { k: 'decision', t: '¿Cargó?', b: [
+            { c: 'Sí', s: [{ k: 'ok', t: 'Resumen semanal' }] },
+            { c: 'No', s: [{ k: 'ok', t: 'Oculta la tarjeta, sin error' }] },
+          ] },
+        ] },
+        { c: 'Comisiones', s: [{ k: 'api', t: 'GET /api/comisiones', d: 'Rango editable' }, { k: 'ok', t: 'Total y detalle por trabajadora' }] },
+        { c: 'Dashboard', s: [{ k: 'api', t: 'GET /api/dashboard', d: 'Mes elegido, nunca futuro' }, { k: 'ok', t: 'KPIs, gráfica y top 5' }] },
+      ] },
+    ],
+    tablas: ['citas', 'gastos', 'comisiones'], issues: [],
+  },
+  {
+    id: 'F11', title: 'Configuración', roles: ['duena'],
+    entrada: 'Catálogo, trabajadoras, PINs, push y Face ID', fin: 'Salón actualizado',
+    steps: [
+      { k: 'screen', t: 'Más → Configuración' },
+      { k: 'api', t: 'GET /api/config', d: 'Siempre fresco del servidor' },
+      { k: 'decision', t: '¿Qué hace?', b: [
+        { c: 'Catálogo', s: [
+          { k: 'input', t: 'Agrega o quita', d: 'Quitar pide confirmación' },
+          { k: 'api', t: 'POST /api/config', d: 'Conserva pin_hash por nombre' },
+          { k: 'db', t: 'salones + webauthn_credentials', d: 'Borra el Face ID de las trabajadoras eliminadas', i: 'C8' },
+          { k: 'sys', t: 'Actualiza la sesión local', d: 'Conserva la expiración del token', i: 'C4' },
+          { k: 'ok', t: 'Inicio' },
+        ] },
+        { c: 'PIN de trabajadora', s: [
+          { k: 'input', t: 'PIN de 6 dígitos', d: 'Ella debe estar guardada antes' },
+          { k: 'api', t: 'POST /api/trabajador-pin' },
+          { k: 'decision', t: '¿PIN libre en todo el sistema?', d: 'Dueñas (nuevo y legacy) y trabajadoras, menos ella', i: 'C6', b: [
+            { c: 'No', s: [{ k: 'err', t: '409 · Ya está en uso' }] },
+            { c: 'Sí', s: [{ k: 'ok', t: '“Tiene acceso”' }] },
+          ] },
+        ] },
+        { c: 'Quitar acceso', s: [
+          { k: 'api', t: 'POST /api/trabajador-pin', d: 'remove: true' },
+          { k: 'db', t: 'salones.trabajadoras' },
+          { k: 'db', t: 'webauthn_credentials', d: 'Borra su Face ID', i: 'C8' },
+          { k: 'ok', t: '“Sin acceso”' },
+        ] },
+      ] },
+    ],
+    tablas: ['salones', 'webauthn_credentials'], issues: ['C4', 'C6', 'C8'],
+  },
+  {
+    id: 'F12', title: 'Notificaciones push', roles: ['duena'],
+    entrada: 'Activar en Configuración, cron diario o cita de trabajadora', fin: 'Notificación en el celular de la dueña',
+    steps: [
+      { k: 'decision', t: '¿Qué lo dispara?', b: [
+        { c: 'Activar', s: [
+          { k: 'decision', t: '¿iPhone sin instalar la app?', b: [
+            { c: 'Sí', s: [{ k: 'err', t: 'No soportado · instrucciones' }] },
+            { c: 'No', s: [
+              { k: 'ext', t: 'Permiso del sistema' },
+              { k: 'api', t: 'GET + POST /api/push-subscribe' },
+              { k: 'db', t: 'push_subscriptions' },
+              { k: 'ok', t: 'Activadas' },
+            ] },
+          ] },
+        ] },
+        { c: 'Cron 18:00 CDMX', s: [
+          { k: 'api', t: 'GET /api/cron/reminder-citas' },
+          { k: 'db', t: 'login_attempts', d: 'Borra los de más de 30 días', i: 'C12' },
+          { k: 'db', t: 'citas_agendadas', d: 'Pendientes de mañana' },
+          { k: 'ext', t: 'Push “Tienes N citas mañana”' },
+          { k: 'ok', t: 'Toque → Agenda' },
+        ] },
+        { c: 'Trabajadora cobra', s: [
+          { k: 'api', t: 'POST /api/citas' },
+          { k: 'ext', t: 'Push “Nueva cita registrada”' },
+          { k: 'ok', t: 'Toque → Registros' },
+        ] },
+      ] },
+    ],
+    notes: ['Una suscripción que responde 404 o 410 se borra sola.'],
+    tablas: ['push_subscriptions', 'citas_agendadas', 'login_attempts'], issues: ['C12'],
+  },
+  {
+    id: 'F13', title: 'Actualización de la app', roles: ['duena', 'trab'],
+    entrada: 'Deploy con CACHE_NAME nuevo', fin: 'La app corre el código nuevo sin perder una captura',
+    steps: [
+      { k: 'ext', t: 'Deploy con CACHE_NAME nuevo' },
+      { k: 'input', t: 'Vuelve a la app', d: 'visibilitychange → registration.update()' },
+      { k: 'sys', t: 'SW nuevo se instala y toma control', d: 'skipWaiting, clients.claim, borra cachés viejos' },
+      { k: 'sys', t: 'Marca actualización pendiente' },
+      { k: 'input', t: 'Cambia de pantalla' },
+      { k: 'ok', t: 'Recarga con el código nuevo' },
+    ],
+    tablas: [], issues: [],
+  },
+];
+
+/* F5: estados y transiciones */
+const STATES = [
+  { id: 'pend', cls: 'st-pend', t: 'Pendiente', x: 385, y: 170 },
+  { id: 'comp', cls: 'st-comp', t: 'Completada', x: 745, y: 170 },
+  { id: 'canc', cls: 'st-canc', t: 'Cancelada', x: 25, y: 170 },
+  { id: 'noas', cls: 'st-noas', t: 'No asistió', x: 385, y: 370 },
+  { id: 'del', cls: 'st-del', t: 'Borrada', x: 745, y: 370 },
+];
+const STATE_EDGES = [
+  { a: 'pend', as: 'r', b: 'comp', bs: 'l', off: 0, t: 'Cobrar (F3)', ly: -14 },
+  { a: 'pend', as: 'l-', b: 'canc', bs: 'r-', off: 0, t: 'Cancelar (confirma)', ly: -16 },
+  { a: 'canc', as: 'r+', b: 'pend', bs: 'l+', off: 0, t: 'Volver a pendiente', ly: 16 },
+  { a: 'pend', as: 'bm-', b: 'noas', bs: 't-', off: 0, t: 'No asistió (confirma)', lx: -84 },
+  { a: 'noas', as: 't+', b: 'pend', bs: 'bm+', off: 0, t: 'Volver', lx: 44 },
+  { a: 'noas', as: 'r', b: 'del', bs: 'l', off: 0, t: 'Eliminar (no completada)', issue: 'C1' },
+];
+const TRANSITIONS = [
+  ['Pendiente → Completada', 'Cobrar en Registrar Cita', 'POST /api/citas con agenda_id', '', ''],
+  ['Pendiente → Cancelada / No asistió', 'Menú de la cita (confirma)', 'PATCH {id, estado}', 'El anticipo se queda como ingreso', ''],
+  ['Cancelada / No asistió → Pendiente', '“Volver a pendiente” o Deshacer', 'PATCH {id, estado}', '', ''],
+  ['Pendiente → Pendiente', 'Reagendar, nota, teléfono', 'PATCH {id, fecha, hora, nota}', '', ''],
+  ['Pendiente / cancelada / no asistió → Borrada', 'Eliminar (confirma)', 'DELETE {id}', 'Borra solo su anticipo', 'C1'],
+  ['Completada → Borrada', 'No se permite', 'DELETE {id} → 400', 'El cobro se corrige en Ver Registros', 'C1'],
+  ['Borrada → estado anterior', 'Deshacer', 'PATCH {id, restore}', 'Restaura su anticipo', ''],
+  ['Pendiente de una fecha pasada', 'Aparece en “Sin cerrar”: Registrar cobro, no asistió o cancelar', 'Abre #cita?fecha=', 'El anticipo se concilia al cobrarla', 'C14'],
+];
+
+const MONEY = {
+  head: ['Evento', 'Fila en citas', 'Fecha', 'Registros', 'Ingresos', 'Cuenta como cita', 'Comisiones'],
+  rows: [
+    ['Cita normal', '1 fila con servicios y productos', 'La elegida', 'yes', 'yes', 'yes', 'Si se asignaron'],
+    ['Anticipo al agendar', '1 fila, item anticipo', 'Hoy en México', 'yes', 'yes', 'no', '—'],
+    ['Cobro de cita agendada', '1 fila, total − anticipo', 'La elegida', 'yes', 'yes', 'yes', 'Sobre el precio completo'],
+    ['Cancelar / No asistió', 'Sin cambio', '—', 'El anticipo sigue', 'yes', '—', '—'],
+    ['Eliminar cita agendada (no completada)', 'Borra solo su anticipo', '—', 'no', 'no', 'no', '—'],
+    ['Eliminar cita agendada completada', 'No se permite (400)', '—', '—', '—', '—', '—'],
+    ['Eliminar en Registros', 'Borra la fila', '—', 'no', 'no', 'no', 'Se borran'],
+    ['Gasto', 'Tabla gastos', 'Hoy del dispositivo', 'yes', 'Resta en gastos', '—', '—'],
+  ],
+};
+
+const ISSUES = [
+  { id: 'C1', ok: 'El DELETE rechaza una completada (400) y solo borra la fila del anticipo. La Agenda ya no ofrece “Eliminar” en una completada.', sev: 'alta', flow: 'F5', t: 'Eliminar una cita agendada ya completada borra también el cobro de la visita',
+    p: 'DELETE /api/citas-agendadas borra todas las filas de citas con ese agenda_id, y el cobro final también lo lleva. Desaparece el ingreso real pero sus comisiones siguen contando.',
+    fix: 'No ofrecer “Eliminar” en una completada y, en el backend, borrar solo la fila del depósito o rechazar el DELETE.' },
+  { id: 'C2', ok: 'lib/fecha.js con fechaMexico(): la usan el anticipo, clientas y el cron.', sev: 'alta', flow: 'F4', t: 'El anticipo se registra con la fecha UTC del servidor',
+    p: 'Entre 18:00 y 23:59 de Ciudad de México la fecha UTC ya es mañana. El anticipo cae en los Registros del día siguiente.',
+    fix: 'Mover fechaMexico() del cron a lib/ y usarla aquí, o que el cliente mande la fecha.' },
+  { id: 'C3', ok: 'Completar la cita agendada, insertar el cobro y sus comisiones es una sola sentencia. agenda_id se valida como uuid.', sev: 'media', flow: 'F3', t: 'Cobrar una cita agendada no es atómico',
+    p: 'Primero se marca completada y luego se insertan cita y comisiones por separado. Si falla el insert, queda completada sin cobro.',
+    fix: 'Una sola sentencia con CTEs, como al agendar con anticipo.' },
+  { id: 'C4', ok: 'Un 401 borra la sesión y lleva a Login con aviso. La expiración local sale del propio token.', sev: 'media', flow: 'F0', t: 'Token vencido sin salida a Login',
+    p: 'fetchAPI no trata el 401 y “Guardar Cambios” renueva la sesión local 8 h más. Cada pantalla muestra “Error al cargar…”.',
+    fix: 'Ante un 401: logout() y llevar a Login. saveSession debe conservar expires_at.' },
+  { id: 'C5', ok: 'La plantilla copia solo el nombre de cada trabajadora.', sev: 'media', flow: null, t: 'crear-salon --plantilla copia los PINs de las trabajadoras',
+    p: 'Dos salones terminan con PINs idénticos y el login entra al primero que encuentra.',
+    fix: 'Copiar solo el nombre de cada trabajadora.' },
+  { id: 'C6', ok: 'pinEnUso() compartido: revisa dueñas (nuevo y legacy) y trabajadoras de todos los salones.', sev: 'media', flow: null, t: 'crear-salon --pin no revisa si el PIN ya existe',
+    p: 'trabajador-pin.js sí lo revisa; el script no.',
+    fix: 'La misma consulta en_uso antes de insertar.' },
+  { id: 'C7', ok: 'Si cambian el nombre o la fecha, se sueltan agendaId y su anticipo.', sev: 'media', flow: 'F3', t: 'El vínculo con la cita agendada sobrevive a un cambio de nombre',
+    p: 'Si tocas un recuadro y luego escribes otra clienta, el cobro completa la cita de la primera y descuenta su anticipo.',
+    fix: 'Limpiar agendaId y anticipo si el nombre o la fecha cambian.' },
+  { id: 'C14', ok: 'Sección “Sin cerrar” en la Agenda con “Registrar cobro”, no asistió o cancelar.', sev: 'media', flow: 'F5', t: 'Citas agendadas vencidas se quedan en “pendiente”',
+    p: 'La Agenda empieza en hoy: una cita de ayer sin cerrar desaparece de la lista y su anticipo queda sin conciliar.',
+    fix: 'Sección “Sin cerrar” con las pendientes de fechas pasadas.' },
+  { id: 'C8', ok: 'Quitar acceso o borrarla borra su Face ID, y el login revisa que siga con acceso.', sev: 'baja', flow: 'F2', t: 'Quitar acceso no borra el Face ID de la trabajadora',
+    p: 'El login con Face ID no revisa que ella siga con acceso. Hoy solo la dueña ve el botón de activar.',
+    fix: 'Verificar en el login y borrar sus credenciales al quitar el acceso.' },
+  { id: 'C9', ok: 'fetchAPI lee texto, intenta JSON y da un mensaje claro según el código.', sev: 'baja', flow: 'F8', t: 'fetchAPI asume que toda respuesta es JSON',
+    p: 'Un 502 o 504 de Vercel con HTML truena en response.json() y se pierde el mensaje.',
+    fix: 'Leer como texto, intentar JSON y caer a un mensaje genérico.' },
+  { id: 'C10', ok: 'La trabajadora ve “Pídele a la dueña que los agregue”, sin botón.', sev: 'baja', flow: 'F3', t: 'Trabajadora sin catálogo ve “Ir a Configuración”',
+    p: 'Al tocarlo, el router la regresa al Inicio sin explicación.',
+    fix: 'Para ella: “Pídele a la dueña que agregue servicios”.' },
+  { id: 'C11', ok: 'Pide confirmación con quién, rango y nota. Sigue con Deshacer.', sev: 'baja', flow: 'F6', t: 'Borrar una ausencia no pide confirmación',
+    p: 'Todo lo demás en la Agenda la pide desde la v43.',
+    fix: 'Usar el mismo paso “¿Seguro?” del menú de citas.' },
+  { id: 'C12', ok: 'El cron diario borra los intentos de más de 30 días.', sev: 'baja', flow: 'F1', t: 'login_attempts nunca se limpia',
+    p: 'Cada intento de login agrega una fila para siempre.',
+    fix: 'Borrar filas de más de 30 días en el cron diario.' },
+  { id: 'C13', ok: 'scripts/migrations/000_base.sql, exportado de la base real. Las pruebas levantan la base con 000 a 007.', sev: 'baja', flow: null, t: 'Las tablas base no tienen DDL en el repo',
+    p: 'No se puede levantar una base desde cero solo con las migraciones.',
+    fix: 'Exportar el esquema real a 000_base.sql.' },
+];
+
+/* Orden del tablero: dos filas, cada una con grupos por tema. Se acomoda
+   así para que "Ver todo" tenga la forma de una pantalla y no de una tira. */
+const ROWS = [
+  [
+    { title: 'Acceso y plataforma', ids: ['F0', 'F1', 'F2', 'F13'] },
+    { title: 'Citas y dinero', ids: ['F3', 'F4', 'F5'] },
+    { title: 'Referencia', ids: ['DINERO', 'CABOS'] },
+  ],
+  [
+    { title: 'Operación diaria', ids: ['F6', 'F7', 'F8', 'F9'] },
+    { title: 'Administración', ids: ['F10', 'F11', 'F12'] },
+  ],
+];
+
+/* ========================= Utilidades ========================= */
+const $ = (sel, root = document) => root.querySelector(sel);
+const esc = (s) => String(s == null ? '' : s)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const issueById = Object.fromEntries(ISSUES.map((x) => [x.id, x]));
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+
+/* Medidas del diagrama */
+const GAP_Y = 58;
+const GAP_X = 40;
+const EMPTY_W = 96;
+const PAD = 34;
+const FRAME_GAP = 110;
+const GROUP_GAP = 320;
+const ROW_GAP = 520;
+
+const world = $('#world');
+const viewport = $('#viewport');
+const frames = []; // { id, title, el, x, y, w, h, roles }
+const searchIndex = []; // { el, text, flow, label }
+
+/* Etiqueta de cabo suelto: verde con ✓ si ya se resolvió. */
+function badgeHTML(id) {
+  const is = issueById[id];
+  const cls = is.ok ? 'badge--ok' : `sev-${is.sev}`;
+  return `<button type="button" class="badge ${cls}" data-goto-sticky="${id}" title="${esc(is.t)}">${is.ok ? '✓' : '⚠'} ${id}</button>`;
+}
+
+/* ========================= Construcción de nodos ========================= */
+function makeNode(n, flow) {
+  const kind = KINDS[n.k];
+  const node = el('div', `node k-${n.k}`);
+  node.innerHTML = `
+    <div class="node-kind"><span class="ic" aria-hidden="true">${kind.ic}</span>${kind.label}${n.r === 'duena' ? ' · solo dueña' : ''}</div>
+    <div class="node-t">${esc(n.t)}</div>
+    ${n.d ? `<div class="node-d">${esc(n.d)}</div>` : ''}
+    ${n.i ? badgeHTML(n.i) : ''}`;
+  if (n.r) node.dataset.r = n.r;
+  if (n.i) node.dataset.issue = n.i;
+  searchIndex.push({ el: node, text: norm(`${n.t} ${n.d || ''} ${kind.label}`), flow: flow.id, label: n.t });
+  return node;
+}
+
+function createNodes(steps, body, flow) {
+  for (const s of steps) {
+    s._el = makeNode(s, flow);
+    body.appendChild(s._el);
+    if (s.k === 'decision') s.b.forEach((br) => createNodes(br.s, body, flow));
+  }
+}
+
+function measure(steps) {
+  for (const s of steps) {
+    s._w = s._el.offsetWidth;
+    s._h = s._el.offsetHeight;
+    if (s.k === 'decision') s.b.forEach((br) => measure(br.s));
+  }
+}
+
+/* ========================= Layout de árbol ========================= */
+function sizeSeq(steps) {
+  let w = 0;
+  let h = 0;
+  steps.forEach((s, i) => {
+    s._sz = sizeItem(s);
+    w = Math.max(w, s._sz.w);
+    h += s._sz.h + (i ? GAP_Y : 0);
+  });
+  return { w, h };
+}
+
+function sizeItem(s) {
+  if (s.k !== 'decision') return { w: s._w, h: s._h };
+  const sizes = s.b.map((br) => (br._sz = br.s.length ? sizeSeq(br.s) : { w: EMPTY_W, h: 0 }));
+  const bw = sizes.reduce((a, z) => a + z.w, 0) + GAP_X * (sizes.length - 1);
+  const bh = Math.max(...sizes.map((z) => z.h));
+  s._bw = bw;
+  return { w: Math.max(s._w, bw), h: s._h + GAP_Y + bh };
+}
+
+function place(s, x, y) {
+  s._x = x;
+  s._y = y;
+  s._el.style.left = `${x}px`;
+  s._el.style.top = `${y}px`;
+}
+
+function placeSeq(steps, cx, y) {
+  for (const s of steps) {
+    placeItem(s, cx, y);
+    y += s._sz.h + GAP_Y;
+  }
+}
+
+function placeItem(s, cx, y) {
+  place(s, cx - s._w / 2, y);
+  if (s.k !== 'decision') return;
+  let x = cx - s._bw / 2;
+  const by = y + s._h + GAP_Y;
+  for (const br of s.b) {
+    br._cx = x + br._sz.w / 2;
+    if (br.s.length) placeSeq(br.s, br._cx, by);
+    x += br._sz.w + GAP_X;
+  }
+}
+
+/* ========================= Conectores ========================= */
+function wireSeq(steps, incoming, edges) {
+  let exits = incoming;
+  for (const s of steps) {
+    exits.forEach((e) => edges.push({ ...e, to: s }));
+    exits = wireItem(s, edges);
+  }
+  return exits;
+}
+
+function wireItem(s, edges) {
+  if (s.k !== 'decision') return TERMINAL.has(s.k) ? [] : [{ from: s }];
+  let out = [];
+  for (const br of s.b) {
+    if (!br.s.length) out.push({ from: s, label: br.c, viaX: br._cx });
+    else out = out.concat(wireSeq(br.s, [{ from: s, label: br.c, entry: true }], edges));
+  }
+  return out;
+}
+
+function drawEdges(edges, svg, body) {
+  const paths = [];
+  for (const e of edges) {
+    const sx = e.from._x + e.from._w / 2;
+    const sy = e.from._y + e.from._h;
+    const tx = e.to._x + e.to._w / 2;
+    const ty = e.to._y;
+    let d;
+    if (e.viaX != null) {
+      const y1 = sy + GAP_Y * 0.42;
+      const y2 = ty - GAP_Y * 0.42;
+      d = `M${sx} ${sy} V${y1} H${e.viaX} V${y2} H${tx} V${ty}`;
+      addLabel(body, e.label, e.viaX, (y1 + y2) / 2);
+    } else if (e.entry) {
+      const my = sy + GAP_Y * 0.42;
+      d = `M${sx} ${sy} V${my} H${tx} V${ty}`;
+      addLabel(body, e.label, tx, my + (ty - my) / 2 - 2);
+    } else {
+      const my = ty - GAP_Y * 0.42;
+      d = `M${sx} ${sy} V${my} H${tx} V${ty}`;
+    }
+    paths.push(`<path class="edge" d="${roundPath(d)}" marker-end="url(#arrow)"/>`);
+  }
+  svg.innerHTML = `${arrowDefs()}${paths.join('')}`;
+}
+
+/* Esquinas redondeadas para rutas ortogonales (solo segmentos V/H). */
+function roundPath(d, r = 8) {
+  const pts = [];
+  const re = /([MVH])([\d.-]+)(?:\s([\d.-]+))?/g;
+  let m;
+  let x = 0;
+  let y = 0;
+  while ((m = re.exec(d))) {
+    if (m[1] === 'M') { x = +m[2]; y = +m[3]; } else if (m[1] === 'V') { y = +m[2]; } else { x = +m[2]; }
+    const last = pts[pts.length - 1];
+    if (!last || last[0] !== x || last[1] !== y) pts.push([x, y]);
+  }
+  if (pts.length < 3) return d;
+  let out = `M${pts[0][0]} ${pts[0][1]}`;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const [px, py] = pts[i - 1];
+    const [cx, cy] = pts[i];
+    const [nx, ny] = pts[i + 1];
+    const r1 = Math.min(r, Math.hypot(cx - px, cy - py) / 2);
+    const r2 = Math.min(r, Math.hypot(nx - cx, ny - cy) / 2);
+    const rr = Math.min(r1, r2);
+    const ax = cx - Math.sign(cx - px) * rr;
+    const ay = cy - Math.sign(cy - py) * rr;
+    const bx = cx + Math.sign(nx - cx) * rr;
+    const by = cy + Math.sign(ny - cy) * rr;
+    out += ` L${ax} ${ay} Q${cx} ${cy} ${bx} ${by}`;
+  }
+  const end = pts[pts.length - 1];
+  return `${out} L${end[0]} ${end[1]}`;
+}
+
+function arrowDefs() {
+  return `<defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#B8A9AF"/></marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#BE3A3A"/></marker>
+  </defs>`;
+}
+
+function addLabel(body, text, x, y, cls = '') {
+  const l = el('span', `elabel ${cls}`, esc(text));
+  l.style.left = `${x}px`;
+  l.style.top = `${y}px`;
+  body.appendChild(l);
+  return l;
+}
+
+/* ========================= Marcos ========================= */
+function frameShell(f) {
+  const fr = el('section', 'frame');
+  fr.id = f.id;
+  fr.dataset.roles = (f.roles || ['duena', 'trab']).join(' ');
+  const roles = f.roles
+    ? `<span class="roles">${f.roles.includes('duena') ? '<span class="role role--duena">Dueña</span>' : ''}${f.roles.includes('trab') ? '<span class="role role--trab">Trabajadora</span>' : ''}</span>`
+    : '';
+  fr.innerHTML = `
+    <div class="frame-far" data-zoom-frame="${f.id}"><span>${esc(f.id.startsWith('F') ? f.id : '')}</span>${esc(f.title)}</div>
+    <header class="frame-head" data-zoom-frame="${f.id}" title="Acercar a este marco">
+      ${f.id.startsWith('F') ? `<span class="frame-id">${f.id}</span>` : ''}<h2>${esc(f.title)}</h2>${roles}
+    </header>
+    ${f.entrada ? `<p class="frame-sum"><b>Entra:</b> ${esc(f.entrada)} · <b>Termina en:</b> ${esc(f.fin)}</p>` : ''}
+    <div class="frame-body"></div>`;
+  world.appendChild(fr);
+  return fr;
+}
+
+function frameFooter(f, fr) {
+  if (!(f.tablas && f.tablas.length) && !(f.issues && f.issues.length)) return;
+  const foot = el('footer', 'frame-foot');
+  let html = '';
+  if (f.tablas.length) html += `Tablas: ${f.tablas.map((t) => `<span class="chip chip--db">${esc(t)}</span>`).join('')}`;
+  if (f.issues.length) {
+    html += `<span style="margin-left:${f.tablas.length ? '10px' : '0'}">Cabos:</span> `;
+    html += f.issues.map((id) => `<button type="button" class="chip ${issueById[id].ok ? 'badge--ok' : `sev-${issueById[id].sev}`}" data-goto-sticky="${id}">${issueById[id].ok ? '✓ ' : ''}${id}</button>`).join('');
+  }
+  foot.innerHTML = html;
+  fr.appendChild(foot);
+}
+
+function buildFlowFrame(f) {
+  const fr = frameShell(f);
+  const body = $('.frame-body', fr);
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  body.appendChild(svg);
+
+  createNodes(f.steps, body, f);
+  measure(f.steps);
+  const size = sizeSeq(f.steps);
+
+  let notesH = 0;
+  const noteEls = (f.notes || []).map((t) => {
+    const n = el('div', 'note-sticky', `<b>Nota</b>${esc(t)}`);
+    body.appendChild(n);
+    return n;
+  });
+  noteEls.forEach((n) => { notesH = Math.max(notesH, n.offsetHeight); });
+
+  const headW = Math.max(fr.querySelector('.frame-head').scrollWidth, 460);
+  const innerW = Math.max(size.w + PAD * 2, headW);
+  placeSeq(f.steps, innerW / 2, PAD / 2);
+  body.style.width = `${innerW}px`;
+  body.style.height = `${size.h + PAD + (notesH ? notesH + 36 : 0)}px`;
+  noteEls.forEach((n, i) => { n.style.left = `${PAD + i * 240}px`; n.style.top = `${size.h + PAD + 12}px`; });
+  svg.setAttribute('width', innerW);
+  svg.setAttribute('height', size.h + PAD);
+
+  const edges = [];
+  wireSeq(f.steps, [], edges);
+  drawEdges(edges, svg, body);
+  frameFooter(f, fr);
+  fr.style.width = `${innerW}px`;
+  return fr;
+}
+
+function stateAnchor(n, side) {
+  const x = n._x;
+  const y = n._y;
+  const w = n._w;
+  const h = n._h;
+  const map = {
+    t: [x + w / 2, y], 't-': [x + w / 2 - 22, y], 't+': [x + w / 2 + 22, y],
+    b: [x + w / 2, y + h], 'bm-': [x + w / 2 - 22, y + h], 'bm+': [x + w / 2 + 22, y + h],
+    l: [x, y + h / 2], r: [x + w, y + h / 2],
+    'l-': [x, y + h / 2 - 9], 'l+': [x, y + h / 2 + 9], 'r-': [x + w, y + h / 2 - 9], 'r+': [x + w, y + h / 2 + 9],
+  };
+  return map[side];
+}
+
+function buildStatesFrame(f) {
+  const fr = frameShell(f);
+  const body = $('.frame-body', fr);
+  const W = 960;
+  const H = 470;
+  body.style.width = `${W}px`;
+  body.style.height = `${H}px`;
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('width', W);
+  svg.setAttribute('height', H);
+  body.appendChild(svg);
+
+  const byId = {};
+  for (const s of STATES) {
+    const n = el('div', `node k-state ${s.cls}`, `<div class="node-t">${s.t}</div>`);
+    body.appendChild(n);
+    n.style.left = `${s.x}px`;
+    n.style.top = `${s.y}px`;
+    byId[s.id] = { _x: s.x, _y: s.y, _w: n.offsetWidth, _h: n.offsetHeight, el: n };
+    searchIndex.push({ el: n, text: norm(`estado ${s.t}`), flow: f.id, label: `Estado ${s.t}` });
+  }
+
+  const paths = [];
+  for (const e of STATE_EDGES) {
+    const [ax, ay] = stateAnchor(byId[e.a], e.as);
+    const [bx, by] = stateAnchor(byId[e.b], e.bs);
+    const mx = (ax + bx) / 2;
+    const my = (ay + by) / 2;
+    const len = Math.hypot(bx - ax, by - ay) || 1;
+    const cx = mx + (-(by - ay) / len) * e.off * 2;
+    const cy = my + ((bx - ax) / len) * e.off * 2;
+    const lx = (ax + 2 * cx + bx) / 4 + (e.lx || 0);
+    const ly = (ay + 2 * cy + by) / 4 + (e.ly || 0);
+    const abierta = e.issue && !issueById[e.issue].ok;
+    paths.push(`<path class="edge ${abierta ? 'edge--issue' : ''}" d="M${ax} ${ay} Q${cx} ${cy} ${bx} ${by}" marker-end="url(#${abierta ? 'arrow-red' : 'arrow'})"/>`);
+    const lab = addLabel(body, e.t, lx, ly, `elabel--state ${abierta ? 'elabel--issue' : ''}`);
+    if (e.issue) lab.dataset.issue = e.issue;
+  }
+  // Bucle sobre Pendiente: reagendar, nota, teléfono
+  const p = byId.pend;
+  const lx1 = p._x + p._w / 2 - 34;
+  const lx2 = p._x + p._w / 2 + 34;
+  paths.push(`<path class="edge" d="M${lx1} ${p._y} C${lx1 - 10} ${p._y - 56}, ${lx2 + 10} ${p._y - 56}, ${lx2} ${p._y}" marker-end="url(#arrow)"/>`);
+  addLabel(body, 'Reagendar · nota · teléfono', p._x + p._w / 2, p._y - 48, 'elabel--state');
+  svg.innerHTML = `${arrowDefs()}${paths.join('')}`;
+
+  const d = byId.del;
+  addLabel(body, 'Deshacer: vuelve con su estado', d._x + d._w / 2, d._y + d._h + 26, 'elabel--state');
+
+  const c14 = el('div', 'note-sticky note-sticky--ok', '<b>✓ C14 · Sin cerrar</b>Las pendientes de fechas pasadas salen arriba en la Agenda con “Registrar cobro”.');
+  c14.dataset.issue = 'C14';
+  c14.style.left = '40px';
+  c14.style.top = '24px';
+  body.appendChild(c14);
+  const c1 = el('div', 'note-sticky note-sticky--ok', '<b>✓ C1</b>Una completada no se elimina aquí: su cobro se corrige en Ver Registros.');
+  c1.dataset.issue = 'C1';
+  c1.style.left = '728px';
+  c1.style.top = '252px';
+  c1.style.width = '200px';
+  body.appendChild(c1);
+
+  const tbl = el('div', 'tbl');
+  tbl.innerHTML = `<table>
+    <thead><tr><th>Transición</th><th>Cómo</th><th>Endpoint</th><th>Efecto en el dinero</th><th></th></tr></thead>
+    <tbody>${TRANSITIONS.map(([a, b, c, dd, i]) => `
+      <tr ${i ? `data-issue="${i}"` : ''}><td><b>${esc(a)}</b></td><td>${esc(b)}</td><td class="mono">${esc(c)}</td>
+      <td>${esc(dd)}</td><td>${i ? `<button type="button" class="chip ${issueById[i].ok ? 'badge--ok' : `sev-${issueById[i].sev}`}" data-goto-sticky="${i}">${issueById[i].ok ? '✓' : '⚠'} ${i}</button>` : ''}</td></tr>`).join('')}
+    </tbody></table>
+    <p style="margin-top:12px;color:var(--ink-muted);font-size:13px">La trabajadora solo ve la información de la cita y un botón “Cerrar”.</p>`;
+  fr.appendChild(tbl);
+  frameFooter(f, fr);
+  fr.style.width = `${W}px`;
+  return fr;
+}
+
+function buildMoneyFrame() {
+  const f = { id: 'DINERO', title: 'Mapa del dinero', entrada: 'Cada evento que mueve dinero', fin: 'Dónde se refleja. Ganancia neta = ingresos − gastos − comisiones' };
+  const fr = frameShell(f);
+  $('.frame-body', fr).remove();
+  const cell = (v) => (v === 'yes' ? '<span class="yes">✓</span>' : v === 'no' ? '<span class="no">✕</span>' : `<span class="${/⚠/.test(v) ? 'warn' : ''}">${esc(v)}</span>`);
+  const tbl = el('div', 'tbl');
+  tbl.style.paddingTop = '14px';
+  tbl.innerHTML = `<table>
+    <thead><tr>${MONEY.head.map((h) => `<th>${h}</th>`).join('')}</tr></thead>
+    <tbody>${MONEY.rows.map((r) => `<tr><td><b>${esc(r[0])}</b></td>${r.slice(1).map((c) => `<td>${cell(c)}</td>`).join('')}</tr>`).join('')}</tbody>
+  </table>`;
+  fr.appendChild(tbl);
+  fr.style.width = '1020px';
+  MONEY.rows.forEach((r) => searchIndex.push({ el: fr, text: norm(r.join(' ')), flow: 'DINERO', label: r[0] }));
+  return fr;
+}
+
+function buildIssuesFrame() {
+  const count = (sev) => ISSUES.filter((x) => x.sev === sev).length;
+  const resueltos = ISSUES.filter((x) => x.ok).length;
+  const f = { id: 'CABOS', title: 'Cabos sueltos', entrada: `${ISSUES.length} hallazgos: ${count('alta')} alta, ${count('media')} media, ${count('baja')} baja`, fin: resueltos === ISSUES.length ? 'Todos resueltos en v46' : `${resueltos} de ${ISSUES.length} resueltos` };
+  const fr = frameShell(f);
+  $('.frame-body', fr).remove();
+  const grid = el('div', 'stickies');
+  const label = { alta: 'Alta', media: 'Media', baja: 'Baja' };
+  for (const x of ISSUES) {
+    const s = el('article', `sticky ${x.ok ? 'resuelto' : x.sev}`);
+    s.id = `sticky-${x.id}`;
+    s.innerHTML = `
+      <div class="sticky-head"><span class="sticky-id">${x.ok ? '✓ ' : ''}${x.id}</span><span class="sticky-sev">${x.ok ? `Resuelto v46 · ${label[x.sev]}` : label[x.sev]}</span></div>
+      <h3>${esc(x.t)}</h3>
+      <p>${esc(x.p)}</p>
+      ${x.ok ? `<p><b>Solución:</b> ${esc(x.ok)}</p>` : `<p><b>Propuesta:</b> ${esc(x.fix)}</p>`}
+      ${x.flow ? `<button type="button" class="go" data-goto-issue="${x.id}">Ver en ${x.flow} →</button>` : '<div class="where">Operación / base de datos</div>'}`;
+    grid.appendChild(s);
+    searchIndex.push({ el: s, text: norm(`${x.id} ${x.t} ${x.p} ${x.fix} ${x.ok || ''}`), flow: 'CABOS', label: `${x.id} · ${x.t}` });
+  }
+  fr.appendChild(grid);
+  return fr;
+}
+
+function buildBoard() {
+  const title = el('div', 'board-title', `
+    <div class="eyebrow">Martha Rdz Hairartist</div>
+    <h1>Mapa de flujos de la app</h1>
+    <p>Cada flujo de punta a punta: la pantalla que lo recibe, el endpoint que llama, las tablas que toca, sus desvíos y dónde quedó algo sin resolver.</p>
+    <div class="chips">
+      <span><b>${FLOWS.length}</b> flujos</span><span><b>12</b> endpoints (límite de Vercel)</span>
+      <span><b>10</b> tablas</span><span><b>${ISSUES.filter((x) => x.ok).length} de ${ISSUES.length}</b> cabos sueltos resueltos</span><span>Versión <b>v46</b></span>
+    </div>`);
+  world.appendChild(title);
+  title.style.left = '0px';
+  title.style.top = '0px';
+
+  const built = {};
+  for (const f of FLOWS) built[f.id] = { f, el: f.type === 'states' ? buildStatesFrame(f) : buildFlowFrame(f) };
+  built.DINERO = { f: { id: 'DINERO', title: 'Mapa del dinero' }, el: buildMoneyFrame() };
+  built.CABOS = { f: { id: 'CABOS', title: 'Cabos sueltos' }, el: buildIssuesFrame() };
+
+  let y = title.offsetHeight + ROW_GAP;
+  let maxW = title.offsetWidth;
+  for (const row of ROWS) {
+    let x = 0;
+    let rowH = 0;
+    for (const group of row) {
+      const lab = el('div', 'section-label', esc(group.title));
+      world.appendChild(lab);
+      lab.style.left = `${x}px`;
+      lab.style.top = `${y}px`;
+      for (const id of group.ids) {
+        const { f, el: fr } = built[id];
+        const w = fr.offsetWidth;
+        const h = fr.offsetHeight;
+        fr.style.left = `${x}px`;
+        fr.style.top = `${y}px`;
+        frames.push({ id, title: f.title, el: fr, x, y, w, h, roles: fr.dataset.roles.split(' ') });
+        x += w + FRAME_GAP;
+        rowH = Math.max(rowH, h);
+      }
+      x += GROUP_GAP - FRAME_GAP;
+    }
+    maxW = Math.max(maxW, x - GROUP_GAP);
+    y += rowH + ROW_GAP;
+  }
+  board.w = maxW;
+  board.h = y - ROW_GAP;
+  world.style.width = `${board.w}px`;
+  world.style.height = `${board.h}px`;
+}
+
+/* ========================= Cámara (pan y zoom) ========================= */
+const board = { w: 0, h: 0 };
+const cam = { s: 1, x: 0, y: 0 };
+const MIN_S = 0.04;
+const MAX_S = 3;
+let idleTimer = null;
+
+function panelWidth() {
+  const p = $('#panel');
+  return !p.classList.contains('is-closed') && innerWidth > 600 ? p.offsetWidth + 24 : 0;
+}
+function visibleRect() {
+  const left = panelWidth();
+  return { left, top: 70, w: innerWidth - left, h: innerHeight - 70 - 70 };
+}
+
+function apply() {
+  world.style.transform = `translate(${cam.x}px, ${cam.y}px) scale(${cam.s})`;
+  world.style.willChange = 'transform';
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => { world.style.willChange = 'auto'; }, 180);
+  world.style.setProperty('--inv', (1 / cam.s).toFixed(4));
+  world.classList.toggle('is-far', cam.s < 0.42);
+  const g = 24 * cam.s;
+  const grid = g < 8 ? g * 4 : g;
+  viewport.style.backgroundSize = `${grid}px ${grid}px`;
+  viewport.style.backgroundPosition = `${cam.x}px ${cam.y}px`;
+  $('#zoom-pct').textContent = `${Math.round(cam.s * 100)}%`;
+  updateMinimap();
+}
+
+function clampS(s) { return Math.min(MAX_S, Math.max(MIN_S, s)); }
+
+function zoomAt(px, py, s2) {
+  s2 = clampS(s2);
+  const wx = (px - cam.x) / cam.s;
+  const wy = (py - cam.y) / cam.s;
+  cam.s = s2;
+  cam.x = px - wx * s2;
+  cam.y = py - wy * s2;
+  apply();
+}
+
+let anim = null;
+function animateTo(s2, wcx, wcy, dur = 480) {
+  cancelAnimationFrame(anim);
+  const vr = visibleRect();
+  const vcx = vr.left + vr.w / 2;
+  const vcy = vr.top + vr.h / 2;
+  const s1 = cam.s;
+  const c1x = (vcx - cam.x) / cam.s;
+  const c1y = (vcy - cam.y) / cam.s;
+  s2 = clampS(s2);
+  if (reduceMotion) dur = 0;
+  const t0 = performance.now();
+  const step = (now) => {
+    const t = dur ? Math.min(1, (now - t0) / dur) : 1;
+    const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    const s = Math.exp(Math.log(s1) + (Math.log(s2) - Math.log(s1)) * e);
+    const wx = c1x + (wcx - c1x) * e;
+    const wy = c1y + (wcy - c1y) * e;
+    cam.s = s;
+    cam.x = vcx - wx * s;
+    cam.y = vcy - wy * s;
+    apply();
+    if (t < 1) anim = requestAnimationFrame(step);
+  };
+  anim = requestAnimationFrame(step);
+}
+
+function worldRectOf(elm) {
+  const r = elm.getBoundingClientRect();
+  return { x: (r.left - cam.x) / cam.s, y: (r.top - cam.y) / cam.s, w: r.width / cam.s, h: r.height / cam.s };
+}
+
+function zoomToRect(r, { pad = 50, max = 1.1, instant = false } = {}) {
+  const vr = visibleRect();
+  const s2 = clampS(Math.min((vr.w - pad * 2) / r.w, (vr.h - pad * 2) / r.h, max));
+  if (instant) {
+    cam.s = s2;
+    cam.x = vr.left + vr.w / 2 - (r.x + r.w / 2) * s2;
+    cam.y = vr.top + vr.h / 2 - (r.y + r.h / 2) * s2;
+    apply();
+  } else {
+    animateTo(s2, r.x + r.w / 2, r.y + r.h / 2);
+  }
+}
+
+function fitAll(instant) { zoomToRect({ x: 0, y: 0, w: board.w, h: board.h }, { pad: 30, instant }); }
+
+function unionRect(rects) {
+  const x1 = Math.min(...rects.map((r) => r.x));
+  const y1 = Math.min(...rects.map((r) => r.y));
+  const x2 = Math.max(...rects.map((r) => r.x + r.w));
+  const y2 = Math.max(...rects.map((r) => r.y + r.h));
+  return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+}
+
+function pulse(elms) {
+  elms.forEach((e) => {
+    e.classList.remove('is-pulse');
+    void e.offsetWidth;
+    e.classList.add('is-pulse');
+    setTimeout(() => e.classList.remove('is-pulse'), 1900);
+  });
+}
+
+let currentFrame = -1;
+function goToFrame(id, instant) {
+  const i = frames.findIndex((f) => f.id === id);
+  if (i < 0) return;
+  currentFrame = i;
+  const fr = frames[i];
+  zoomToRect({ x: fr.x, y: fr.y - 30, w: fr.w, h: fr.h + 30 }, { pad: 30, max: 1, instant });
+  document.querySelectorAll('.frame-list button').forEach((b) => b.classList.toggle('is-current', b.dataset.frame === id));
+  if (history.replaceState) history.replaceState(null, '', `#${id}`);
+}
+
+function goToIssue(id) {
+  const issue = issueById[id];
+  const fr = frames.find((f) => f.id === issue.flow);
+  if (!fr) return;
+  if (fr.el.classList.contains('is-off')) setRole('todos');
+  const targets = [...fr.el.querySelectorAll(`[data-issue="${id}"]`)];
+  const rects = targets.map(worldRectOf);
+  zoomToRect(targets.length ? unionRect(rects) : { x: fr.x, y: fr.y, w: fr.w, h: fr.h }, { pad: 110, max: 1.25 });
+  setTimeout(() => pulse(targets), reduceMotion ? 0 : 450);
+  toast(`${id} en ${issue.flow}`);
+}
+
+function goToSticky(id) {
+  const s = document.getElementById(`sticky-${id}`);
+  zoomToRect(worldRectOf(s), { pad: 120, max: 1.4 });
+  setTimeout(() => pulse([s]), reduceMotion ? 0 : 450);
+}
+
+/* ========================= Entrada: puntero, rueda, teclado ========================= */
+const pointers = new Map();
+let panStart = null;
+let pinchStart = null;
+let moved = false;
+
+viewport.addEventListener('pointerdown', (e) => {
+  moved = false;
+  if (e.target.closest('button, input, a')) return;
+  viewport.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  cancelAnimationFrame(anim);
+  moved = false;
+  if (pointers.size === 1) {
+    panStart = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y };
+  } else if (pointers.size === 2) {
+    const [a, b] = [...pointers.values()];
+    pinchStart = { d: Math.hypot(a.x - b.x, a.y - b.y), s: cam.s, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, cx: cam.x, cy: cam.y };
+    panStart = null;
+  }
+});
+
+viewport.addEventListener('pointermove', (e) => {
+  if (!pointers.has(e.pointerId)) return;
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinchStart && pointers.size >= 2) {
+    const [a, b] = [...pointers.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y);
+    const mx = (a.x + b.x) / 2;
+    const my = (a.y + b.y) / 2;
+    const s2 = clampS(pinchStart.s * (d / pinchStart.d));
+    const wx = (pinchStart.mx - pinchStart.cx) / pinchStart.s;
+    const wy = (pinchStart.my - pinchStart.cy) / pinchStart.s;
+    cam.s = s2;
+    cam.x = mx - wx * s2;
+    cam.y = my - wy * s2;
+    moved = true;
+    apply();
+  } else if (panStart) {
+    const dx = e.clientX - panStart.x;
+    const dy = e.clientY - panStart.y;
+    if (!moved && Math.hypot(dx, dy) < 4) return;
+    moved = true;
+    viewport.classList.add('is-panning');
+    cam.x = panStart.cx + dx;
+    cam.y = panStart.cy + dy;
+    apply();
+  }
+});
+
+function endPointer(e) {
+  pointers.delete(e.pointerId);
+  if (pointers.size < 2) pinchStart = null;
+  if (pointers.size === 1) {
+    const [p] = [...pointers.values()];
+    panStart = { x: p.x, y: p.y, cx: cam.x, cy: cam.y };
+  }
+  if (pointers.size === 0) {
+    panStart = null;
+    viewport.classList.remove('is-panning');
+  }
+}
+viewport.addEventListener('pointerup', endPointer);
+viewport.addEventListener('pointercancel', endPointer);
+
+viewport.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  cancelAnimationFrame(anim);
+  const pinch = e.ctrlKey;
+  const mouseWheel = !pinch && e.deltaX === 0 && (e.deltaMode === 1 || (Math.abs(e.deltaY) >= 40 && Number.isInteger(e.deltaY)));
+  if (pinch || mouseWheel) {
+    const k = pinch ? 0.012 : 0.0016;
+    const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
+    zoomAt(e.clientX, e.clientY, cam.s * Math.exp(-dy * k));
+  } else {
+    cam.x -= e.deltaX;
+    cam.y -= e.deltaY;
+    apply();
+  }
+}, { passive: false });
+
+viewport.addEventListener('dblclick', (e) => {
+  if (e.target.closest('button')) return;
+  const node = e.target.closest('.node, .sticky');
+  if (node) {
+    zoomToRect(worldRectOf(node), { pad: 160, max: 1.8 });
+  } else {
+    const wx = (e.clientX - cam.x) / cam.s;
+    const wy = (e.clientY - cam.y) / cam.s;
+    animateTo(cam.s * 1.8, wx, wy, 320);
+  }
+});
+
+viewport.addEventListener('click', (e) => {
+  if (moved) return;
+  const sticky = e.target.closest('[data-goto-sticky]');
+  if (sticky) return goToSticky(sticky.dataset.gotoSticky);
+  const issue = e.target.closest('[data-goto-issue]');
+  if (issue) return goToIssue(issue.dataset.gotoIssue);
+  const fz = e.target.closest('[data-zoom-frame]');
+  if (fz) return goToFrame(fz.dataset.zoomFrame);
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.target.closest('input')) {
+    if (e.key === 'Escape') e.target.blur();
+    return;
+  }
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const cx = innerWidth / 2;
+  const cy = innerHeight / 2;
+  const k = e.key.toLowerCase();
+  if (k === '+' || k === '=') zoomAt(cx, cy, cam.s * 1.25);
+  else if (k === '-' || k === '_') zoomAt(cx, cy, cam.s / 1.25);
+  else if (k === '0') animateTo(1, (cx - cam.x) / cam.s, (cy - cam.y) / cam.s, 260);
+  else if (k === 'f') fitAll();
+  else if (k === 'n' || e.key === 'PageDown') goToFrame(frames[Math.min(frames.length - 1, currentFrame + 1)].id);
+  else if (k === 'b' || e.key === 'PageUp') goToFrame(frames[Math.max(0, currentFrame - 1)].id);
+  else if (k === 'p') togglePanel();
+  else if (k === '/') { e.preventDefault(); openPanel(); $('#search').focus(); }
+  else if (e.key === 'ArrowLeft') { cam.x += 80; apply(); }
+  else if (e.key === 'ArrowRight') { cam.x -= 80; apply(); }
+  else if (e.key === 'ArrowUp') { cam.y += 80; apply(); }
+  else if (e.key === 'ArrowDown') { cam.y -= 80; apply(); }
+  else return;
+  e.preventDefault();
+});
+
+/* ========================= Controles fijos ========================= */
+$('#zoom-in').addEventListener('click', () => animateTo(cam.s * 1.4, ...centerWorld(), 220));
+$('#zoom-out').addEventListener('click', () => animateTo(cam.s / 1.4, ...centerWorld(), 220));
+$('#zoom-pct').addEventListener('click', () => animateTo(1, ...centerWorld(), 260));
+$('#zoom-fit').addEventListener('click', () => fitAll());
+function centerWorld() {
+  const vr = visibleRect();
+  return [(vr.left + vr.w / 2 - cam.x) / cam.s, (vr.top + vr.h / 2 - cam.y) / cam.s];
+}
+
+function openPanel() { $('#panel').classList.remove('is-closed'); $('#toggle-panel').setAttribute('aria-expanded', 'true'); }
+function togglePanel() {
+  const closed = $('#panel').classList.toggle('is-closed');
+  $('#toggle-panel').setAttribute('aria-expanded', String(!closed));
+}
+$('#toggle-panel').addEventListener('click', togglePanel);
+
+function toast(msg) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+/* Minimapa */
+let mm = { k: 1, ox: 0, oy: 0 };
+function buildMinimap() {
+  const inner = $('#minimap-inner');
+  const W = inner.clientWidth;
+  const H = inner.clientHeight;
+  const k = Math.min(W / board.w, H / board.h);
+  mm = { k, ox: (W - board.w * k) / 2, oy: (H - board.h * k) / 2 };
+  inner.querySelectorAll('.mm-frame').forEach((n) => n.remove());
+  for (const f of frames) {
+    const r = el('div', 'mm-frame');
+    r.dataset.frame = f.id;
+    Object.assign(r.style, { left: `${mm.ox + f.x * k}px`, top: `${mm.oy + f.y * k}px`, width: `${f.w * k}px`, height: `${f.h * k}px` });
+    inner.insertBefore(r, $('#mm-view'));
+  }
+}
+function updateMinimap() {
+  if (!board.w) return;
+  const v = $('#mm-view');
+  const x = (-cam.x / cam.s) * mm.k + mm.ox;
+  const y = (-cam.y / cam.s) * mm.k + mm.oy;
+  Object.assign(v.style, { left: `${x}px`, top: `${y}px`, width: `${(innerWidth / cam.s) * mm.k}px`, height: `${(innerHeight / cam.s) * mm.k}px` });
+}
+function minimapJump(e) {
+  const r = $('#minimap-inner').getBoundingClientRect();
+  const wx = (e.clientX - r.left - mm.ox) / mm.k;
+  const wy = (e.clientY - r.top - mm.oy) / mm.k;
+  cam.x = innerWidth / 2 - wx * cam.s;
+  cam.y = innerHeight / 2 - wy * cam.s;
+  apply();
+}
+const mmEl = $('#minimap');
+mmEl.addEventListener('pointerdown', (e) => { cancelAnimationFrame(anim); mmEl.setPointerCapture(e.pointerId); minimapJump(e); });
+mmEl.addEventListener('pointermove', (e) => { if (mmEl.hasPointerCapture(e.pointerId)) minimapJump(e); });
+
+/* Panel: lista de marcos, leyenda, búsqueda y rol */
+function buildPanel() {
+  const list = $('#frame-list');
+  list.innerHTML = frames.map((f) => `<button type="button" data-frame="${f.id}"><span class="id">${f.id.startsWith('F') ? f.id : f.id === 'DINERO' ? '$' : '⚠'}</span>${esc(f.title)}</button>`).join('');
+  list.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-frame]');
+    if (!b) return;
+    goToFrame(b.dataset.frame);
+    if (innerWidth <= 600) togglePanel();
+  });
+  $('#legend').innerHTML = Object.values(KINDS).map((k) => `<span><i style="border-color:${k.color}${k === KINDS.decision ? ';transform:rotate(45deg);border-radius:3px' : ''}"></i>${k.label}</span>`).join('');
+
+  const results = $('#results');
+  $('#search').addEventListener('input', (e) => {
+    const q = norm(e.target.value.trim());
+    if (q.length < 2) { results.innerHTML = ''; return; }
+    const hits = searchIndex.filter((h) => h.text.includes(q)).slice(0, 12);
+    results.innerHTML = hits.length
+      ? hits.map((h, i) => `<button type="button" data-hit="${i}"><span class="id">${h.flow.startsWith('F') ? h.flow : h.flow === 'DINERO' ? '$' : '⚠'}</span>${esc(h.label)}</button>`).join('')
+      : '<div class="empty">Sin resultados</div>';
+    results.onclick = (ev) => {
+      const b = ev.target.closest('[data-hit]');
+      if (!b) return;
+      const h = hits[+b.dataset.hit];
+      const target = h.el;
+      zoomToRect(worldRectOf(target), { pad: 160, max: 1.5 });
+      setTimeout(() => pulse([target]), reduceMotion ? 0 : 450);
+      if (innerWidth <= 600) togglePanel();
+    };
+  });
+  $('#search').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { const first = results.querySelector('[data-hit]'); if (first) first.click(); }
+  });
+
+  document.querySelector('.seg').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-role]');
+    if (b) setRole(b.dataset.role);
+  });
+}
+
+function setRole(role) {
+  document.querySelectorAll('.seg button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.role === role)));
+  for (const f of frames) {
+    const off = role !== 'todos' && !f.roles.includes(role);
+    f.el.classList.toggle('is-off', off);
+    document.querySelector(`.frame-list [data-frame="${f.id}"]`)?.classList.toggle('is-off', off);
+    document.querySelector(`.mm-frame[data-frame="${f.id}"]`)?.classList.toggle('is-off', off);
+  }
+  document.querySelectorAll('.node[data-r="duena"]').forEach((n) => n.classList.toggle('is-dim', role === 'trab'));
+  try { localStorage.setItem('appflow-role', role); } catch { /* sin almacenamiento */ }
+}
+
+/* ========================= Arranque ========================= */
+function start() {
+  buildBoard();
+  buildPanel();
+  buildMinimap();
+  if (innerWidth <= 900) $('#panel').classList.add('is-closed');
+  let role = 'todos';
+  try { role = localStorage.getItem('appflow-role') || 'todos'; } catch { /* sin almacenamiento */ }
+  setRole(role);
+  const hash = decodeURIComponent(location.hash.slice(1));
+  if (frames.some((f) => f.id === hash)) goToFrame(hash, true);
+  else fitAll(true);
+  world.classList.remove('is-loading');
+}
+
+addEventListener('resize', () => { buildMinimap(); updateMinimap(); });
+
+// Se mide el texto de cada nodo para acomodar el diagrama: hay que esperar a
+// que cargue Inter (o a que falle) para que las medidas no cambien después.
+Promise.race([document.fonts ? document.fonts.ready : Promise.resolve(), new Promise((r) => setTimeout(r, 1500))]).then(start);
+</script>
+</body>
+</html>

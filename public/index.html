@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#171417">
+  <meta name="description" content="Martha Rdz Hairartist">
+  <title>Martha Rdz Hairartist</title>
+  <!-- Standalone en iOS (agregada a inicio): sin esto, "Agregar a inicio"
+       abre la app dentro de un navegador con su propia barra, y ah\u00ed el
+       notch/Dynamic Island ya los resuelve Safari solo. Con esto se abre
+       a pantalla completa y el dise\u00f1o es responsable de su propio espacio
+       \u2014para eso est\u00e1n viewport-fit=cover arriba y las safe areas en
+       styles.css. Se deja la barra de estado en su estilo normal (no
+       "black-translucent"): con fondo claro, los \u00edconos de hora/bater\u00eda
+       en blanco forzado casi no se ver\u00edan. -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Martha Rdz">
+  <!-- Splash de arranque en iOS: a diferencia de Android, Safari no arma
+       una pantalla de carga sola con el manifest — sin esto se ve un
+       blanco en seco unos instantes al abrir la app instalada. iOS elige
+       la imagen exacta por el tamaño físico de pantalla de cada modelo
+       (no hay un solo archivo "de sobra"), así que hace falta una etiqueta
+       por tamaño; las que no coinciden con el equipo simplemente no se
+       cargan. Los PNG viven en /img/splash/ (mismo logo y fondo cream que
+       el login) y se generaron con public/img/splash/generate.py. -->
+  <link rel="apple-touch-startup-image" href="/img/splash/640x1136.png" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="/img/splash/750x1334.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="/img/splash/1242x2208.png" media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="/img/splash/1125x2436.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="/img/splash/828x1792.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="/img/splash/1242x2688.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="/img/splash/1170x2532.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="/img/splash/1284x2778.png" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="/img/splash/1179x2556.png" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="/img/splash/1290x2796.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="/img/splash/1206x2622.png" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="/img/splash/1320x2868.png" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="/img/splash/1536x2048.png" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="/img/splash/1488x2266.png" media="(device-width: 744px) and (device-height: 1133px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="/img/splash/1620x2160.png" media="(device-width: 810px) and (device-height: 1080px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="/img/splash/1640x2360.png" media="(device-width: 820px) and (device-height: 1180px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="/img/splash/1668x2224.png" media="(device-width: 834px) and (device-height: 1112px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="/img/splash/1668x2388.png" media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="/img/splash/1668x2420.png" media="(device-width: 834px) and (device-height: 1210px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="/img/splash/2048x2732.png" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="/img/splash/2064x2752.png" media="(device-width: 1032px) and (device-height: 1376px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png?v=4">
+  <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=5">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css?v=3.0">
+</head>
+<body>
+  <div id="app">
+    <!-- Pantallas inyectadas din\u00e1micamente por el router -->
+  </div>
+
+  <!-- Toast de notificaciones -->
+  <div id="toast" class="toast hidden"></div>
+
+  <!-- Loader global -->
+  <div id="loader" class="loader hidden">
+    <div class="loader-spinner"></div>
+  </div>
+
+  <!-- Sin query string a propósito: cada vista importa `navigateTo` de
+       vuelta con `from '../app.js'` (sin versión) — si aquí trae una,
+       el resolver de módulos ES lo trata como un archivo DISTINTO y toda
+       la app se carga por duplicado (dos listeners de hashchange, cada
+       llamada a la API disparada dos veces). Cache-Control ya fuerza
+       revalidar /js/(.*) en cada carga (ver vercel.json) y el Service
+       Worker sirve JS "network-first" — no hace falta este cache-busting
+       manual, y aquí activamente rompe el módulo. -->
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

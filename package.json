@@ -1,0 +1,23 @@
+{
+  "name": "martha-rdz-hairartist",
+  "version": "1.0.0",
+  "description": "PWA de Martha Rdz Hairartist — JR Consulting",
+  "private": true,
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo 'No build step needed'",
+    "test": "node --test",
+    "crear-salon": "node scripts/crear-salon.js"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
+    "@simplewebauthn/server": "^14.0.2",
+    "web-push": "^3.6.7"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8"
+  }
+}
