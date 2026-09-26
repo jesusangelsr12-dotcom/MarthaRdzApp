@@ -11,6 +11,19 @@
    token).
    ============================================ */
 
+/* --- Tipografía del logo ---
+   DejaVu Serif Bold es la letra de "MARTHA RDZ." en el logo. Va dentro
+   de la app (subconjunto Latin + español, 19 KB) para no depender de
+   Google Fonts y para que funcione sin conexión. Licencia en
+   public/fonts/LICENSE-DejaVu.txt. */
+@font-face {
+  font-family: 'Martha Serif';
+  src: url('/fonts/dejavu-serif-bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* --- CSS Variables (Design Tokens) --- */
 :root {
   /* 60% — fondo: Blanco Humo. Las tarjetas van en blanco puro
@@ -80,6 +93,9 @@
 
   /* Type */
   --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  /* Títulos: la letra del logo (brand board: "Títulos / Logo: serif").
+     El texto de todo lo demás sigue en Inter (sans-serif limpia). */
+  --font-title: 'Martha Serif', Georgia, 'Times New Roman', serif;
   --transition: 220ms ease;
   /* Rebote juguetón para el "tap" de botones/tarjetas — corto (no se siente
      lento) pero con un poco de overshoot en vez de un ease plano. */
@@ -1070,8 +1086,10 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 }
 
 .screen-title {
-  font-size: 1.15rem;
+  font-family: var(--font-title);
+  font-size: 1.2rem;
   font-weight: 700;
+  letter-spacing: 0;
   color: var(--color-ink);
 }
 
@@ -1363,6 +1381,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 }
 
 .delete-modal-title {
+  font-family: var(--font-title);
   font-size: 1.15rem;
   font-weight: 700;
   color: var(--color-ink);

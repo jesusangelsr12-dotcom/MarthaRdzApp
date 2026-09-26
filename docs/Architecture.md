@@ -62,6 +62,7 @@ Salida a terceros desde el navegador (no pasa por el backend):
 | `js/install-banner.js` | Aviso "Agregar a inicio" en iOS / Safari |
 | `js/app-version.js` | Versión instalada y botón "Actualizar app" |
 | `js/views/*.js` | Una pantalla por archivo |
+| `fonts/dejavu-serif-bold.woff2` | Letra del logo para los títulos (subconjunto, 19 KB). Licencia en `fonts/LICENSE-DejaVu.txt` |
 
 ### 3.2 Contrato de una vista
 

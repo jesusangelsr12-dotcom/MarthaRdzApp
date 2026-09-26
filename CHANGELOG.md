@@ -22,6 +22,7 @@ La app se separa como **Martha Rdz Hair Artist**, con su propio repositorio y su
 - Logo real de la marca ("MARTHA RDZ." + "HAIR ARTIST"). Monograma cuadrado "MR." con la misma tipografía para los íconos de la app (Android e iOS) y el logo sobre Blanco Humo en las 21 pantallas de carga de iOS.
 - Paleta del brand board: Negro Elegancia `#111111`, Verde Menta `#88D8C0` (botón principal, con texto negro), Blanco Humo `#F4F4F4` (fondo) y Gris Plata `#E2E2E2` (bordes). Menta profundo `#13705F` para texto de acento y un tono "slate" como segundo color. Todo con contraste WCAG AA.
 - El verde de dinero y éxito pasa a un verde clásico (`#2B7330`) para no confundirse con el menta: "Pendiente" y "Completada" se distinguen a simple vista.
+- Títulos de pantalla y de avisos con la letra del logo (DejaVu Serif Bold), como pide el brand board. La fuente va dentro de la app (`public/fonts/`, 19 KB) y funciona sin conexión; el resto del texto sigue en Inter.
 - Tokens renombrados: `--color-pink*` → `--color-accent*` y `--color-rose*` → `--color-slate*`.
 - Nuevo mensaje para confirmar una cita por WhatsApp: "Hola! Te escribo de Martha Rdz Hair Artist para confirmar tu próxima cita el día viernes 9 de octubre a las 4:30 PM. ¿Confirmas tu cita? Gracias!" (dice "a la 1:00" en singular).
 

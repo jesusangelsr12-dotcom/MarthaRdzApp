@@ -3,6 +3,7 @@ const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/css/styles.css',
+  '/fonts/dejavu-serif-bold.woff2',
   '/img/logo.png',
   '/js/app.js',
   '/js/api.js',

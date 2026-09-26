@@ -61,15 +61,29 @@ que usa la app.
 
 ## 3. Tipografía
 
-**Familia:** Inter (400, 500, 600, 700) desde Google Fonts, con respaldo del sistema
-(`-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`). Tamaño base: 16 px.
+Dos familias, como pide el brand board:
+
+- **Títulos:** la letra del logo, DejaVu Serif Bold (`--font-title`, nombre
+  interno `'Martha Serif'`). Va dentro de la app en
+  `public/fonts/dejavu-serif-bold.woff2` (subconjunto Latin + español, 19 KB,
+  precargado en `index.html` y guardado por el Service Worker), así que
+  funciona sin conexión. Respaldo: Georgia, serif. Licencia en
+  `public/fonts/LICENSE-DejaVu.txt`.
+- **Todo lo demás:** Inter (400, 500, 600, 700) desde Google Fonts, con
+  respaldo del sistema (`-apple-system, BlinkMacSystemFont, 'Segoe UI',
+  sans-serif`). Tamaño base: 16 px.
+
+La serif va **solo** en títulos de pantalla y de avisos. Etiquetas en
+MAYÚSCULAS, montos, botones y texto de tarjetas siguen en Inter: a tamaño
+chico se leen mejor.
 
 | Rol | Tamaño | Peso | Dónde |
 |---|---|---|---|
 | Display de monto | `2.75rem`, `letter-spacing: -1px` | 700 | Teclado de precio / anticipo / gasto |
 | h1 | `1.5rem` | 700 | Poco usado |
 | h2 | `1.25rem` | 600 | |
-| Título de pantalla | `1.15rem` | 700 | `.screen-title` |
+| Título de pantalla | `1.2rem`, serif del logo | 700 | `.screen-title` |
+| Título de aviso | `1.15rem`, serif del logo | 700 | `.delete-modal-title` |
 | Cuerpo | `0.95rem` | 400–600 | Párrafos, nombres en tarjetas |
 | Secundario | `0.85–0.9rem` | 500 | Subtítulos, metadatos |
 | Etiqueta de campo | `0.82rem` MAYÚSCULAS, `letter-spacing: .5px` | 600 | `.input-label` |
