@@ -15,14 +15,24 @@ Secciones: **Agregado** · **Cambiado** · **Corregido** · **Seguridad** · **B
 
 ## v47 · 2026-09-26
 
-La app se separa como **Martha Rdz Hairartist**, con su propio repositorio y su propia base de datos de Neon.
+La app se separa como **Martha Rdz Hair Artist**, con su propio repositorio y su propia base de datos de Neon.
 
 ### Cambiado
-- Nombre, textos, manifest, título, notificaciones, Face ID y mensaje de WhatsApp dicen Martha Rdz Hairartist.
-- Logo provisional de texto, monograma "MR", íconos de la app y splash de iOS regenerados.
+- Nombre, textos, manifest, título, notificaciones y Face ID dicen Martha Rdz Hair Artist.
+- Logo real de la marca ("MARTHA RDZ." + "HAIR ARTIST"). Monograma cuadrado "MR." con la misma tipografía para los íconos de la app (Android e iOS) y el logo sobre Blanco Humo en las 21 pantallas de carga de iOS.
+- Paleta del brand board: Negro Elegancia `#111111`, Verde Menta `#88D8C0` (botón principal, con texto negro), Blanco Humo `#F4F4F4` (fondo) y Gris Plata `#E2E2E2` (bordes). Menta profundo `#13705F` para texto de acento y un tono "slate" como segundo color. Todo con contraste WCAG AA.
+- El verde de dinero y éxito pasa a un verde clásico (`#2B7330`) para no confundirse con el menta: "Pendiente" y "Completada" se distinguen a simple vista.
+- Tokens renombrados: `--color-pink*` → `--color-accent*` y `--color-rose*` → `--color-slate*`.
+- Nuevo mensaje para confirmar una cita por WhatsApp: "Hola! Te escribo de Martha Rdz Hair Artist para confirmar tu próxima cita el día viernes 9 de octubre a las 4:30 PM. ¿Confirmas tu cita? Gracias!" (dice "a la 1:00" en singular).
+
+### Corregido
+- Colores sueltos que no eran de la paleta (dorado en el foco de inputs, crema en el loader, café en el fondo de modales y sombras) ahora salen de la marca.
+
+### Base de datos
+- La base "Martha Rdz App" (Neon) ya tenía el esquema completo de 000 a 007 y los datos de Martha. Se revisaron tablas, columnas, índices y restricciones: no faltaba nada. El salón se llama ahora "Martha Rodriguez Hair Artist".
 
 ### Docs
-- Todos los documentos con el nombre nuevo. Deployment explica la primera instalación con una base de Neon nueva.
+- Todos los documentos con el nombre nuevo. Design System con la paleta y el logo nuevos. Deployment explica la primera instalación y el estado de la base. El tablero AppFlow usa la paleta nueva.
 
 ## v46 · 2026-09-26
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 Genera las imágenes de splash de iOS (public/img/splash/*.png) a partir del
-logo (public/img/logo.png, PNG transparente) sobre el fondo cream de la app
-(--color-bg en styles.css). Requiere Pillow: pip install pillow
+logo (public/img/logo.png, PNG transparente) sobre el fondo Blanco Humo de
+la app (--color-bg en styles.css). Requiere Pillow: pip install pillow
 
 Uso: python3 public/img/splash/generate.py
 (desde la raíz del repo, o ajustando las rutas de abajo)
@@ -18,7 +18,7 @@ import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOGO_PATH = os.path.join(BASE_DIR, '..', 'logo.png')
-BG_COLOR = (253, 249, 250)  # --color-bg (#FDF9FA) en styles.css
+BG_COLOR = (244, 244, 244)  # --color-bg (#F4F4F4, Blanco Humo) en styles.css
 
 # (ancho físico, alto físico) de pantalla — portrait — para cada tamaño de
 # iPhone/iPad que Safari reconoce vía apple-touch-startup-image. El nombre
@@ -57,7 +57,8 @@ def main():
 
     for w, h in SIZES:
         canvas = Image.new('RGB', (w, h), BG_COLOR)
-        target_w = min(round(w * 0.62), 900)
+        # Nunca más ancho que el PNG original: agrandarlo lo haría borroso.
+        target_w = min(round(w * 0.62), 900, logo.width)
         scale = target_w / logo.width
         target_h = round(logo.height * scale)
         resized = logo.resize((target_w, target_h), Image.LANCZOS)

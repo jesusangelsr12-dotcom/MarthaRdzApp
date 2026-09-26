@@ -1,6 +1,6 @@
-# PRD · Martha Rdz Hairartist
+# PRD · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-09-26 · **Versión de la app:** v46 (`CACHE_NAME` en `public/sw.js`)
+**Última revisión:** 2026-09-26 · **Versión de la app:** v47 (`CACHE_NAME` en `public/sw.js`)
 
 ## 1. El problema
 
@@ -119,6 +119,9 @@ Pasos dinámicos. Solo aparecen los que aplican al salón:
 - Menú por cita (dueña): registrar cobro (si es de hoy o de un día pasado),
   confirmar por WhatsApp, agregar/cambiar teléfono, editar nota, reagendar,
   "No asistió", cancelar, volver a pendiente y eliminar.
+- Mensaje de confirmación por WhatsApp (se puede editar antes de enviar):
+  "Hola! Te escribo de Martha Rdz Hair Artist para confirmar tu próxima cita
+  el día viernes 9 de octubre a las 4:30 PM. ¿Confirmas tu cita? Gracias!"
 - Cancelar, "No asistió", eliminar y borrar vacaciones piden confirmación y ofrecen "Deshacer".
 - Una cita **ya cobrada** no se elimina desde la Agenda: su cobro se corrige en Ver Registros.
 - Botón "+": agendar cita o marcar vacaciones / día libre (dueña o una trabajadora).

@@ -1,7 +1,7 @@
 {
-  "name": "martha-rdz-hairartist",
+  "name": "martha-rdz-hair-artist",
   "version": "1.0.0",
-  "description": "PWA de Martha Rdz Hairartist — JR Consulting",
+  "description": "PWA de Martha Rdz Hair Artist — JR Consulting",
   "private": true,
   "scripts": {
     "dev": "vercel dev",

@@ -1,4 +1,4 @@
-# Pruebas · Martha Rdz Hairartist
+# Pruebas · Martha Rdz Hair Artist
 
 **Última revisión:** 2026-09-26 · **Estado actual:** 38 pruebas, 38 en verde (`npm test`)
 

@@ -1,10 +1,12 @@
-# Design System · Martha Rdz Hairartist
+# Design System · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-09-26 · **Fuente de verdad:** `public/css/styles.css` (Design System v3)
+**Última revisión:** 2026-09-26 · **Fuente de verdad:** `public/css/styles.css` (Design System v4)
 
-La identidad de Martha Rdz Hairartist: **negro** y **rosa**.
-Todo lo demás se deriva de esos dos colores con la regla 60-30-10 y con
-contraste WCAG AA verificado en cada combinación que usa la app.
+La identidad sale del brand board de Martha Rdz Hair Artist: **Negro
+Elegancia** `#111111`, **Verde Menta** `#88D8C0`, **Blanco Humo** `#F4F4F4`
+y **Gris Plata** `#E2E2E2`. Todo lo demás se deriva de esos cuatro colores
+con la regla 60-30-10 y con contraste WCAG AA verificado en cada combinación
+que usa la app.
 
 ## 1. Principios
 
@@ -20,26 +22,27 @@ contraste WCAG AA verificado en cada combinación que usa la app.
 
 | Token | Valor | Uso |
 |---|---|---|
-| `--color-bg` | `#FDF9FA` | Fondo de toda la app (60 %). Blanco con un toque de rosa |
+| `--color-bg` | `#F4F4F4` | Fondo de toda la app (60 %). Blanco Humo |
 | `--color-surface` | `#FFFFFF` | Tarjetas, inputs, modales |
-| `--color-ink` | `#171417` | Texto y encabezados (30 %). 18:1 sobre el fondo |
-| `--color-ink-light` | `#454345` | Estado activo de botón oscuro |
-| `--color-ink-muted` | `#5C5459` | Texto secundario |
-| `--color-pink-vivid` | `#FF39B2` | Rosa de la marca. **Solo fondo** de botón primario (10 %) |
-| `--color-pink-vivid-active` | `#D12F92` | Botón primario presionado |
-| `--color-pink` | `#C41478` | Rosa para **texto, íconos y bordes** (pasa AA) |
-| `--color-pink-active` | `#A11062` | Rosa presionado |
-| `--color-pink-bg` | `#F8E3EF` | Fondo de elemento seleccionado, badge "pendiente" |
-| `--color-rose` | `#96526B` | Segundo tono de marca (ícono de Agenda, avatares) |
-| `--color-rose-light` | `#F0E7EA` | Fondo del tono rose |
-| `--color-gray-100` … `500` | `#FAF6F7` `#F0EAEC` `#DDD2D6` `#B0A2A7` `#7A6C71` | Neutros cálidos (mismo matiz que el fondo) |
-| `--color-green` / `-light` | `#1E6E44` / `#E0F3E7` | Ingresos, éxito, "completada" |
+| `--color-ink` | `#111111` | Texto y encabezados (30 %). Negro Elegancia, 17:1 sobre el fondo |
+| `--color-ink-light` | `#3D3D3D` | Estado activo de botón oscuro |
+| `--color-ink-muted` | `#595959` | Texto secundario |
+| `--color-accent-vivid` | `#88D8C0` | Verde Menta de la marca. **Solo fondo** de botón primario (10 %) |
+| `--color-accent-vivid-active` | `#6BC9AC` | Botón primario presionado |
+| `--color-accent` | `#13705F` | Menta profundo para **texto, íconos y bordes** (5.4:1 sobre el fondo) |
+| `--color-accent-active` | `#0D5A4C` | Acento presionado |
+| `--color-accent-bg` | `#E2F4EE` | Fondo de elemento seleccionado, badge "pendiente" |
+| `--color-slate` | `#4F6660` | Segundo tono de marca (ícono de Agenda, servicios, comisiones, avatares) |
+| `--color-slate-light` | `#E7EDEB` | Fondo del tono slate |
+| `--color-gray-100` … `500` | `#F7F7F7` `#E2E2E2` `#D4D4D4` `#A8A8A8` `#636363` | Neutros. El 200 es Gris Plata (bordes y detalles) |
+| `--color-green` / `-light` | `#2B7330` / `#E5F1E3` | Ingresos, éxito, "completada". Verde clásico, lejos del menta |
 | `--color-error` / `-light` | `#BE3A3A` / `#FCE5E3` | Gastos, errores, borrar, "no asistió" |
 
 ### 2.2 Reglas de color
 
-- **El rosa del logo nunca va como texto sobre fondo claro** (3.2:1, no pasa AA). Para texto usa `--color-pink`.
-- **Sobre el botón rosa, el texto va en negro** (`--color-ink`, 5.6:1). Blanco no pasa.
+- **El Verde Menta nunca va como texto sobre fondo claro** (1.6:1, no se lee). Para texto usa `--color-accent`.
+- **Sobre el botón menta, el texto va en negro** (`--color-ink`, 11.4:1). Blanco no pasa.
+- **El verde de dinero no es el menta.** `--color-green` (matiz 124°) está lejos del menta (162°) para que "Completada" no se confunda con "Pendiente".
 - Verde y rojo son funcionales, no de marca: dinero que entra y dinero que sale.
 - Nunca escribas un hex directo en un componente. Si falta un color, créalo como token con su nota de contraste.
 
@@ -50,11 +53,11 @@ contraste WCAG AA verificado en cada combinación que usa la app.
 | Ingreso, monto a favor | `--color-green` |
 | Gasto, monto en contra | `--color-error` (con signo `-`) |
 | Comisión | `--color-ink` (neutral) |
-| Cita pendiente | pink-bg / pink |
+| Cita pendiente | accent-bg / accent |
 | Cita completada | green-light / green |
 | No asistió | error-light / error |
 | Cancelada | gray-200 / gray-500 |
-| Día con ausencia (calendario) | `--color-rose-light` de fondo |
+| Día con ausencia (calendario) | `--color-slate-light` de fondo |
 
 ## 3. Tipografía
 
@@ -118,23 +121,23 @@ evita el zoom por doble tap al teclear el PIN.
 
 | Componente | Clase(s) | Reglas |
 |---|---|---|
-| Botón primario | `.btn .btn-primary` | Rosa vivo, texto negro, 56 px de alto, ancho completo. **Uno por pantalla** |
+| Botón primario | `.btn .btn-primary` | Verde Menta, texto negro, 56 px de alto, ancho completo. **Uno por pantalla** |
 | Botón oscuro | `.btn .btn-gold` | Negro con texto blanco. Acciones secundarias sólidas ("Agregar"). El nombre es histórico |
 | Botón contorno | `.btn .btn-outline` | Alternativa o "saltar" ("Sin servicios", "Cancelar") |
 | Link | `.btn-link` | Acciones discretas ("Actualizar app", "Cambiar PIN") |
 | Ícono chico | `.btn-icon-sm` | Editar ✎, compartir |
-| Input | `.input`, `.textarea`, `.date-picker-input` | 52 px, borde gris, foco en rosa |
+| Input | `.input`, `.textarea`, `.date-picker-input` | 52 px, borde gris, foco en menta profundo |
 | Etiqueta | `.input-label` | Mayúsculas, gris, arriba del campo |
 | Teclado numérico | `.keypad` + `.keypad-key` (`--delete`, `--confirm`, `--empty`) | 3×4, teclas de 58 px |
 | Puntos de PIN | `.pin-dots` / `.pin-dot.filled` / `.error` | 6 puntos, sacuden en error |
 | Indicador de pasos | `.step-indicator` / `.step-dot.active` | El paso activo se alarga a 24 px |
-| Tarjeta seleccionable | `.service-card`, `.payment-card` (`.selected`) | Borde y fondo rosa claro al elegir |
+| Tarjeta seleccionable | `.service-card`, `.payment-card` (`.selected`) | Borde menta profundo y fondo menta claro al elegir |
 | Resumen | `.summary`, `.summary-row`, `--total`, `.summary-section-title` | Paso "Confirmar" de cada wizard |
 | Tarjeta de acción | `.home-action-card` (`--sm`), `.home-action-icon--*` | Inicio |
 | Registro | `.record-item`, `.record-amount--income/--expense` | Registros del día |
 | Badge de estado | `.agenda-estado-badge--{estado}` | Ver colores en 2.3 |
 | Modal / hoja de acciones | `.delete-modal`, `.action-sheet-content` | Fondo difuminado. Confirmación con botón rojo |
-| Botón de acción principal en hoja | `.action-sheet-btn--cobrar` | Rosa claro con texto rosa. "Registrar cobro" |
+| Botón de acción principal en hoja | `.action-sheet-btn--cobrar` | Menta claro con texto menta profundo. "Registrar cobro" |
 | Nota en hoja de acciones | `.multi-select-hint.action-sheet-nota` | Explica por qué falta una acción (ej. cita ya cobrada) |
 | Fila con fecha | `.agenda-row-fecha` | Fecha corta bajo el nombre, en "Sin cerrar" |
 | Toast | `#toast`, `.toast-success`, `.toast-error`, `.toast-action` | Abajo al centro. 3 s (5 s si trae "Deshacer") |
@@ -177,16 +180,14 @@ evita el zoom por doble tap al teclear el PIN.
 
 - Íconos SVG en línea, trazo de 2 px, `stroke="currentColor"`, estilo Feather. Sin librería externa (el CSP no permite CDNs de scripts).
 - Emojis solo como apoyo visual en estados vacíos y métodos de pago (💵 💳 📱).
-- `public/img/logo.png` (logo completo), `public/img/icon-mark.png` (monograma "MR"). Hoy son un logo provisional de texto (Playfair Display + Inter): al llegar el logo final se reemplazan estos dos PNG y se corren los `generate.py`.
-- Íconos PWA en `public/icons/` y splash de iOS en `public/img/splash/` (generados con los `generate.py` de cada carpeta).
+- `public/img/logo.png`: el logo real ("MARTHA RDZ." + "HAIR ARTIST"), PNG transparente tal como lo entregó la marca. Tipografía: DejaVu Serif Bold y DejaVu Sans espaciada, en Negro y Verde Menta.
+- `public/img/icon-mark.png`: monograma cuadrado "MR." de 1024 px con la misma tipografía del logo, sobre Blanco Humo. De él salen los íconos PWA y el de iOS (`public/icons/generate.py`).
+- Splash de iOS en `public/img/splash/`: el logo sobre Blanco Humo, nunca más grande que el PNG original (`public/img/splash/generate.py`).
 
 ## 10. Deuda de diseño conocida
 
 | Qué | Dónde | Arreglo sugerido |
 |---|---|---|
-| Sombra de foco del input usa un dorado viejo `rgba(196,149,106,.12)` | `.input:focus` (línea ~354) | Pasar a un token rosa |
-| Fondo del loader usa un crema viejo `rgba(250,247,242,.88)` | `.loader` | Derivar de `--color-bg` |
-| Fondo de modal y 2 sombras usan un café viejo `rgba(44,24,16,…)` | `.delete-modal-backdrop` y 2 tarjetas | Usar el tinte de `--color-ink` |
 | Rojo presionado directo `#A23131` | `.delete-modal-btn--confirm:active` | Token `--color-error-active` |
 | `.btn-gold` ya no es dorado | Botones "Agregar" | Renombrar a `.btn-dark` |
 | Estilos en línea en varias vistas (`style="color: …"`) | login, config, agenda | Mover a clases |

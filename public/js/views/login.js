@@ -37,7 +37,7 @@ export function render() {
       <div class="login-container">
         <div class="text-center mb-24">
           <div class="login-brand">
-            <img class="login-logo" src="/img/logo.png" alt="Martha Rdz Hairartist">
+            <img class="login-logo" src="/img/logo.png" alt="Martha Rdz Hair Artist">
           </div>
           <p class="login-tagline">Tu sal\u00f3n, siempre en orden</p>
         </div>

@@ -1,4 +1,4 @@
-# Base de datos · Martha Rdz Hairartist
+# Base de datos · Martha Rdz Hair Artist
 
 **Última revisión:** 2026-09-26 · **Motor:** PostgreSQL en Neon · **Acceso:** solo desde las serverless functions
 

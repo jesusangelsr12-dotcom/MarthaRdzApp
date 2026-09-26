@@ -1,21 +1,19 @@
 #!/usr/bin/env python3
 """
-Genera los íconos del manifest (public/icons/icon-192.png, icon-512.png) a
-partir del logo (public/img/logo.png) sobre el fondo cream de la marca —
-mismo criterio que public/img/splash/generate.py, para que el ícono se
-sienta parte del mismo sistema visual que el login y el splash, en vez de
-un ícono genérico aparte (antes eran unas tijeras de una plantilla vieja).
+Genera los íconos de la app a partir del monograma cuadrado "MR."
+(public/img/icon-mark.png, 1024x1024, fondo Blanco Humo #F4F4F4):
 
-apple-touch-icon.png (el que se ve al "Agregar a inicio" en iOS) NO se
-genera aquí: usa el monograma cuadrado "MR" (public/img/icon-mark.png),
-un asset aparte pensado para verse bien como ícono cuadrado — el wordmark
-completo es demasiado ancho/bajo para eso. Para regenerarlo:
+- icon-192.png e icon-512.png: los del manifest ("any maskable"). El
+  monograma cabe dentro del círculo seguro del 80 %, así que Android puede
+  recortarlo en círculo sin cortar letras.
+- apple-touch-icon.png (180x180): el que se ve al "Agregar a inicio" en iOS.
 
-    python3 -c "
-    from PIL import Image
-    src = Image.open('public/img/icon-mark.png').convert('RGB')
-    src.resize((180, 180), Image.LANCZOS).save('public/icons/apple-touch-icon.png')
-    "
+Se usa el monograma y no el logo completo porque "MARTHA RDZ." es muy
+ancho y bajo: a 180 px el "HAIR ARTIST" quedaría ilegible.
+
+El monograma usa la misma tipografía del logo (DejaVu Serif Bold para
+"MR." y DejaVu Sans espaciada para "HAIR ARTIST", en Verde Menta). Si
+cambia, reemplaza icon-mark.png (mínimo 512x512) y corre esto de nuevo.
 
 Requiere Pillow: pip install pillow
 Uso: python3 public/icons/generate.py (desde la raíz del repo)
@@ -25,34 +23,19 @@ from PIL import Image
 import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-LOGO_PATH = os.path.join(BASE_DIR, '..', 'img', 'logo.png')
-BG_COLOR = (253, 249, 250)  # --color-bg (#FDF9FA) en styles.css
+MARK_PATH = os.path.join(BASE_DIR, '..', 'img', 'icon-mark.png')
 
-# (tamaño, nombre de archivo) — 192/512 son los del manifest (maskable, por
-# eso el logo se queda angosto: el sistema puede recortar en círculo en
-# Android).
 TARGETS = [
     (192, 'icon-192.png'),
     (512, 'icon-512.png'),
+    (180, 'apple-touch-icon.png'),
 ]
 
 
 def main():
-    logo = Image.open(LOGO_PATH)
-    if logo.mode != 'RGBA':
-        logo = logo.convert('RGBA')
-
+    mark = Image.open(MARK_PATH).convert('RGB')
     for size, filename in TARGETS:
-        canvas = Image.new('RGB', (size, size), BG_COLOR)
-        target_w = round(size * 0.62)
-        scale = target_w / logo.width
-        target_h = round(logo.height * scale)
-        resized = logo.resize((target_w, target_h), Image.LANCZOS)
-        x = (size - target_w) // 2
-        y = (size - target_h) // 2
-        canvas.paste(resized, (x, y), resized)
-        canvas.save(os.path.join(BASE_DIR, filename))
-
+        mark.resize((size, size), Image.LANCZOS).save(os.path.join(BASE_DIR, filename), optimize=True)
     print(f'Generados {len(TARGETS)} íconos en {BASE_DIR}')
 
 

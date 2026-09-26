@@ -124,7 +124,7 @@ self.addEventListener('push', (event) => {
     data = {};
   }
 
-  const title = data.title || 'Martha Rdz Hairartist';
+  const title = data.title || 'Martha Rdz Hair Artist';
   event.waitUntil(
     self.registration.showNotification(title, {
       body: data.body || '',

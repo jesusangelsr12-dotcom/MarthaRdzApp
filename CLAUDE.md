@@ -1,4 +1,4 @@
-# Martha Rdz Hairartist — notas para cambios
+# Martha Rdz Hair Artist — notas para cambios
 
 ## Cuenta de trabajadora: todo cambio aplica también a ella
 

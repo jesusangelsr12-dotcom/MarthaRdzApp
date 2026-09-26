@@ -1,4 +1,4 @@
-# Arquitectura · Martha Rdz Hairartist
+# Arquitectura · Martha Rdz Hair Artist
 
 **Última revisión:** 2026-09-26
 
@@ -118,7 +118,7 @@ Otras llaves: `jr_install_banner_dismissed`, `jr_biometria_activa`, `jr_biometri
 
 Flujo de actualización:
 
-1. Un deploy sube `CACHE_NAME` (hoy `jr-salones-v46`).
+1. Un deploy sube `CACHE_NAME` (hoy `jr-salones-v47`).
 2. Al volver la app al frente (`visibilitychange`), `registration.update()` baja el SW nuevo.
 3. El SW nuevo hace `skipWaiting()` + `clients.claim()` y borra cachés viejos.
 4. `app.js` marca `actualizacionPendiente` y recarga en el siguiente cambio de hash.

@@ -1,6 +1,6 @@
-# AppFlow · Martha Rdz Hairartist
+# AppFlow · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-09-26 · **Versión de la app:** v46 · **Tablero interactivo:** [AppFlow.html](AppFlow.html) (arrastra, acerca y aleja como en Miro)
+**Última revisión:** 2026-09-26 · **Versión de la app:** v47 · **Tablero interactivo:** [AppFlow.html](AppFlow.html) (arrastra, acerca y aleja como en Miro)
 
 Este documento sigue cada acción desde que la persona toca algo hasta donde
 termina: qué pantalla la recibe, qué endpoint llama, qué tablas toca, qué ve

@@ -1,4 +1,4 @@
-# Deployment · Martha Rdz Hairartist
+# Deployment · Martha Rdz Hair Artist
 
 **Última revisión:** 2026-09-26 · **Plataforma:** Vercel (Hobby) + Neon
 
@@ -27,7 +27,7 @@ Se configuran en Vercel → Project → Settings → Environment Variables, por 
 | `PIN_PEPPER` | ✅ | `openssl rand -hex 32` (distinto al anterior) | Hash de PINs |
 | `VAPID_PUBLIC_KEY` | Para push | `npx web-push generate-vapid-keys` | Suscripción en el navegador |
 | `VAPID_PRIVATE_KEY` | Para push | (mismo comando) | Firmar los push |
-| `VAPID_SUBJECT` | Para push | `mailto:<correo de contacto>` | Lo exige el estándar Web Push |
+| `VAPID_SUBJECT` | Para push | `mailto:<correo de contacto>` | Lo exige el estándar Web Push: Apple y Google lo usan solo si necesitan avisar de un problema con las notificaciones. Nadie más lo ve y no se envían correos |
 | `CRON_SECRET` | Recomendada | `openssl rand -hex 32` | Vercel la manda al cron; sin ella, cualquiera puede disparar el recordatorio |
 
 Ver [Security.md §6](Security.md#6-secretos) para qué pasa si se filtra o se rota cada una.
@@ -97,11 +97,19 @@ Para levantarla desde cero:
 5. Da de alta el salón con `crear-salon` (abajo) usando el mismo `PIN_PEPPER` que cargaste en Vercel.
 6. Entra con el PIN desde el celular, carga servicios, productos y trabajadoras en Configuración, e instala la app en el inicio.
 
+**Estado de la base de producción (2026-09-26):** el proyecto de Neon
+"Martha Rdz App" ya tiene el esquema completo (000 a 007) y el salón
+`salon_002` "Martha Rodriguez Hair Artist" con su catálogo e historial, así
+que los pasos 2 y 5 ya no hacen falta. La dueña entra con su PIN de siempre:
+su hash es del formato anterior (sin pepper) y en el primer login se guarda
+solo con el `PIN_PEPPER` nuevo. Las trabajadoras no traen PIN: la dueña les
+da acceso desde Configuración.
+
 ### Dar de alta un salón
 
 ```bash
 npm run crear-salon -- --nombre "Nuevo Salón" --pin 123456
-npm run crear-salon -- --nombre "Nuevo Salón" --pin 123456 --plantilla salon_001
+npm run crear-salon -- --nombre "Nuevo Salón" --pin 123456 --plantilla salon_002
 ```
 
 Necesita `DATABASE_URL` y el **mismo** `PIN_PEPPER` de producción en `.env`.
@@ -122,7 +130,7 @@ PIN_PEPPER='<pepper de producción>' node -e \
 Y actualízalo en Neon (verifica antes que ningún otro salón o trabajadora use ese hash):
 
 ```sql
-update salones set pin_hash_v2 = '<hash>', pin_hash = '' where salon_id = 'salon_001';
+update salones set pin_hash_v2 = '<hash>', pin_hash = '' where salon_id = 'salon_002';
 ```
 
 ### Cambiar o quitar el PIN de una trabajadora

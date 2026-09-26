@@ -3,38 +3,38 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>AppFlow · Martha Rdz Hairartist</title>
-<meta name="description" content="Tablero interactivo de los flujos de Martha Rdz Hairartist: arrastra, acerca y aleja para ver cada flujo de punta a punta, con sus decisiones, tablas y cabos sueltos.">
+<title>AppFlow · Martha Rdz Hair Artist</title>
+<meta name="description" content="Tablero interactivo de los flujos de Martha Rdz Hair Artist: arrastra, acerca y aleja para ver cada flujo de punta a punta, con sus decisiones, tablas y cabos sueltos.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root {
     color-scheme: light;
-    --bg: #FDF9FA;
+    --bg: #F4F4F4;
     --surface: #FFFFFF;
-    --ink: #171417;
-    --ink-muted: #5C5459;
-    --pink: #C41478;
-    --pink-bg: #F8E3EF;
-    --rose: #96526B;
-    --rose-light: #F0E7EA;
-    --g100: #FAF6F7;
-    --g200: #F0EAEC;
-    --g300: #DDD2D6;
-    --g400: #B0A2A7;
-    --g500: #7A6C71;
-    --green: #1E6E44;
-    --green-light: #E0F3E7;
+    --ink: #111111;
+    --ink-muted: #595959;
+    --accent: #13705F;
+    --accent-bg: #E2F4EE;
+    --slate: #4F6660;
+    --slate-light: #E7EDEB;
+    --g100: #F7F7F7;
+    --g200: #E2E2E2;
+    --g300: #D4D4D4;
+    --g400: #A8A8A8;
+    --g500: #636363;
+    --green: #2B7330;
+    --green-light: #E5F1E3;
     --red: #BE3A3A;
     --red-light: #FCE5E3;
     --amber: #8A5A00;
     --amber-light: #FBF0DA;
     --blue: #2F5E8C;
     --blue-light: #E4EDF6;
-    --edge: #B8A9AF;
-    --shadow: 0 1px 3px rgba(23, 20, 23, .06), 0 1px 2px rgba(23, 20, 23, .04);
-    --shadow-lg: 0 10px 30px rgba(23, 20, 23, .12);
+    --edge: #A8A8A8;
+    --shadow: 0 1px 3px rgba(17, 17, 17, .06), 0 1px 2px rgba(17, 17, 17, .04);
+    --shadow-lg: 0 10px 30px rgba(17, 17, 17, .12);
     --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     --inv: 1;
@@ -48,7 +48,7 @@
   }
   button, input { font-family: inherit; color: inherit; }
   button { cursor: pointer; }
-  :focus-visible { outline: 2px solid var(--pink); outline-offset: 2px; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   /* ================= Lienzo ================= */
   #viewport {
@@ -64,7 +64,7 @@
 
   /* ================= Encabezado del tablero ================= */
   .board-title { position: absolute; }
-  .board-title .eyebrow { font-size: 22px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--pink); }
+  .board-title .eyebrow { font-size: 22px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
   .board-title h1 { font-size: 88px; font-weight: 800; letter-spacing: -.035em; line-height: 1.05; margin: 8px 0 14px; }
   .board-title p { font-size: 26px; color: var(--ink-muted); max-width: 1100px; line-height: 1.4; }
   .board-title .chips { display: flex; gap: 12px; margin-top: 22px; flex-wrap: wrap; }
@@ -76,7 +76,7 @@
     display: flex; align-items: center; gap: .4em; white-space: nowrap; line-height: 1.1;
     transform: translateY(calc(-100% - 30px * var(--inv)));
   }
-  .section-label::before { content: ''; width: .4em; height: .4em; border-radius: .14em; background: var(--pink); flex-shrink: 0; }
+  .section-label::before { content: ''; width: .4em; height: .4em; border-radius: .14em; background: var(--accent); flex-shrink: 0; }
 
   /* ================= Marcos ================= */
   .frame {
@@ -90,15 +90,15 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     display: none; pointer-events: auto; cursor: pointer;
   }
-  .frame-far span { color: var(--pink); margin-right: .4em; }
+  .frame-far span { color: var(--accent); margin-right: .4em; }
   #world.is-far .frame-far { display: block; }
   .frame-head { padding: 22px 26px 0; display: flex; align-items: baseline; gap: 10px 12px; flex-wrap: wrap; cursor: pointer; }
-  .frame-id { font-size: 13px; font-weight: 800; color: var(--pink); }
+  .frame-id { font-size: 13px; font-weight: 800; color: var(--accent); }
   .frame-head h2 { font-size: 21px; font-weight: 800; letter-spacing: -.01em; }
   .roles { display: inline-flex; gap: 4px; }
   .role { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
-  .role--duena { background: var(--pink-bg); color: var(--pink); }
-  .role--trab { background: var(--rose-light); color: var(--rose); }
+  .role--duena { background: var(--accent-bg); color: var(--accent); }
+  .role--trab { background: var(--slate-light); color: var(--slate); }
   .frame-sum { padding: 6px 26px 0; color: var(--ink-muted); font-size: 13px; }
   .frame-sum b { color: var(--ink); font-weight: 600; }
   .frame-body { position: relative; margin: 8px 0; }
@@ -108,7 +108,7 @@
     display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; color: var(--g500);
   }
   .chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 6px; font-size: 11.5px; font-weight: 600; border: 0; }
-  .chip--db { background: var(--rose-light); color: var(--rose); }
+  .chip--db { background: var(--slate-light); color: var(--slate); }
   .sev-alta { background: var(--red-light); color: var(--red); }
   .sev-media { background: var(--amber-light); color: var(--amber); }
   .sev-baja { background: var(--g200); color: var(--g500); }
@@ -133,11 +133,11 @@
   .k-input .ic { background: var(--g200); color: var(--ink); }
   .k-sys { border-style: dashed; border-color: var(--g400); }
   .k-sys .ic { background: var(--g200); color: var(--g500); }
-  .k-api { border-color: var(--pink); }
-  .k-api .ic { background: var(--pink-bg); color: var(--pink); }
+  .k-api { border-color: var(--accent); }
+  .k-api .ic { background: var(--accent-bg); color: var(--accent); }
   .k-api .node-t { font-family: var(--mono); font-size: 12.5px; font-weight: 700; }
-  .k-db { border-color: var(--rose); background: var(--rose-light); border-radius: 12px 12px 26px 26px; }
-  .k-db .ic { background: var(--rose); color: #fff; }
+  .k-db { border-color: var(--slate); background: var(--slate-light); border-radius: 12px 12px 26px 26px; }
+  .k-db .ic { background: var(--slate); color: #fff; }
   .k-ext { border-color: var(--blue); background: var(--blue-light); }
   .k-ext .ic { background: var(--blue); color: #fff; }
   .k-ok { border-color: var(--green); background: var(--green-light); }
@@ -151,7 +151,7 @@
   .k-decision .node-t { color: var(--amber); }
   .k-state { width: 190px; text-align: center; border-radius: 16px; padding: 14px 12px; }
   .k-state .node-t { font-size: 16px; margin: 0; }
-  .st-pend { background: var(--pink-bg); color: var(--pink); border-color: var(--pink); }
+  .st-pend { background: var(--accent-bg); color: var(--accent); border-color: var(--accent); }
   .st-comp { background: var(--green-light); color: var(--green); border-color: var(--green); }
   .st-noas { background: var(--red-light); color: var(--red); border-color: var(--red); }
   .st-canc { background: var(--g200); color: var(--g500); border-color: var(--g400); }
@@ -169,15 +169,15 @@
 
   .is-pulse { animation: pulse 1.6s ease-out 1; }
   @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(196, 20, 120, .55); }
-    40% { box-shadow: 0 0 0 16px rgba(196, 20, 120, .18); }
-    100% { box-shadow: 0 0 0 26px rgba(196, 20, 120, 0); }
+    0% { box-shadow: 0 0 0 0 rgba(19, 112, 95, .55); }
+    40% { box-shadow: 0 0 0 16px rgba(19, 112, 95, .18); }
+    100% { box-shadow: 0 0 0 26px rgba(19, 112, 95, 0); }
   }
 
   /* ================= Notas adhesivas ================= */
   .sticky {
     position: relative; width: 250px; padding: 16px 16px 14px; border-radius: 3px 3px 14px 3px;
-    box-shadow: 0 2px 0 rgba(0, 0, 0, .03), 0 8px 18px rgba(23, 20, 23, .1); font-size: 12.5px; line-height: 1.4;
+    box-shadow: 0 2px 0 rgba(0, 0, 0, .03), 0 8px 18px rgba(17, 17, 17, .1); font-size: 12.5px; line-height: 1.4;
   }
   .sticky.alta { background: #FFD8EA; }
   .sticky.media { background: #FFF1B8; }
@@ -192,15 +192,15 @@
   .sticky-id { font-size: 18px; font-weight: 800; }
   .sticky-sev { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; opacity: .7; }
   .sticky h3 { font-size: 14px; line-height: 1.3; margin-bottom: 8px; }
-  .sticky p { color: rgba(23, 20, 23, .78); }
+  .sticky p { color: rgba(17, 17, 17, .78); }
   .sticky p + p { margin-top: 8px; }
   .sticky .go {
-    margin-top: 12px; border: 0; background: rgba(23, 20, 23, .85); color: #fff; font-weight: 700;
+    margin-top: 12px; border: 0; background: rgba(17, 17, 17, .85); color: #fff; font-weight: 700;
     font-size: 12px; padding: 6px 12px; border-radius: 999px;
   }
   .sticky .where { margin-top: 12px; font-size: 11px; font-weight: 700; opacity: .6; }
   .stickies { display: grid; grid-template-columns: repeat(4, 250px); gap: 34px 28px; padding: 18px 26px 30px; }
-  .note-sticky { position: absolute; width: 220px; background: #FFF1B8; padding: 12px 14px; border-radius: 3px 3px 12px 3px; box-shadow: 0 6px 14px rgba(23, 20, 23, .1); font-size: 12px; transform: rotate(-1.5deg); }
+  .note-sticky { position: absolute; width: 220px; background: #FFF1B8; padding: 12px 14px; border-radius: 3px 3px 12px 3px; box-shadow: 0 6px 14px rgba(17, 17, 17, .1); font-size: 12px; transform: rotate(-1.5deg); }
   .note-sticky b { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; opacity: .6; margin-bottom: 4px; }
 
   /* ================= Tablas dentro de marcos ================= */
@@ -214,7 +214,7 @@
   .no { color: var(--g400); }
   .warn { color: var(--red); font-weight: 700; }
   tr.is-pulse td { animation: rowpulse 1.8s ease-out 1; }
-  @keyframes rowpulse { 0%, 50% { background: var(--pink-bg); } 100% { background: transparent; } }
+  @keyframes rowpulse { 0%, 50% { background: var(--accent-bg); } 100% { background: transparent; } }
 
   /* ================= Interfaz fija ================= */
   .ui { position: fixed; z-index: 10; }
@@ -224,7 +224,7 @@
   .icon-btn { width: 36px; height: 36px; border-radius: 10px; border: 0; background: transparent; display: grid; place-items: center; font-size: 17px; font-weight: 700; }
   .icon-btn:hover { background: var(--g200); }
   .topbar .name { font-weight: 800; font-size: 14px; white-space: nowrap; }
-  .topbar .name span { color: var(--pink); }
+  .topbar .name span { color: var(--accent); }
   .topbar .ver { font-size: 12px; color: var(--g500); white-space: nowrap; }
 
   .panel {
@@ -236,7 +236,7 @@
   .panel h3 { font-size: 10.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--g500); margin: 18px 4px 8px; }
   .panel h3:first-child { margin-top: 0; }
   .search { width: 100%; border: 1.5px solid var(--g300); border-radius: 10px; padding: 9px 12px; font-size: 13.5px; background: var(--surface); outline: none; }
-  .search:focus { border-color: var(--pink); }
+  .search:focus { border-color: var(--accent); }
   .results { margin-top: 6px; }
   .results button, .frame-list button {
     width: 100%; text-align: left; border: 0; background: transparent; padding: 7px 8px; border-radius: 8px;
@@ -263,7 +263,7 @@
   .minimap-inner { position: relative; width: 100%; height: 100%; }
   .mm-frame { position: absolute; background: var(--g300); border-radius: 2px; }
   .mm-frame.is-off { opacity: .35; }
-  .mm-view { position: absolute; border: 2px solid var(--pink); border-radius: 3px; background: rgba(196, 20, 120, .06); pointer-events: none; }
+  .mm-view { position: absolute; border: 2px solid var(--accent); border-radius: 3px; background: rgba(19, 112, 95, .06); pointer-events: none; }
 
   .hint { left: 50%; transform: translateX(-50%); bottom: max(12px, env(safe-area-inset-bottom)); padding: 8px 14px; font-size: 12px; color: var(--ink-muted); white-space: nowrap; }
   .hint kbd { font-family: var(--font); font-weight: 700; font-size: 11px; background: var(--g200); border-radius: 5px; padding: 1px 6px; color: var(--ink); }
@@ -294,7 +294,7 @@
   <div class="ui card topbar">
     <button class="icon-btn" id="toggle-panel" aria-label="Mostrar u ocultar el panel" aria-expanded="true" title="Panel (P)">☰</button>
     <span class="name">App<span>Flow</span> · Martha Rdz</span>
-    <span class="ver">v46 · 2026-09-26</span>
+    <span class="ver">v47 · 2026-09-26</span>
   </div>
 
   <aside class="ui card panel" id="panel" aria-label="Navegación del tablero">
@@ -351,8 +351,8 @@ const KINDS = {
   screen: { ic: '▢', label: 'Pantalla', color: 'var(--ink)' },
   input: { ic: '✎', label: 'Acción de la usuaria', color: 'var(--g400)' },
   sys: { ic: '⚙', label: 'Proceso interno', color: 'var(--g400)' },
-  api: { ic: '↗', label: 'Endpoint', color: 'var(--pink)' },
-  db: { ic: '◉', label: 'Tabla', color: 'var(--rose)' },
+  api: { ic: '↗', label: 'Endpoint', color: 'var(--accent)' },
+  db: { ic: '◉', label: 'Tabla', color: 'var(--slate)' },
   ext: { ic: '↔', label: 'Servicio externo', color: 'var(--blue)' },
   ok: { ic: '✓', label: 'Termina bien', color: 'var(--green)' },
   err: { ic: '!', label: 'Termina en error', color: 'var(--red)' },
@@ -974,7 +974,7 @@ function roundPath(d, r = 8) {
 function arrowDefs() {
   return `<defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M0 0 L10 5 L0 10 z" fill="#B8A9AF"/></marker>
+      <path d="M0 0 L10 5 L0 10 z" fill="#A8A8A8"/></marker>
     <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0 0 L10 5 L0 10 z" fill="#BE3A3A"/></marker>
   </defs>`;
@@ -1187,7 +1187,7 @@ function buildIssuesFrame() {
 
 function buildBoard() {
   const title = el('div', 'board-title', `
-    <div class="eyebrow">Martha Rdz Hairartist</div>
+    <div class="eyebrow">Martha Rdz Hair Artist</div>
     <h1>Mapa de flujos de la app</h1>
     <p>Cada flujo de punta a punta: la pantalla que lo recibe, el endpoint que llama, las tablas que toca, sus desvíos y dónde quedó algo sin resolver.</p>
     <div class="chips">

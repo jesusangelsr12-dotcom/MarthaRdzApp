@@ -77,29 +77,22 @@ function formatMesLabel(yearMonth) {
   return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
 
-/** "maría josé lópez" → "María" (solo el primer nombre, con mayúscula
- * inicial aunque se haya escrito en minúsculas al agendar). */
-function primerNombre(nombreCompleto) {
-  const primero = String(nombreCompleto || '').trim().split(/\s+/)[0] || '';
-  return primero.charAt(0).toUpperCase() + primero.slice(1);
+/** "2026-10-09" → "viernes 9 de octubre": en minúscula y sin coma, porque
+ * va a media oración en el mensaje de confirmación. */
+function fechaEnOracion(fechaISO) {
+  return formatFechaLarga(fechaISO).replace(',', '').toLowerCase();
 }
 
-/** Mensaje predeterminado para confirmar una cita por WhatsApp. Los saltos
- * de línea y emojis son parte del texto (wa.me los respeta tal cual). */
+/** "a las 4:30 PM", pero "a la 1:00 PM": en español la 1 va en singular. */
+function aLaHora(hora) {
+  const hora12 = formatHora12(hora);
+  return `${hora12.startsWith('1:') ? 'a la' : 'a las'} ${hora12}`;
+}
+
+/** Mensaje predeterminado para confirmar una cita por WhatsApp. Es el texto
+ * que pidió Martha; se puede editar en WhatsApp antes de enviarlo. */
 function buildMensajeConfirmacion(cita) {
-  const nombre = primerNombre(cita.clienta);
-  return [
-    nombre ? `Hola ${nombre}!` : 'Hola!',
-    '',
-    'Tu espacio en Martha Rdz Hairartist está reservado para ti 🤎',
-    '',
-    `📅 ${formatFechaLarga(cita.fecha)}`,
-    `🕐 ${formatHora12(cita.hora)}`,
-    '',
-    'Para conservar tu horario, solo necesitamos tu confirmación ✨',
-    '',
-    '¿Nos confirmas?',
-  ].join('\n');
+  return `Hola! Te escribo de Martha Rdz Hair Artist para confirmar tu próxima cita el día ${fechaEnOracion(cita.fecha)} ${aLaHora(cita.hora)}. ¿Confirmas tu cita? Gracias!`;
 }
 
 export function render(s) {

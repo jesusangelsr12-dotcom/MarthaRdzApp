@@ -1,4 +1,4 @@
-# Manejo de errores · Martha Rdz Hairartist
+# Manejo de errores · Martha Rdz Hair Artist
 
 **Última revisión:** 2026-09-26
 

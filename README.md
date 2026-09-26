@@ -1,10 +1,10 @@
-# Martha Rdz Hairartist
+# Martha Rdz Hair Artist
 
 PWA para administrar un salón de belleza desde el celular: agenda de citas,
 cobro de servicios y productos, comisiones de trabajadoras, gastos, historial
 de clientas y un dashboard del negocio.
 
-Es la app de Martha Rdz Hairartist. Soporta varios salones en la
+Es la app de Martha Rdz Hair Artist. Soporta varios salones en la
 misma base de datos (una base de Neon propia, separada de cualquier otra app). Cada salón entra con su propio PIN.
 
 > Proyecto privado de JR Consulting.
@@ -84,7 +84,7 @@ La app no tiene pantalla para crear salones. Se hace con un script:
 npm run crear-salon -- --nombre "Mi Salón" --pin 123456
 
 # Copiando servicios, productos y trabajadoras de otro salón
-npm run crear-salon -- --nombre "Mi Salón" --pin 123456 --plantilla salon_001
+npm run crear-salon -- --nombre "Mi Salón" --pin 123456 --plantilla salon_002
 ```
 
 El script **siempre crea un salón nuevo**. No sirve para cambiarle el PIN a

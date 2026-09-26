@@ -1,11 +1,11 @@
 {
-  "name": "Martha Rdz Hairartist",
+  "name": "Martha Rdz Hair Artist",
   "short_name": "Martha Rdz",
-  "description": "Administración de citas y gastos — Martha Rdz Hairartist",
+  "description": "Administración de citas y gastos — Martha Rdz Hair Artist",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#FDF9FA",
-  "theme_color": "#171417",
+  "background_color": "#F4F4F4",
+  "theme_color": "#111111",
   "orientation": "portrait",
   "icons": [
     {

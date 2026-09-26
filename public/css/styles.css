@@ -1,61 +1,68 @@
 /* ============================================
-   Martha Rdz Hairartist
-   Design System v3 — Marca (negro + rosa)
-   Dos colores base: negro (#171417) y rosa (#FF39B2 como
-   fondo de botón, #C41478 para texto). Todo lo demás (tonos
-   legibles de texto, fondos, family de "rose", verdes/rojos
-   funcionales) se derivó de esos dos con la regla 60-30-10 y
-   se verificó contraste WCAG AA en cada combinación real que
-   usa la app (ver comentarios junto a cada token).
+   Martha Rdz Hair Artist
+   Design System v4 — Marca (brand board de Martha Rdz)
+   Cuatro colores de marca: Negro Elegancia (#111111, texto),
+   Verde Menta (#88D8C0, acento), Blanco Humo (#F4F4F4, fondos)
+   y Gris Plata (#E2E2E2, detalles). Todo lo demás (tonos
+   legibles de texto, el menta profundo para texto, el tono
+   "slate", verdes/rojos funcionales) se derivó de esos cuatro
+   con la regla 60-30-10 y se verificó contraste WCAG AA en cada
+   combinación real que usa la app (ver comentarios junto a cada
+   token).
    ============================================ */
 
 /* --- CSS Variables (Design Tokens) --- */
 :root {
-  /* 60% — fondo neutro. Blanco con un toque de rosa para no
-     verse frío/clínico, casi imperceptible a simple vista. */
-  --color-bg: #FDF9FA;
+  /* 60% — fondo: Blanco Humo. Las tarjetas van en blanco puro
+     encima, así se separan sin necesidad de bordes. */
+  --color-bg: #F4F4F4;
   --color-surface: #FFFFFF;
 
-  /* 30% — estructura: el negro del logo. --color-ink es el
-     texto/encabezados de toda la app (18:1 sobre --color-bg,
+  /* 30% — estructura: Negro Elegancia. --color-ink es el
+     texto/encabezados de toda la app (17:1 sobre --color-bg,
      muy por encima del 4.5:1 que pide WCAG AA). */
-  --color-ink: #171417;
-  --color-ink-light: #454345;
-  --color-ink-muted: #5C5459;
+  --color-ink: #111111;
+  --color-ink-light: #3D3D3D;
+  --color-ink-muted: #595959;
 
-  /* 10% — acento: el rosa del logo, para llamadas a la acción.
-     --color-pink-vivid es el rosa EXACTO del logo (#FF39B2) —
-     se usa solo como fondo sólido de botones, con texto en
-     --color-ink encima (5.6:1). Ese mismo rosa como texto sobre
-     fondo claro no pasa WCAG (queda en ~3.2:1), así que
-     --color-pink es una versión más profunda del mismo tono,
-     pensada para texto/íconos/bordes (5.6:1+ en cada uso real). */
-  --color-pink: #C41478;
-  --color-pink-bg: #F8E3EF;
-  --color-pink-active: #A11062;
-  --color-pink-vivid: #FF39B2;
-  --color-pink-vivid-active: #D12F92;
+  /* 10% — acento: Verde Menta, para llamadas a la acción.
+     --color-accent-vivid es el menta EXACTO de la marca (#88D8C0)
+     — se usa solo como fondo sólido de botones, con texto en
+     --color-ink encima (11.4:1). Ese mismo menta como texto sobre
+     fondo claro no se lee (1.6:1), así que --color-accent es una
+     versión profunda del mismo tono, pensada para texto/íconos/
+     bordes (5.4:1 sobre el fondo, 5.2:1 sobre --color-accent-bg,
+     y 6:1 con texto blanco encima). */
+  --color-accent: #13705F;
+  --color-accent-bg: #E2F4EE;
+  --color-accent-active: #0D5A4C;
+  --color-accent-vivid: #88D8C0;
+  --color-accent-vivid-active: #6BC9AC;
 
-  /* Rose — segundo tono de marca, derivado del mismo rosa (no
-     es un color ajeno tipo morado/verde azulado): para distinguir
-     una segunda categoría (ícono de Agenda, un tono de avatar)
-     sin salirse de la paleta del logo. */
-  --color-rose: #96526B;
-  --color-rose-light: #F0E7EA;
+  /* Slate — segundo tono de marca: un gris verdoso derivado del
+     menta y el negro, para distinguir una segunda categoría
+     (ícono de Agenda, servicios, comisiones, un tono de avatar)
+     sin salirse de la paleta (6.2:1 sobre blanco, 5.2:1 sobre
+     --color-slate-light). */
+  --color-slate: #4F6660;
+  --color-slate-light: #E7EDEB;
 
-  /* Neutrales con el mismo matiz que el fondo, no grises fríos */
-  --color-gray-100: #FAF6F7;
-  --color-gray-200: #F0EAEC;
-  --color-gray-300: #DDD2D6;
-  --color-gray-400: #B0A2A7;
-  --color-gray-500: #7A6C71;
+  /* Neutrales: Gris Plata (#E2E2E2) es el 200, para bordes y
+     detalles. El 500 es el texto secundario (4.6:1 incluso sobre
+     el 200). */
+  --color-gray-100: #F7F7F7;
+  --color-gray-200: #E2E2E2;
+  --color-gray-300: #D4D4D4;
+  --color-gray-400: #A8A8A8;
+  --color-gray-500: #636363;
 
   /* Funcionales — universales a propósito (verde/rojo), no
-     salen del logo: son el estándar de éxito/error que cualquier
-     persona reconoce de inmediato, y su tono se ajustó para que
-     no se confundan con el rosa de marca. */
-  --color-green: #1E6E44;
-  --color-green-light: #E0F3E7;
+     salen de la marca: son el estándar de dinero/éxito y error
+     que cualquier persona reconoce de inmediato. El verde es un
+     verde clásico (matiz 124°), lejos del menta (162°), para que
+     "Completada" no se confunda con "Pendiente". */
+  --color-green: #2B7330;
+  --color-green-light: #E5F1E3;
   --color-error: #BE3A3A;
   --color-error-light: #FCE5E3;
 
@@ -67,9 +74,9 @@
   --radius-full: 9999px;
 
   /* Shadows — suaves, con el tinte del negro de marca */
-  --shadow-sm: 0 1px 4px rgba(23, 20, 23, 0.05);
-  --shadow-md: 0 4px 16px rgba(23, 20, 23, 0.07);
-  --shadow-lg: 0 8px 32px rgba(23, 20, 23, 0.10);
+  --shadow-sm: 0 1px 4px rgba(17, 17, 17, 0.05);
+  --shadow-md: 0 4px 16px rgba(17, 17, 17, 0.07);
+  --shadow-lg: 0 8px 32px rgba(17, 17, 17, 0.10);
 
   /* Type */
   --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -221,21 +228,21 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
   transform: scale(0.97);
 }
 
-/* El botón principal de cada pantalla lleva el rosa exacto del logo — es
-   la llamada a la acción, el 10% de acento de la regla 60-30-10. Texto en
-   --color-ink (no blanco): el rosa del logo es muy vivo y el blanco
-   encima solo da 3.2:1 de contraste (no pasa WCAG AA); en negro da 5.6:1. */
+/* El botón principal de cada pantalla lleva el Verde Menta exacto de la
+   marca — es la llamada a la acción, el 10% de acento de la regla
+   60-30-10. Texto en --color-ink (no blanco): el menta es claro y el
+   blanco encima solo da 1.6:1 de contraste; en negro da 11.4:1. */
 .btn-primary {
-  background: var(--color-pink-vivid);
+  background: var(--color-accent-vivid);
   color: var(--color-ink);
 }
 
 .btn-primary:active {
-  background: var(--color-pink-vivid-active);
+  background: var(--color-accent-vivid-active);
 }
 
 /* Acciones secundarias sólidas (ej. "Agregar" en Configuración) — el
-   rosa queda reservado para la acción principal de cada pantalla. */
+   menta queda reservado para la acción principal de cada pantalla. */
 .btn-gold {
   background: var(--color-ink);
   color: var(--color-surface);
@@ -282,7 +289,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 }
 
 .card-selectable.selected {
-  border-color: var(--color-pink);
+  border-color: var(--color-accent);
   box-shadow: var(--shadow-md);
 }
 
@@ -349,8 +356,8 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 }
 
 .input:focus {
-  border-color: var(--color-pink);
-  box-shadow: 0 0 0 3px rgba(196, 149, 106, 0.12);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(19, 112, 95, 0.12);
 }
 
 .input::placeholder {
@@ -419,8 +426,8 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 }
 
 .pin-dot.filled {
-  background: var(--color-pink);
-  border-color: var(--color-pink);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
 }
 
 .pin-dot.error {
@@ -481,8 +488,8 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 }
 
 .payment-card.selected {
-  border-color: var(--color-pink);
-  background: var(--color-pink-bg);
+  border-color: var(--color-accent);
+  background: var(--color-accent-bg);
 }
 
 .payment-card-emoji {
@@ -521,8 +528,8 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 }
 
 .service-card.selected {
-  border-color: var(--color-pink);
-  background: var(--color-pink-bg);
+  border-color: var(--color-accent);
+  background: var(--color-accent-bg);
 }
 
 .service-card-name {
@@ -537,7 +544,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
   right: 10px;
   font-size: 0.7rem;
   font-weight: 700;
-  color: var(--color-pink);
+  color: var(--color-accent);
 }
 
 /* --- Summary (Confirmation Step) --- */
@@ -680,7 +687,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 }
 
 .step-dot.active {
-  background: var(--color-pink);
+  background: var(--color-accent);
   width: 24px;
 }
 
@@ -755,7 +762,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 .loader {
   position: fixed;
   inset: 0;
-  background: rgba(250, 247, 242, 0.88);
+  background: rgba(244, 244, 244, 0.88);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -772,7 +779,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
   width: 36px;
   height: 36px;
   border: 3px solid var(--color-gray-300);
-  border-top-color: var(--color-pink);
+  border-top-color: var(--color-accent);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
@@ -793,7 +800,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
   width: 16px;
   height: 16px;
   border: 2px solid var(--color-gray-300);
-  border-top-color: var(--color-pink);
+  border-top-color: var(--color-accent);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
   flex-shrink: 0;
@@ -839,7 +846,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
    Login Screen
    ============================================ */
 
-/* --- Login Brand (Martha Rdz Hairartist logo) --- */
+/* --- Login Brand (logo de Martha Rdz Hair Artist) --- */
 .login-brand {
   display: flex;
   flex-direction: column;
@@ -855,7 +862,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 .login-tagline {
   font-size: 0.88rem;
   color: var(--color-gray-500);
-  margin-top: 6px;
+  margin-top: 16px;
 }
 
 .login-container {
@@ -888,7 +895,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 .home-greeting {
   font-size: 0.88rem;
   font-weight: 500;
-  color: var(--color-pink);
+  color: var(--color-accent);
   margin-bottom: 2px;
   letter-spacing: 0.3px;
 }
@@ -947,8 +954,8 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 }
 
 .home-action-icon--primary {
-  background: var(--color-pink-bg);
-  color: var(--color-pink);
+  background: var(--color-accent-bg);
+  color: var(--color-accent);
 }
 
 .home-action-icon--warning {
@@ -1071,7 +1078,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 .header-back {
   background: none;
   border: none;
-  color: var(--color-pink);
+  color: var(--color-accent);
   font-size: 0.95rem;
   font-weight: 600;
   font-family: var(--font-family);
@@ -1095,13 +1102,13 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 
 /* --- Confirm button in keypad --- */
 .keypad-key--confirm {
-  background: var(--color-pink);
+  background: var(--color-accent);
   color: var(--color-surface);
   font-weight: 700;
 }
 
 .keypad-key--confirm:active {
-  background: var(--color-pink-active);
+  background: var(--color-accent-active);
 }
 
 /* ============================================
@@ -1334,7 +1341,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 .delete-modal-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(44, 24, 16, 0.4);
+  background: rgba(17, 17, 17, 0.4);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
 }
@@ -1430,11 +1437,11 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 }
 
 .pricing-item-badge--servicio {
-  color: var(--color-rose);
+  color: var(--color-slate);
 }
 
 .pricing-item-badge--producto {
-  color: var(--color-pink);
+  color: var(--color-accent);
 }
 
 /* --- Summary Section Title --- */
@@ -1505,20 +1512,20 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 }
 
 .record-items-badge--servicio {
-  background: var(--color-rose);
+  background: var(--color-slate);
 }
 
 .record-items-badge--producto {
-  background: var(--color-pink);
+  background: var(--color-accent);
 }
 
 .record-items-badge--anticipo {
-  background: var(--color-rose);
+  background: var(--color-slate);
 }
 
 .record-anticipo-aplicado {
   font-size: 0.78rem;
-  color: var(--color-rose);
+  color: var(--color-slate);
   font-weight: 600;
   margin-top: 6px;
 }
@@ -1537,8 +1544,8 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
   display: inline-block;
   font-size: 0.62rem;
   font-weight: 600;
-  color: var(--color-rose);
-  background: var(--color-rose-light);
+  color: var(--color-slate);
+  background: var(--color-slate-light);
   padding: 2px 7px;
   border-radius: var(--radius-full);
   margin-left: 4px;
@@ -1653,11 +1660,11 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 }
 
 .comision-item-badge--servicio {
-  color: var(--color-rose);
+  color: var(--color-slate);
 }
 
 .comision-item-badge--producto {
-  color: var(--color-pink);
+  color: var(--color-accent);
 }
 
 .comision-select {
@@ -1680,14 +1687,14 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 }
 
 .comision-select:focus {
-  border-color: var(--color-pink);
+  border-color: var(--color-accent);
 }
 
 .comision-preview {
   margin-top: 8px;
   font-size: 0.8rem;
   font-weight: 600;
-  color: var(--color-rose);
+  color: var(--color-slate);
 }
 
 .comision-assign-row {
@@ -1730,7 +1737,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 }
 
 .comision-pct-input:focus {
-  border-color: var(--color-pink);
+  border-color: var(--color-accent);
 }
 
 .comision-pct-symbol {
@@ -1749,8 +1756,8 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
   display: inline-block;
   font-size: 0.62rem;
   font-weight: 600;
-  color: var(--color-rose);
-  background: var(--color-rose-light);
+  color: var(--color-slate);
+  background: var(--color-slate-light);
   padding: 2px 7px;
   border-radius: var(--radius-full);
   margin-left: 4px;
@@ -1758,7 +1765,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 }
 
 .summary-value--comision {
-  color: var(--color-rose);
+  color: var(--color-slate);
 }
 
 /* --- Home: tarjeta de resumen (semana + comisiones), separada del resto --- */
@@ -1818,8 +1825,8 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 }
 
 .home-stat-icon--neutral {
-  background: var(--color-pink-bg);
-  color: var(--color-pink);
+  background: var(--color-accent-bg);
+  color: var(--color-accent);
 }
 
 .home-stat-value {
@@ -1884,14 +1891,14 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
   flex-shrink: 0;
 }
 
-.home-comision-avatar--pink {
-  background: var(--color-pink-bg);
-  color: var(--color-pink);
+.home-comision-avatar--accent {
+  background: var(--color-accent-bg);
+  color: var(--color-accent);
 }
 
-.home-comision-avatar--rose {
-  background: var(--color-rose-light);
-  color: var(--color-rose);
+.home-comision-avatar--slate {
+  background: var(--color-slate-light);
+  color: var(--color-slate);
 }
 
 .home-comision-avatar--ink {
@@ -1983,7 +1990,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 }
 
 .date-picker-input:focus {
-  border-color: var(--color-pink);
+  border-color: var(--color-accent);
 }
 
 /* --- Selector de hora simplificado (hora 1-12 + AM/PM + minutos de 10 en
@@ -2052,7 +2059,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 }
 
 .clienta-suggestion-item:active {
-  background: var(--color-pink-bg);
+  background: var(--color-accent-bg);
 }
 
 .totals-bar--single {
@@ -2095,7 +2102,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 }
 
 .comision-report-card.expanded {
-  box-shadow: 0 2px 10px rgba(44, 24, 16, 0.08);
+  box-shadow: 0 2px 10px rgba(17, 17, 17, 0.08);
 }
 
 .comision-report-head {
@@ -2186,7 +2193,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
   margin: 6px 2px 0;
   font-size: 0.82rem;
   font-weight: 500;
-  color: var(--color-pink);
+  color: var(--color-accent);
 }
 
 /* --- Banner de nota fija de la clienta --- */
@@ -2196,15 +2203,15 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
   gap: 4px;
   padding: 12px 14px;
   margin-bottom: 20px;
-  background: var(--color-pink-bg);
-  border-left: 3px solid var(--color-pink);
+  background: var(--color-accent-bg);
+  border-left: 3px solid var(--color-accent);
   border-radius: var(--radius-sm);
 }
 
 .nota-fija-banner-label {
   font-size: 0.7rem;
   font-weight: 600;
-  color: var(--color-pink);
+  color: var(--color-accent);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -2223,15 +2230,15 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
   gap: 4px;
   padding: 14px 36px 14px 14px;
   margin-bottom: 20px;
-  background: var(--color-pink-bg);
-  border-left: 3px solid var(--color-pink);
+  background: var(--color-accent-bg);
+  border-left: 3px solid var(--color-accent);
   border-radius: var(--radius-sm);
 }
 
 .install-banner-title {
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--color-pink);
+  color: var(--color-accent);
 }
 
 .install-banner-text {
@@ -2245,7 +2252,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
   align-items: center;
   justify-content: center;
   vertical-align: -2px;
-  color: var(--color-pink);
+  color: var(--color-accent);
 }
 
 .install-banner-close {
@@ -2267,7 +2274,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 }
 
 .install-banner-close:active {
-  background: rgba(23, 20, 23, 0.08);
+  background: rgba(17, 17, 17, 0.08);
 }
 
 /* --- Nota en el resumen de confirmación --- */
@@ -2313,7 +2320,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 }
 
 .clienta-card.expanded {
-  box-shadow: 0 2px 10px rgba(44, 24, 16, 0.08);
+  box-shadow: 0 2px 10px rgba(17, 17, 17, 0.08);
 }
 
 .clienta-card-head {
@@ -2344,8 +2351,8 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.4px;
-  color: var(--color-pink);
-  background: var(--color-pink-bg);
+  color: var(--color-accent);
+  background: var(--color-accent-bg);
   padding: 2px 7px;
   border-radius: var(--radius-full);
 }
@@ -2417,7 +2424,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
   font-family: var(--font-family);
   font-size: 0.8rem;
   font-weight: 600;
-  color: var(--color-pink);
+  color: var(--color-accent);
   cursor: pointer;
 }
 
@@ -2667,7 +2674,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 .rank-position {
   font-weight: 700;
   font-size: 0.85rem;
-  color: var(--color-pink);
+  color: var(--color-accent);
   width: 20px;
   text-align: center;
   flex-shrink: 0;
@@ -2718,9 +2725,9 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
    se muestran juntas, así que comparten el mismo tono de acento)
    ============================================ */
 
-.home-action-icon--rose {
-  background: var(--color-rose-light);
-  color: var(--color-rose);
+.home-action-icon--slate {
+  background: var(--color-slate-light);
+  color: var(--color-slate);
 }
 
 /* ============================================
@@ -2750,7 +2757,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
   gap: 10px;
   width: 100%;
   padding: 12px 14px;
-  background: var(--color-rose-light);
+  background: var(--color-slate-light);
   border: 1.5px solid transparent;
   border-radius: var(--radius-md);
   cursor: pointer;
@@ -2766,7 +2773,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 .agenda-hoy-card-hora {
   font-weight: 700;
   font-size: 0.85rem;
-  color: var(--color-rose);
+  color: var(--color-slate);
   white-space: nowrap;
 }
 
@@ -2780,7 +2787,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 .agenda-hoy-card-anticipo {
   font-size: 0.78rem;
   font-weight: 600;
-  color: var(--color-rose);
+  color: var(--color-slate);
   white-space: nowrap;
 }
 
@@ -2797,8 +2804,8 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
   height: 36px;
   border-radius: var(--radius-full);
   border: none;
-  background: var(--color-pink-bg);
-  color: var(--color-pink);
+  background: var(--color-accent-bg);
+  color: var(--color-accent);
   font-size: 1.3rem;
   line-height: 1;
   display: flex;
@@ -2885,7 +2892,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 
 .agenda-row-anticipo {
   font-size: 0.75rem;
-  color: var(--color-rose);
+  color: var(--color-slate);
   font-weight: 500;
 }
 
@@ -2910,8 +2917,8 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 }
 
 .agenda-estado-badge--pendiente {
-  background: var(--color-pink-bg);
-  color: var(--color-pink);
+  background: var(--color-accent-bg);
+  color: var(--color-accent);
 }
 
 .agenda-estado-badge--completada {
@@ -2939,7 +2946,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
   align-items: center;
   gap: 10px;
   width: 100%;
-  background: var(--color-rose-light);
+  background: var(--color-slate-light);
   border-radius: var(--radius-md);
   padding: 12px 14px;
   margin-bottom: 8px;
@@ -2960,7 +2967,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 
 .ausencia-card-rango {
   font-size: 0.78rem;
-  color: var(--color-rose);
+  color: var(--color-slate);
   font-weight: 500;
 }
 
@@ -3034,7 +3041,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
   border: none;
   background: var(--color-surface);
   box-shadow: var(--shadow-sm);
-  color: var(--color-pink);
+  color: var(--color-accent);
   font-size: 1rem;
   cursor: pointer;
   font-family: var(--font-family);
@@ -3089,7 +3096,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
    --hoy/--selected en el CSS para que esos dos sigan ganando si coinciden
    con un día marcado. */
 .month-day-cell--ausencia {
-  background: var(--color-rose-light);
+  background: var(--color-slate-light);
 }
 
 .month-day-number {
@@ -3099,11 +3106,11 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 }
 
 .month-day-cell--hoy .month-day-number {
-  color: var(--color-pink);
+  color: var(--color-accent);
 }
 
 .month-day-cell--selected {
-  background: var(--color-pink);
+  background: var(--color-accent);
 }
 
 .month-day-cell--selected .month-day-number {
@@ -3116,7 +3123,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
   width: 5px;
   height: 5px;
   border-radius: var(--radius-full);
-  background: var(--color-rose);
+  background: var(--color-slate);
 }
 
 .month-day-cell--selected .month-day-dot {
@@ -3192,8 +3199,8 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 }
 
 .action-sheet-btn--cobrar {
-  background: var(--color-pink-bg);
-  color: var(--color-pink);
+  background: var(--color-accent-bg);
+  color: var(--color-accent);
   font-weight: 700;
 }
 

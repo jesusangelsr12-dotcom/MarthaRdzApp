@@ -1,4 +1,4 @@
-# Seguridad · Martha Rdz Hairartist
+# Seguridad · Martha Rdz Hair Artist
 
 **Última revisión:** 2026-09-26
 

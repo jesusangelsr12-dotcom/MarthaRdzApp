@@ -1,4 +1,4 @@
-# Guía de API · Martha Rdz Hairartist
+# Guía de API · Martha Rdz Hair Artist
 
 **Última revisión:** 2026-09-26 · **Base:** `/api` (mismo dominio que la app)
 
@@ -45,7 +45,7 @@ Leyenda de permisos: 🌐 público · 👤 cualquier sesión · 👑 solo dueña
 // 200
 {
   "success": true, "token": "<payload>.<firma>",
-  "salon_id": "salon_001", "salon_nombre": "Martha Rdz Hairartist",
+  "salon_id": "salon_002", "salon_nombre": "Martha Rodriguez Hair Artist",
   "sheet_id": "<uuid del salón>", "logo_url": "",
   "servicios": ["Corte"], "productos": ["Shampoo"],
   "trabajadoras": [{ "nombre": "Aly", "tiene_acceso": true }],
