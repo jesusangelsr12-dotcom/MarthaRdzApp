@@ -1,10 +1,11 @@
 /**
  * Pantalla Ver Registros
  * Muestra citas y gastos de cualquier día con totales (ingresos vs gastos)
- * Permite eliminar citas y gastos individuales
+ * Permite eliminar citas y gastos individuales, editar la nota de una cita
+ * y corregir sus precios (y su anticipo) si se capturaron mal
  */
 
-import { getCitas, getGastos, deleteCita, deleteGasto, restoreCita, restoreGasto, updateCitaNota, getClientas } from '../api.js';
+import { getCitas, getGastos, deleteCita, deleteGasto, restoreCita, restoreGasto, updateCitaNota, updateCitaPrecios, getClientas } from '../api.js';
 import { formatMXN, todayISO, showToast, showLoader, hideLoader, escapeHTML, normalizeNombre, loadingHTML } from '../utils.js';
 import { navigateTo } from '../app.js';
 import { compartirTexto } from '../whatsapp.js';
@@ -275,6 +276,141 @@ function buildAnticipoRow(c) {
   return '';
 }
 
+/** Una fila de solo-anticipo (de la Agenda vieja) no es una visita: no
+ * tiene precios que corregir. */
+function esSoloAnticipo(c) {
+  const items = c.items || [];
+  return items.length === 1 && items[0].tipo === 'anticipo';
+}
+
+/** Botón "Corregir precios" de una cita. Abre el editor en su lugar. */
+function buildCorregirPreciosRow(c, index) {
+  if (esSoloAnticipo(c)) return '';
+  return `
+    <div class="record-precios-row" data-precios-row="${index}">
+      <button class="btn-link" data-edit-precios="${index}" aria-label="Corregir precios de ${escapeHTML(c.clienta)}">Corregir precios</button>
+    </div>
+  `;
+}
+
+/** Monto escrito en un input del editor de precios ('' cuenta como 0). */
+function leerMonto(input) {
+  const n = parseFloat(input.value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Reemplaza el botón "Corregir precios" por un editor en línea: un campo
+ * por servicio/producto y uno para el anticipo, con el total en vivo. El
+ * servidor recalcula total y comisiones (mismo %); aquí solo se muestra. */
+function abrirEditorPrecios(index) {
+  const c = citasActuales[index];
+  const row = document.querySelector(`[data-precios-row="${index}"]`);
+  if (!c || !row) return;
+
+  // Citas cobradas desde la Agenda (total neto de `anticipo_aplicado`) no
+  // llevan anticipo nuevo; el que vino de la Agenda tampoco cambia de monto.
+  const anticipoAplicado = c.anticipo_aplicado || 0;
+  const anticipoEditable = !c.anticipo_de_agenda && !anticipoAplicado;
+
+  row.innerHTML = `
+    <div class="precios-editor">
+      ${c.items.map((it, i) => `
+        <label class="precios-editor-row" for="precio-${index}-${i}">
+          <span class="record-items-badge record-items-badge--${it.tipo}">${badgeLetra(it.tipo)}</span>
+          <span class="precios-editor-nombre">${escapeHTML(it.nombre)}</span>
+          <span class="precios-editor-campo">
+            <span class="precios-editor-signo">$</span>
+            <input class="input precios-editor-input" id="precio-${index}-${i}" data-precio="${i}"
+              type="number" inputmode="decimal" min="0" step="any" value="${it.costo}">
+          </span>
+        </label>
+      `).join('')}
+
+      ${anticipoEditable ? `
+        <label class="precios-editor-row" for="anticipo-${index}">
+          <span class="precios-editor-nombre">Anticipo <span class="precios-editor-nota">va dentro del total</span></span>
+          <span class="precios-editor-campo">
+            <span class="precios-editor-signo">$</span>
+            <input class="input precios-editor-input" id="anticipo-${index}" data-anticipo
+              type="number" inputmode="decimal" min="0" step="any" value="${c.anticipo || 0}">
+          </span>
+        </label>
+      ` : ''}
+      ${c.anticipo_de_agenda ? `<p class="precios-editor-aviso">El anticipo de ${formatMXN(c.anticipo)} viene de la Agenda y no cambia.</p>` : ''}
+      ${anticipoAplicado ? `<p class="precios-editor-aviso">Cobrada desde la Agenda: al total se le siguen restando ${formatMXN(anticipoAplicado)} ya cobrados.</p>` : ''}
+
+      <div class="precios-editor-total">
+        <span>Total</span>
+        <span class="precios-editor-total-valor" data-total-preview></span>
+      </div>
+      <p class="precios-editor-aviso">Si tiene comisión, se recalcula con el mismo porcentaje.</p>
+
+      <div class="step-actions mt-8">
+        <button class="btn btn-outline btn-sm" data-cancel>Cancelar</button>
+        <button class="btn btn-primary btn-sm" data-save>Guardar</button>
+      </div>
+    </div>
+  `;
+
+  const inputsPrecio = [...row.querySelectorAll('[data-precio]')];
+  const inputAnticipo = row.querySelector('[data-anticipo]');
+  const totalEl = row.querySelector('[data-total-preview]');
+
+  const calcularTotal = () => {
+    const suma = inputsPrecio.reduce((acc, input) => acc + leerMonto(input), 0);
+    return Math.round((suma - anticipoAplicado) * 100) / 100;
+  };
+  const pintarTotal = () => { totalEl.textContent = formatMXN(calcularTotal()); };
+  row.querySelectorAll('input').forEach((input) => input.addEventListener('input', pintarTotal));
+  pintarTotal();
+  inputsPrecio[0]?.focus();
+
+  row.querySelector('[data-cancel]').addEventListener('click', () => loadRegistros());
+
+  const btnGuardar = row.querySelector('[data-save]');
+  btnGuardar.addEventListener('click', async () => {
+    // Mismas reglas que al registrar: ningún precio en cero y el anticipo
+    // nunca arriba del total. El servidor las vuelve a revisar.
+    if (inputsPrecio.some((input) => !(leerMonto(input) > 0))) {
+      showToast('Cada precio debe ser mayor que cero', 'error');
+      return;
+    }
+    const total = calcularTotal();
+    if (total < 0) {
+      showToast('El total no puede quedar menor que el anticipo ya cobrado', 'error');
+      return;
+    }
+    const anticipo = inputAnticipo ? leerMonto(inputAnticipo) : undefined;
+    if (anticipo !== undefined && anticipo < 0) {
+      showToast('El anticipo no puede ser negativo', 'error');
+      return;
+    }
+    if ((anticipo ?? c.anticipo ?? 0) > total) {
+      showToast(`El anticipo no puede ser mayor que el total de ${formatMXN(total)}`, 'error');
+      return;
+    }
+
+    btnGuardar.disabled = true;
+    try {
+      showLoader();
+      await updateCitaPrecios(session.sheet_id, {
+        fecha: c.fecha,
+        timestamp: c.timestamp,
+        clienta: c.clienta,
+        items: c.items.map((it, i) => ({ tipo: it.tipo, nombre: it.nombre, costo: leerMonto(inputsPrecio[i]) })),
+        anticipo,
+      });
+      hideLoader();
+      showToast('Precios corregidos', 'success');
+      loadRegistros();
+    } catch (error) {
+      hideLoader();
+      btnGuardar.disabled = false;
+      showToast(error.message || 'No se pudieron guardar los precios', 'error');
+    }
+  });
+}
+
 /** Fila de fórmula / nota dentro de la tarjeta de una cita, editable. */
 function buildNotaRow(c, index) {
   return `
@@ -365,6 +501,7 @@ function renderRegistros(citas, gastos) {
             </div>
             ${buildItemsBreakdown(c.items)}
             ${buildAnticipoRow(c)}
+            ${buildCorregirPreciosRow(c, i)}
             ${buildNotaRow(c, i)}
           </div>
         `).join('')}
@@ -415,6 +552,13 @@ function renderRegistros(citas, gastos) {
   content.querySelectorAll('[data-edit-nota]').forEach((btn) => {
     btn.addEventListener('click', () => {
       abrirEditorNota(parseInt(btn.dataset.editNota, 10));
+    });
+  });
+
+  // Corregir precios / anticipo de una cita
+  content.querySelectorAll('[data-edit-precios]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      abrirEditorPrecios(parseInt(btn.dataset.editPrecios, 10));
     });
   });
 

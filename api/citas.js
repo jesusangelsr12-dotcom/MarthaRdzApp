@@ -1,11 +1,13 @@
 /**
  * GET/POST/PATCH/DELETE /api/citas
  * Lee citas de un día, registra, edita la nota o elimina (soft-delete) una cita.
- * GET    ?fecha=2026-02-24        → { citas: [...] }
+ * GET    ?fecha=2026-02-24        → { citas: [...] } (cada una con anticipo, anticipo_de_agenda, anticipo_aplicado)
  * GET    ?anticipos=pendientes    → { anticipos: [{ id, clienta, fecha, monto }] }
  * POST   { fecha, timestamp, clienta, items, total, metodo_pago, nota?, comisiones?,
  *          anticipo?, anticipo_origen_id? } → { success }
  * PATCH  { fecha, timestamp, clienta, nota } → { success }
+ * PATCH  { fecha, timestamp, clienta, items, anticipo? } → { success, total }
+ *        corrige precios (ver "Corregir precios" abajo)
  * DELETE { fecha, timestamp, clienta } → { success }
  *
  * Todas las llamadas requieren `Authorization: Bearer <token>` (emitido por
@@ -30,6 +32,18 @@
  * (candado: solo se oculta si sigue viva). El monto debe coincidir con el
  * de esa fila. Si después se elimina la cita, la fila del anticipo vuelve a
  * quedar pendiente; el "Deshacer" la vuelve a ocultar.
+ *
+ * Corregir precios (PATCH con `items`): para un error de captura. Solo
+ * cambian los `costo` — mismos items, en el mismo orden, con el mismo tipo y
+ * nombre — y, si se manda, el `anticipo`. El servidor recalcula `total`
+ * (nunca lo toma del cliente) y las comisiones de esa cita con su mismo %,
+ * todo en una sola sentencia. Reglas:
+ * - Una fila de solo-anticipo de la Agenda vieja no se corrige aquí.
+ * - Si el anticipo vino de la Agenda (`anticipo_origen_id`), su monto no
+ *   cambia: está atado a esa fila.
+ * - En citas cobradas desde la Agenda (`anticipo_aplicado` > 0) el total se
+ *   sigue guardando neto de ese anticipo, y no se les agrega `anticipo`.
+ * - El anticipo nunca puede quedar mayor que el total.
  *
  * PATCH/DELETE identifican la cita por (fecha, timestamp, clienta) porque
  * el frontend nunca recibe un id de fila — igual que con Sheets.
@@ -76,6 +90,100 @@ function validarComisiones(comisiones) {
   );
 }
 
+/** Redondeo a centavos, igual que la comisión que calcula Registrar Cita. */
+function centavos(n) {
+  return Math.round(n * 100) / 100;
+}
+
+/** PATCH con `items`: corrige los precios (y el anticipo) de una cita ya
+ * registrada y recalcula su total y sus comisiones. Ver el encabezado. */
+async function corregirPrecios(sql, res, salonId, { fecha, timestamp, clienta, items, anticipo }) {
+  if (!validarItems(items)) {
+    return res.status(400).json({ error: 'Precios inválidos' });
+  }
+  if (anticipo !== undefined && !isFiniteNumber(anticipo, { min: 0, max: 10_000_000 })) {
+    return res.status(400).json({ error: 'Anticipo inválido' });
+  }
+
+  const filas = await sql`
+    select id, items, anticipo, anticipo_origen_id, anticipo_aplicado
+    from citas
+    where salon_id = ${salonId} and fecha = ${fecha} and timestamp = ${timestamp} and clienta = ${clienta}
+      and deleted_at is null
+  `;
+  if (filas.length === 0) {
+    return res.status(404).json({ error: 'Cita no encontrada' });
+  }
+  if (filas.length > 1) {
+    // Dos citas idénticas al segundo: no hay forma segura de saber cuál es.
+    return res.status(409).json({ error: 'Hay dos citas iguales a esa hora; no se puede saber cuál corregir' });
+  }
+
+  const actual = filas[0];
+  const itemsActuales = actual.items || [];
+  if (itemsActuales.some((it) => it.tipo === 'anticipo')) {
+    return res.status(400).json({ error: 'Este registro es un anticipo de la Agenda; no se corrige aquí' });
+  }
+  const mismosItems = itemsActuales.length === items.length &&
+    items.every((it, i) => it.tipo === itemsActuales[i].tipo && it.nombre === itemsActuales[i].nombre);
+  if (!mismosItems) {
+    return res.status(400).json({ error: 'Solo se pueden cambiar los precios, no los servicios ni productos' });
+  }
+
+  const anticipoActual = Number(actual.anticipo) || 0;
+  const anticipoAplicado = Number(actual.anticipo_aplicado) || 0;
+  const nuevoAnticipo = anticipo === undefined ? anticipoActual : Number(anticipo);
+  if (actual.anticipo_origen_id && nuevoAnticipo !== anticipoActual) {
+    return res.status(400).json({ error: 'Este anticipo viene de la Agenda; su monto no se puede cambiar' });
+  }
+  if (anticipoAplicado > 0 && nuevoAnticipo > 0) {
+    return res.status(400).json({ error: 'Esta cita se cobró desde la Agenda; su anticipo ya está descontado' });
+  }
+
+  const suma = centavos(items.reduce((acc, it) => acc + Number(it.costo), 0));
+  const total = centavos(suma - anticipoAplicado);
+  if (total < 0) {
+    return res.status(400).json({ error: `El total no puede quedar menor que el anticipo aplicado (${anticipoAplicado})` });
+  }
+  if (nuevoAnticipo > total) {
+    return res.status(400).json({ error: 'El anticipo no puede ser mayor que el total' });
+  }
+
+  const nuevosItems = items.map((it) => ({ tipo: it.tipo, nombre: it.nombre, costo: Number(it.costo) }));
+  const itemsJson = JSON.stringify(nuevosItems);
+
+  // Cita y comisiones en una sola sentencia: o cambian las dos o ninguna.
+  // Cada comisión toma el nuevo precio de su item (por tipo + nombre) y
+  // conserva su %.
+  const [r] = await sql`
+    with cita as (
+      update citas set items = ${itemsJson}::jsonb, total = ${total}, anticipo = ${nuevoAnticipo}
+      where id = ${actual.id} and deleted_at is null
+      returning id
+    ),
+    precios as (
+      select distinct on (x.tipo, x.nombre) x.tipo, x.nombre, x.costo
+      from jsonb_to_recordset(${itemsJson}::jsonb) as x(tipo text, nombre text, costo numeric)
+      order by x.tipo, x.nombre
+    ),
+    coms as (
+      update comisiones c
+      set costo = p.costo, comision = round(p.costo * c.pct / 100, 2)
+      from precios p
+      where exists (select 1 from cita)
+        and c.salon_id = ${salonId} and c.fecha = ${fecha} and c.timestamp = ${timestamp} and c.clienta = ${clienta}
+        and c.deleted_at is null and c.tipo = p.tipo and c.item = p.nombre
+      returning c.id
+    )
+    select (select count(*) from cita)::int as citas
+  `;
+  if (!r || r.citas === 0) {
+    return res.status(404).json({ error: 'Cita no encontrada' });
+  }
+
+  return res.status(200).json({ success: true, total });
+}
+
 module.exports = async function handler(req, res) {
   const salonId = requireSession(req, res);
   if (!salonId) return;
@@ -118,7 +226,7 @@ module.exports = async function handler(req, res) {
       }
 
       const rows = await sql`
-        select fecha::text as fecha, timestamp, clienta, items, total, metodo_pago, nota, anticipo, anticipo_aplicado
+        select fecha::text as fecha, timestamp, clienta, items, total, metodo_pago, nota, anticipo, anticipo_origen_id, anticipo_aplicado
         from citas
         where salon_id = ${salonId} and fecha = ${fecha} and deleted_at is null
         order by timestamp
@@ -133,6 +241,7 @@ module.exports = async function handler(req, res) {
         metodo_pago: row.metodo_pago,
         nota: row.nota || '',
         anticipo: Number(row.anticipo) || 0,
+        anticipo_de_agenda: row.anticipo_origen_id != null,
         anticipo_aplicado: row.anticipo_aplicado != null ? Number(row.anticipo_aplicado) : 0,
       }));
 
@@ -243,7 +352,7 @@ module.exports = async function handler(req, res) {
         return res.status(403).json({ error: 'Esta cuenta no tiene acceso a esto' });
       }
 
-      const { fecha, timestamp, clienta, nota, restore } = req.body || {};
+      const { fecha, timestamp, clienta, nota, restore, items, anticipo } = req.body || {};
 
       if (!isDateStr(fecha) || !isNonEmptyString(timestamp, 20) || !isNonEmptyString(clienta, 200)) {
         return res.status(400).json({ error: 'Faltan datos para identificar la cita' });
@@ -293,6 +402,10 @@ module.exports = async function handler(req, res) {
         `;
 
         return res.status(200).json({ success: true });
+      }
+
+      if (items !== undefined) {
+        return corregirPrecios(sql, res, salonId, { fecha, timestamp, clienta, items, anticipo });
       }
 
       // Una nota vacía es válida: sirve para borrarla

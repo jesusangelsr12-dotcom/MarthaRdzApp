@@ -199,6 +199,7 @@ Se borra sola cuando el push service responde 404 o 410.
    - Borrar cita → borra sus comisiones (mismo salón, fecha, timestamp y clienta).
    - Borrar una cita con `anticipo_origen_id` → su fila de anticipo de la Agenda vuelve a quedar viva (pendiente, en su día original). Restaurar la cita la vuelve a ocultar; si mientras tanto se aplicó a otra cita, el restore se rechaza (409).
 4. **El anticipo va dentro del total.** `total` es el precio completo; `anticipo` solo dice cuánto ya estaba pagado. Ingresos = `sum(total)`. Las comisiones salen del precio completo de cada item.
+   - **Corregir precios** (`PATCH /api/citas` con `items`): cambia los `costo` de `items`, recalcula `total` en el servidor (`suma − anticipo_aplicado`) y actualiza `costo` y `comision` de sus comisiones (mismo `pct`) en la misma sentencia. Las comisiones se enlazan con su item por `tipo` + `nombre`.
 5. **Candado del anticipo de la Agenda:** `update citas set deleted_at = now() where id = <origen> and deleted_at is null and total = <anticipo> and items @> '[{"tipo":"anticipo"}]'`. Si no toca filas, se rechaza la cita (409). Va en la **misma sentencia** que el insert de la cita y de sus comisiones: todo o nada.
 6. **Dinero:** `numeric`, sin centavos flotantes. El cliente manda números; el servidor valida rangos.
 7. **Fechas:** `date` en ISO (`YYYY-MM-DD`). `timestamp` de citas y gastos es texto libre de la hora local. Lo que fecha el servidor usa `fechaMexico()` (`lib/fecha.js`), nunca la fecha UTC.

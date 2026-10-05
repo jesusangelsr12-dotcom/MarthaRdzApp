@@ -539,13 +539,24 @@ const FLOWS = [
   },
   {
     id: 'F8', title: 'Registros del día', roles: ['duena'],
-    entrada: 'Fecha elegida', fin: 'Nota guardada, recibo compartido o registro borrado',
+    entrada: 'Fecha elegida', fin: 'Nota guardada, precios corregidos, recibo compartido o registro borrado',
     steps: [
       { k: 'screen', t: 'Más → Ver Registros' },
       { k: 'api', t: 'GET /api/citas + /api/gastos', d: 'Si la respuesta no es JSON (ej. 502), mensaje claro', i: 'C9' },
       { k: 'screen', t: 'Totales y tarjetas del día', d: '“Incluye anticipo de $X” (v50) o “Anticipo aplicado: −$X” (cobro viejo de la Agenda)' },
       { k: 'decision', t: '¿Qué hace?', b: [
         { c: 'Editar nota', s: [{ k: 'api', t: 'PATCH /api/citas' }, { k: 'ok', t: 'Nota guardada' }] },
+        { c: 'Corregir precios', s: [
+          { k: 'input', t: 'Precio de cada item y anticipo', d: 'Total en vivo. Mismos servicios; el anticipo de la Agenda no cambia' },
+          { k: 'decision', t: '¿Precios > 0 y anticipo ≤ total?', b: [
+            { c: 'Sí', s: [
+              { k: 'api', t: 'PATCH /api/citas', d: 'items + anticipo. El servidor calcula el total' },
+              { k: 'db', t: 'citas + comisiones', d: 'Una sola sentencia. Comisión = nuevo precio × mismo %' },
+              { k: 'ok', t: 'Precios corregidos' },
+            ] },
+            { c: 'No', s: [{ k: 'err', t: 'Toast con el motivo', d: 'No se guarda nada' }] },
+          ] },
+        ] },
         { c: 'Compartir recibo', s: [{ k: 'decision', t: '¿Hay hoja nativa?', d: 'Con anticipo agrega Anticipo y “Resto pagado”', b: [
           { c: 'Sí', s: [{ k: 'ok', t: 'WhatsApp, iMessage…' }] },
           { c: 'No', s: [{ k: 'decision', t: '¿Hay teléfono?', b: [

@@ -153,6 +153,7 @@ evita el zoom por doble tap al teclear el PIN.
 | Carga en línea | `loadingHTML(texto)` | Spinner chico + texto, no bloquea |
 | Estado vacío | `.empty-state` + emoji + texto | Siempre con salida si aplica ("Ir a Configuración") |
 | Banner de nota fija | `.nota-fija-banner` | Alergias y preferencias. Siempre visible antes de escribir la fórmula |
+| Editor de precios | `.record-precios-row` (botón "Corregir precios") → `.precios-editor` con `.precios-editor-row`, `.precios-editor-input` y `.precios-editor-total` | En línea dentro de la tarjeta de la cita, como el editor de nota. Montos alineados a la derecha, sin flechitas, total en vivo en verde. Cancelar / Guardar |
 | Aviso de anticipo | `.anticipo-previo-aviso` | Misma forma que el de nota fija, en slate. Bajo el nombre cuando la clienta ya tiene un anticipo registrado |
 
 ## 8. Reglas de UX

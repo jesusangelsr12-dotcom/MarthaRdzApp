@@ -447,3 +447,131 @@ test('Anticipo · consulta de anticipos con un valor desconocido es 400', async 
   assert.equal(r.statusCode, 400);
   await t.cerrar();
 });
+
+// --- Corregir precios desde Ver Registros (v50) ---
+
+const idDe = (c) => ({ fecha: c.fecha, timestamp: c.timestamp, clienta: c.clienta });
+
+test('Corregir precios · cambia el total y recalcula la comisión con el mismo %', async () => {
+  const t = await crearEntorno();
+  const salonId = await salonDePrueba(t.sql, { trabajadoras: [{ nombre: 'Aly' }] });
+  const token = createSessionToken(salonId);
+  const cita = citaBase({
+    items: [{ tipo: 'servicio', nombre: 'Tinte', costo: 800 }, { tipo: 'producto', nombre: 'Shampoo', costo: 250 }],
+    total: 1050, anticipo: 300,
+    comisiones: [{ trabajadora: 'Aly', item: 'Tinte', tipo: 'servicio', costo: 800, pct: 15, comision: 120 }],
+  });
+  await t.llamar('citas', { method: 'POST', token, body: cita });
+
+  const r = await t.llamar('citas', {
+    method: 'PATCH', token,
+    body: { ...idDe(cita), items: [{ tipo: 'servicio', nombre: 'Tinte', costo: 2500 }, { tipo: 'producto', nombre: 'Shampoo', costo: 250 }], anticipo: 500 },
+  });
+  assert.equal(r.statusCode, 200, JSON.stringify(r.body));
+  assert.equal(r.body.total, 2750, 'el total lo calcula el servidor');
+
+  const resumen = await ingresos(t, token, cita.fecha, cita.fecha);
+  assert.equal(resumen.ingresos, 2750);
+  assert.equal(resumen.comisiones, 375, '15 % de 2500');
+  const [com] = await t.sql`select costo, pct, comision from comisiones`;
+  assert.deepEqual([Number(com.costo), Number(com.pct), Number(com.comision)], [2500, 15, 375]);
+  const g = await t.llamar('citas', { token, query: { fecha: cita.fecha } });
+  assert.equal(g.body.citas[0].anticipo, 500);
+  assert.equal(g.body.citas[0].items[0].costo, 2500);
+  await t.cerrar();
+});
+
+test('Corregir precios · sin anticipo en el body conserva el que tenía', async () => {
+  const t = await crearEntorno();
+  const salonId = await salonDePrueba(t.sql);
+  const token = createSessionToken(salonId);
+  const cita = citaBase({ anticipo: 300 });
+  await t.llamar('citas', { method: 'POST', token, body: cita });
+  const r = await t.llamar('citas', { method: 'PATCH', token, body: { ...idDe(cita), items: [{ tipo: 'servicio', nombre: 'Tinte', costo: 900 }] } });
+  assert.equal(r.statusCode, 200);
+  const [c] = await t.sql`select total, anticipo from citas`;
+  assert.deepEqual([Number(c.total), Number(c.anticipo)], [900, 300]);
+  await t.cerrar();
+});
+
+test('Corregir precios · no cambia servicios, ni deja el anticipo arriba del total', async () => {
+  const t = await crearEntorno();
+  const salonId = await salonDePrueba(t.sql);
+  const token = createSessionToken(salonId);
+  const cita = citaBase({ anticipo: 500 });
+  await t.llamar('citas', { method: 'POST', token, body: cita });
+  const casos = [
+    { items: [{ tipo: 'servicio', nombre: 'Corte', costo: 800 }] },
+    { items: [{ tipo: 'producto', nombre: 'Tinte', costo: 800 }] },
+    { items: [{ tipo: 'servicio', nombre: 'Tinte', costo: 800 }, { tipo: 'servicio', nombre: 'Corte', costo: 100 }] },
+    { items: [{ tipo: 'servicio', nombre: 'Tinte', costo: 400 }] },
+    { items: [{ tipo: 'servicio', nombre: 'Tinte', costo: 800 }], anticipo: 900 },
+    { items: [{ tipo: 'servicio', nombre: 'Tinte', costo: -1 }] },
+    { items: [] },
+  ];
+  for (const extra of casos) {
+    const r = await t.llamar('citas', { method: 'PATCH', token, body: { ...idDe(cita), ...extra } });
+    assert.equal(r.statusCode, 400, JSON.stringify(extra));
+  }
+  const [c] = await t.sql`select total, anticipo, items from citas`;
+  assert.deepEqual([Number(c.total), Number(c.anticipo), c.items[0].costo], [800, 500, 800], 'nada cambió');
+  await t.cerrar();
+});
+
+test('Corregir precios · el anticipo de la Agenda no cambia de monto, pero los precios sí', async () => {
+  const t = await crearEntorno();
+  const salonId = await salonDePrueba(t.sql);
+  const token = createSessionToken(salonId);
+  const origenId = await anticipoViejo(t.sql, salonId);
+  const cita = citaBase({ total: 800, anticipo: 250, anticipo_origen_id: origenId });
+  await t.llamar('citas', { method: 'POST', token, body: cita });
+
+  const cambiaAnticipo = await t.llamar('citas', { method: 'PATCH', token, body: { ...idDe(cita), items: cita.items, anticipo: 300 } });
+  assert.equal(cambiaAnticipo.statusCode, 400);
+  const debajo = await t.llamar('citas', { method: 'PATCH', token, body: { ...idDe(cita), items: [{ tipo: 'servicio', nombre: 'Tinte', costo: 200 }] } });
+  assert.equal(debajo.statusCode, 400, 'el total no puede quedar abajo del anticipo');
+  const ok = await t.llamar('citas', { method: 'PATCH', token, body: { ...idDe(cita), items: [{ tipo: 'servicio', nombre: 'Tinte', costo: 1000 }], anticipo: 250 } });
+  assert.equal(ok.statusCode, 200);
+  const g = await t.llamar('citas', { token, query: { fecha: cita.fecha } });
+  assert.equal(g.body.citas[0].total, 1000);
+  assert.equal(g.body.citas[0].anticipo_de_agenda, true);
+  await t.cerrar();
+});
+
+test('Corregir precios · fila de solo-anticipo no; cita cobrada desde la Agenda conserva su descuento', async () => {
+  const t = await crearEntorno();
+  const salonId = await salonDePrueba(t.sql);
+  const token = createSessionToken(salonId);
+  await anticipoViejo(t.sql, salonId, { fecha: '2026-09-26' });
+  const solo = await t.llamar('citas', {
+    method: 'PATCH', token,
+    body: { fecha: '2026-09-26', timestamp: '23:15:59', clienta: 'María López', items: [{ tipo: 'servicio', nombre: 'Anticipo', costo: 300 }] },
+  });
+  assert.equal(solo.statusCode, 400);
+
+  // Cobro de la Agenda vieja: total ya neto de anticipo_aplicado
+  await t.sql`
+    insert into citas (salon_id, fecha, timestamp, clienta, items, total, metodo_pago, nota, anticipo_aplicado)
+    values (${salonId}, '2026-09-30', '02:04:31', 'Ximena', '[{"tipo":"servicio","nombre":"Corte","costo":250}]'::jsonb, 0, 'Transferencia', '', 250)
+  `;
+  const legacy = { fecha: '2026-09-30', timestamp: '02:04:31', clienta: 'Ximena' };
+  const conAnticipo = await t.llamar('citas', { method: 'PATCH', token, body: { ...legacy, items: [{ tipo: 'servicio', nombre: 'Corte', costo: 500 }], anticipo: 100 } });
+  assert.equal(conAnticipo.statusCode, 400);
+  const r = await t.llamar('citas', { method: 'PATCH', token, body: { ...legacy, items: [{ tipo: 'servicio', nombre: 'Corte', costo: 500 }] } });
+  assert.equal(r.statusCode, 200, JSON.stringify(r.body));
+  assert.equal(r.body.total, 250, '500 − 250 ya aplicados');
+  await t.cerrar();
+});
+
+test('Corregir precios · solo la dueña, y 404 si no existe', async () => {
+  const t = await crearEntorno();
+  const salonId = await salonDePrueba(t.sql);
+  const cita = citaBase();
+  await t.llamar('citas', { method: 'POST', token: createSessionToken(salonId), body: cita });
+  const aly = createSessionToken(salonId, { role: 'trabajadora', worker: 'Aly' });
+  const w = await t.llamar('citas', { method: 'PATCH', token: aly, body: { ...idDe(cita), items: cita.items } });
+  assert.equal(w.statusCode, 403);
+  const n = await t.llamar('citas', { method: 'PATCH', token: createSessionToken(salonId), body: { ...idDe(cita), clienta: 'Nadie', items: cita.items } });
+  assert.equal(n.statusCode, 404);
+  await t.cerrar();
+});

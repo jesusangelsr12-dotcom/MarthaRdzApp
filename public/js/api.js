@@ -169,6 +169,15 @@ export function updateCitaNota(sheetId, { fecha, timestamp, clienta, nota }) {
   });
 }
 
+/** Corregir los precios (y el anticipo) de una cita ya registrada. El
+ * servidor recalcula el total y las comisiones; responde { success, total }. */
+export function updateCitaPrecios(sheetId, { fecha, timestamp, clienta, items, anticipo }) {
+  return fetchAPI('citas', {
+    method: 'PATCH',
+    body: { sheet_id: sheetId, fecha, timestamp, clienta, items, anticipo },
+  });
+}
+
 /**
  * Guardar nota fija y/o teléfono de una clienta (alergias, preferencias,
  * celular para WhatsApp). Se manda el registro completo — quien llama debe

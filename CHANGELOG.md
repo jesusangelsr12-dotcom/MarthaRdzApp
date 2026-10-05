@@ -19,6 +19,7 @@ Secciones: **Agregado** · **Cambiado** · **Corregido** · **Seguridad** · **B
 - **Paso "¿Dejó anticipo?" al registrar una cita**, entre Notas y Método de pago. Se teclea el monto o se toca **Sin anticipo**. Lo ven la dueña y la trabajadora.
 - **El anticipo va dentro del total.** Una cita de $2,500 con $500 de anticipo se guarda con total $2,500: los $2,500 cuentan en ingresos el día de la cita y las comisiones salen sobre $2,500. El resumen muestra Total, Anticipo y "Resta por cobrar". El anticipo no puede ser mayor que el total.
 - Ver Registros muestra "Incluye anticipo de $X" en la cita, y el recibo compartido agrega Anticipo y "Resto pagado".
+- **Corregir precios en Ver Registros.** Cada cita tiene "Corregir precios": se cambia el precio de cada servicio/producto y el anticipo, con el total en vivo. El total lo recalcula el servidor y las comisiones de esa cita se recalculan con el mismo %. Los servicios no se cambian (para eso se elimina y se registra de nuevo); el anticipo que vino de la Agenda no cambia de monto.
 - **Anticipos que dejó la Agenda.** Al escribir el nombre de una clienta que tiene un anticipo registrado por la Agenda, la app avisa "Ya tiene anticipo" y en el paso de anticipo lo ofrece en una tarjeta. Al tocarlo y registrar la cita, ese anticipo se mueve al día de la cita (se oculta su registro viejo, no se borra) para no contarlo dos veces. Si después se elimina la cita, el anticipo regresa a su día original como pendiente; "Deshacer" lo vuelve a aplicar.
 
 ### Cambiado
@@ -33,11 +34,12 @@ Secciones: **Agregado** · **Cambiado** · **Corregido** · **Seguridad** · **B
 - No se borró nada: `citas_agendadas`, `ausencias`, `anticipo_aplicado` y el permiso `telefonos` guardado en `salones.trabajadoras` se quedan como estaban. Solo dejan de usarse.
 
 ### Seguridad
+- Corregir precios (`PATCH /api/citas` con `items`) es solo de la dueña, no acepta cambiar servicios ni nombres, nunca toma el total del cliente y actualiza cita y comisiones en una sola sentencia.
 - `POST /api/citas` aplica un anticipo de la Agenda en una sola sentencia con candado: solo si sigue vivo, es del mismo salón y el monto coincide. Si ya se aplicó en otro dispositivo responde 409 y no registra nada.
 - Sin el permiso de teléfonos, `GET /api/clientas` nunca le manda teléfonos a una trabajadora y `POST` le responde 403. Un permiso `telefonos` que haya quedado guardado ya no vale.
 
 ### Docs
-- CLAUDE.md, README, PRD, Architecture, API Guide, Database, Security, Testing (41 pruebas), Deployment, Design System, Code Style, Error Handling y AppFlow (.md y tablero).
+- CLAUDE.md, README, PRD, Architecture, API Guide, Database, Security, Testing (47 pruebas), Deployment, Design System, Code Style, Error Handling y AppFlow (.md y tablero).
 
 ## v49 · 2026-09-26
 

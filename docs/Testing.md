@@ -1,6 +1,6 @@
 # Pruebas · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-10-05 · **Estado actual:** 41 pruebas, 41 en verde (`npm test`)
+**Última revisión:** 2026-10-05 · **Estado actual:** 47 pruebas, 47 en verde (`npm test`)
 
 ## 1. Cómo correrlas
 
@@ -21,7 +21,7 @@ El ayudante vive en `test/helpers/db.js`.
 | `test/auth.test.js` | Crear y verificar tokens, rol de trabajadora, tokens legacy sin `role`, firma alterada, token de otro salón, expiración, entradas basura, hash de PIN con pepper | Un error aquí abre el acceso a todos los salones |
 | `test/validate.test.js` | Fechas, números con rango, strings, métodos de pago, PIN, teléfono, uuid | Es la única barrera contra datos con forma inválida |
 | `test/normalize-parity.test.js` | Que `normalizeNombre` dé lo mismo en frontend y backend | Si difieren, una misma clienta se parte en dos |
-| `test/api.test.js` | Handlers contra Postgres real: cita con comisiones, comisión solo a sí misma, PIN repetido, Face ID revocado, limpieza del cron, login por rol, trabajadora sin teléfonos ni notas fijas (aunque tenga guardado el permiso viejo), permisos desconocidos, catálogo que conserva el PIN. **Anticipo (v50):** va dentro del total (2500 con 500 cuenta 2500 en el Dashboard y la comisión sale de 2500), nunca mayor que el total (API y base), aplicar un anticipo de la Agenda lo mueve al día de la cita sin contarlo doble, no se aplica dos veces, monto/salón/tipo deben coincidir, todo o nada si algo falla, eliminar la cita lo regresa a pendiente y "Deshacer" no lo cuenta doble | Aquí vive el dinero y los permisos. Cubre los cabos sueltos de backend que siguen vigentes |
+| `test/api.test.js` | Handlers contra Postgres real: cita con comisiones, comisión solo a sí misma, PIN repetido, Face ID revocado, limpieza del cron, login por rol, trabajadora sin teléfonos ni notas fijas (aunque tenga guardado el permiso viejo), permisos desconocidos, catálogo que conserva el PIN. **Anticipo (v50):** va dentro del total (2500 con 500 cuenta 2500 en el Dashboard y la comisión sale de 2500), nunca mayor que el total (API y base), aplicar un anticipo de la Agenda lo mueve al día de la cita sin contarlo doble, no se aplica dos veces, monto/salón/tipo deben coincidir, todo o nada si algo falla, eliminar la cita lo regresa a pendiente y "Deshacer" no lo cuenta doble. **Corregir precios:** recalcula total y comisión (mismo %) y se ve en el Dashboard, conserva el anticipo si no se manda, no cambia servicios ni deja el anticipo arriba del total (sin tocar nada si falla), el anticipo de la Agenda no cambia de monto, la fila de solo-anticipo no se corrige, el cobro viejo de la Agenda conserva su descuento, solo la dueña y 404 | Aquí vive el dinero y los permisos. Cubre los cabos sueltos de backend que siguen vigentes |
 
 ## 3. Qué NO se prueba todavía
 
@@ -73,13 +73,14 @@ Correr antes de un cambio grande o de tocar dinero, permisos o el Service Worker
 8. Intentar aplicar ese mismo anticipo otra vez desde otro dispositivo → "Ese anticipo ya se aplicó a otra cita".
 9. Borrar esa cita en Registros → el anticipo regresa a su día y sus comisiones desaparecen. "Deshacer" lo vuelve a aplicar.
 10. Dashboard del mes: ganancia neta = ingresos − gastos − comisiones.
+11. En Registros, "Corregir precios" de una cita con comisión: cambiar $2,500 → $2,800 → el total en vivo y la tarjeta dicen el nuevo total, y en Comisiones la comisión cambia con el mismo %. Anticipo mayor que el total → aviso y no se guarda.
 
 ### Trabajadora
-11. Registrar cita con comisión y anticipo → solo se puede elegir a sí misma; ve el paso de anticipo igual que la dueña. A la dueña le llega el push.
-12. Configuración de la dueña ya no muestra "Puede usar" en las trabajadoras.
+12. Registrar cita con comisión y anticipo → solo se puede elegir a sí misma; ve el paso de anticipo igual que la dueña. A la dueña le llega el push.
+13. Configuración de la dueña ya no muestra "Puede usar" en las trabajadoras.
 
 ### Actualización
-13. Con la app abierta a media captura, publicar un deploy → la app no se recarga hasta cambiar de pantalla.
+14. Con la app abierta a media captura, publicar un deploy → la app no se recarga hasta cambiar de pantalla.
 
 ## 6. Datos de prueba
 

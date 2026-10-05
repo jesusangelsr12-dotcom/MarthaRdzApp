@@ -73,10 +73,11 @@ Errores: `400 PIN inválido` · `401 PIN incorrecto` · `429 Demasiados intentos
 
 | Método | Permiso | Entrada | Salida |
 |---|---|---|---|
-| `GET` | 👑 | `?fecha=YYYY-MM-DD` | `{citas:[{fecha, timestamp, clienta, items, total, metodo_pago, nota, anticipo, anticipo_aplicado}]}` |
+| `GET` | 👑 | `?fecha=YYYY-MM-DD` | `{citas:[{fecha, timestamp, clienta, items, total, metodo_pago, nota, anticipo, anticipo_de_agenda, anticipo_aplicado}]}`. `anticipo_de_agenda` es `true` si su anticipo vino de la Agenda (su monto no se puede corregir) |
 | `GET` anticipos | 👤 | `?anticipos=pendientes` | `{anticipos:[{id, clienta, fecha, monto}]}`: anticipos de la Agenda vieja que todavía no se aplican. Otro valor: `400` |
 | `POST` | 👤 | Ver abajo | `201 {success}` |
 | `PATCH` nota | 👑 | `{fecha, timestamp, clienta, nota}` | `{success}` |
+| `PATCH` precios | 👑 | `{fecha, timestamp, clienta, items, anticipo?}` | `{success, total}`. Ver "Corregir precios" abajo |
 | `PATCH` restaurar | 👑 | `{fecha, timestamp, clienta, restore:true}` | `{success}` (restaura también sus comisiones y vuelve a aplicar su anticipo de la Agenda). `409` si ese anticipo ya se aplicó a otra cita |
 | `DELETE` | 👑 | `{fecha, timestamp, clienta}` | `{success}` (borra también sus comisiones; su anticipo de la Agenda, si tenía, regresa a pendiente) |
 
@@ -105,6 +106,13 @@ Errores: `400 PIN inválido` · `401 PIN incorrecto` · `429 Demasiados intentos
 - `anticipo` 0 a `total`: es la parte del total que ya estaba pagada. **No se resta**: `total` es el precio completo, cuenta entero en ingresos el día de la cita y las comisiones salen del precio completo. Mayor que `total`: `400`. La base también lo impide (`citas_anticipo_valido`).
 - `anticipo_origen_id` (uuid, si no `400`) exige `anticipo > 0`. Oculta (`deleted_at`) esa fila de anticipo de la Agenda solo si sigue viva, es del salón y su monto es igual a `anticipo`. Si no, `409 Ese anticipo ya se aplicó a otra cita o ya no existe` y no se guarda nada.
 - Ocultar el anticipo viejo, insertar la cita e insertar sus comisiones es **una sola sentencia**: si algo falla, no se guarda nada y se puede reintentar.
+**Corregir precios (`PATCH` con `items`):**
+- `items` con los mismos elementos, en el mismo orden y con el mismo `tipo` y `nombre`: solo cambian los `costo`. Si no, `400 Solo se pueden cambiar los precios…`.
+- El servidor calcula `total = suma de costos − anticipo_aplicado` (este último solo existe en cobros viejos de la Agenda). Nunca lo toma del cliente.
+- `anticipo` opcional: sin él se conserva el actual. Debe quedar `≤ total` (`400`). Si vino de la Agenda (`anticipo_origen_id`) no puede cambiar (`400`). Un cobro viejo de la Agenda no acepta `anticipo` (`400`).
+- Una fila de solo-anticipo de la Agenda no se corrige (`400`). `404` si no existe; `409` si hay dos citas idénticas a la misma hora.
+- Cita y comisiones en **una sola sentencia**: cada comisión de esa cita toma el nuevo precio de su item (por `tipo` + `nombre`) y `comision = round(costo × pct / 100, 2)`.
+
 - Trabajadora: cada comisión debe ser suya (`400 Solo puedes asignarte comisión a ti misma`). Además dispara un push a la dueña.
 
 ### Clientas: `/api/clientas`

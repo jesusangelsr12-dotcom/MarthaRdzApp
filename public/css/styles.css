@@ -2646,6 +2646,89 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
   border-top: 1px solid var(--color-gray-200);
 }
 
+/* --- Corregir precios de una cita en Ver Registros --- */
+.record-precios-row {
+  margin-top: 8px;
+}
+
+.precios-editor {
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-gray-200);
+}
+
+.precios-editor-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.precios-editor-nombre {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.85rem;
+  color: var(--color-ink);
+}
+
+.precios-editor-nota {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--color-gray-500);
+}
+
+.precios-editor-campo {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.precios-editor-signo {
+  font-size: 0.85rem;
+  color: var(--color-gray-500);
+}
+
+.precios-editor-input {
+  width: 112px;
+  min-height: 44px;
+  padding: 8px 12px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+/* Sin flechitas de "subir/bajar": el monto se escribe, no se ajusta de 1 en 1 */
+.precios-editor-input::-webkit-outer-spin-button,
+.precios-editor-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.precios-editor-total {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-gray-200);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.precios-editor-total-valor {
+  color: var(--color-green);
+  font-variant-numeric: tabular-nums;
+}
+
+.precios-editor-aviso {
+  margin-top: 6px;
+  font-size: 0.75rem;
+  color: var(--color-gray-500);
+  line-height: 1.4;
+}
+
 /* --- Dashboard --- */
 .home-action-icon--dashboard {
   background: var(--color-gray-200);

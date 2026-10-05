@@ -53,7 +53,7 @@ La regla viva está en [CLAUDE.md](../CLAUDE.md). Resumen:
 | Asignar comisión | A cualquier trabajadora | Solo a sí misma |
 | Ver y editar teléfono de clientas | ✅ | ❌ |
 | Ver nota fija (alergias) de clientas | ✅ | ❌ |
-| Editar nota o eliminar una cita ya registrada | ✅ | ❌ |
+| Editar nota, corregir precios o eliminar una cita ya registrada | ✅ | ❌ |
 | Registrar gasto | ✅ | ❌ |
 | Ver Registros, Comisiones, Dashboard, resumen semanal | ✅ | ❌ |
 | Historial de clientas | ✅ | ❌ |
@@ -147,6 +147,7 @@ Descripción → monto → método de pago → confirmar. La fecha siempre es ho
 
 - Selector de fecha (hasta hoy). Totales de ingresos y gastos.
 - Cada cita muestra desglose, "Incluye anticipo de $X" (o "Anticipo aplicado" en las cobradas desde la Agenda) y su fórmula editable.
+- **Corregir precios** de una cita mal capturada: precio de cada servicio/producto y anticipo, con el total en vivo. Las comisiones de esa cita se recalculan con el mismo %. No cambia los servicios (para eso se elimina y se registra de nuevo). El anticipo que vino de la Agenda no cambia de monto. Ningún precio en cero y el anticipo nunca arriba del total.
 - Compartir recibo por la hoja nativa de compartir (WhatsApp, iMessage…).
 - Eliminar con confirmación y "Deshacer" (borrado lógico). Borrar una cita borra sus comisiones.
 

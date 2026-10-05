@@ -217,6 +217,11 @@ flowchart TD
   A[Más → Ver Registros] --> B[GET citas + GET gastos de la fecha]
   B --> C["Totales + tarjetas<br/>'Incluye anticipo de $X' o 'Anticipo aplicado: −$X'"]
   C --> D[✎ Nota] --> D1[PATCH /api/citas nota]
+  C --> G[Corregir precios] --> G1[Precio de cada item + anticipo<br/>total en vivo]
+  G1 --> G2{¿Precios > 0 y<br/>anticipo ≤ total?}
+  G2 -- No --> G3[Toast con el motivo]
+  G2 -- Sí --> G4[PATCH /api/citas items + anticipo]
+  G4 --> G5[(citas + comisiones en una sentencia<br/>total lo calcula el servidor<br/>comisión = nuevo precio × mismo %)]
   C --> E[Compartir recibo] --> E1{¿navigator.share?}
   E1 -- Sí --> E2[Hoja nativa]
   E1 -- No --> E3{¿Hay teléfono?}
@@ -234,6 +239,7 @@ flowchart TD
 
 - **Anticipo en la tarjeta:** una cita de la v50 con anticipo dice "Incluye anticipo de $X" (va dentro del total). Un cobro viejo de la Agenda dice "Anticipo aplicado: −$X" (ese total se guardó ya restado). Una fila de solo anticipo muestra su desglose.
 - **Recibo:** si la cita trae anticipo, agrega "Anticipo" y "Resto pagado".
+- **Corregir precios:** para un error de captura. Se cambian los precios de cada servicio/producto y el anticipo; los servicios no se cambian (para eso se elimina y se registra de nuevo). El servidor recalcula el total y las comisiones de esa cita con el mismo %, todo en una sentencia. El anticipo que vino de la Agenda no cambia de monto, y un cobro viejo de la Agenda sigue restando su "Anticipo aplicado". Una fila de solo anticipo no se corrige.
 - **Eliminar una cita que aplicó un anticipo de la Agenda:** la fila del anticipo regresa a su día original como pendiente, en la misma sentencia ([F14](#f14--anticipos-que-dejó-la-agenda)). El dinero sí se recibió; solo la cita fue un error.
 - **Deshacer:** vuelve a ocultar ese anticipo. Si mientras tanto se aplicó a otra cita, responde 409 y la app muestra el motivo, para no contarlo dos veces.
 

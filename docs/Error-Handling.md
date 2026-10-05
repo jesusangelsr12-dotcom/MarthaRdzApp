@@ -113,6 +113,7 @@ Si falla la carga principal, reemplaza el contenido por el mensaje y un botón "
 | Recibo en desktop sin teléfono | No hay cómo compartir | Toast: agrega el teléfono en Clientas |
 | Registrar Cita | Anticipo mayor que el total | Toast "El anticipo no puede ser mayor que el total de $X" y se queda en el paso (o regresa a él si se cambiaron precios después) |
 | Registrar Cita | 409 "Ese anticipo ya se aplicó a otra cita o ya no existe" | Toast con el mensaje, recarga la lista de anticipos y regresa al paso de anticipo sin él |
+| Registros · Corregir precios | Precio en cero, anticipo mayor que el total o rechazo del servidor (400/409) | Toast con el motivo; el editor sigue abierto con lo escrito y no se guarda nada |
 | Registros | 409 al "Deshacer" una cita cuyo anticipo ya se aplicó a otra | Toast con el mensaje del servidor; la cita se queda eliminada |
 
 ### Validación en el cliente
