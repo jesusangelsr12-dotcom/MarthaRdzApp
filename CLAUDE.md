@@ -61,7 +61,7 @@ estilo Miro** con los mismos flujos de `docs/AppFlow.md`.
 
 - Lienzo infinito con cuadrícula de puntos. Se arrastra para moverse y se
   hace zoom con rueda, pellizco o botones (+, −, 100 %, "Ver todo").
-- Un marco por flujo (F0…F13), agrupados por tema, más un marco del mapa
+- Un marco por flujo (F0…F14), agrupados por tema, más un marco del mapa
   del dinero y otro de cabos sueltos como notas adhesivas.
 - Cada flujo es un diagrama real: nodos por tipo (pantalla, acción,
   endpoint, tabla, servicio externo, decisión, fin bien/error) unidos con

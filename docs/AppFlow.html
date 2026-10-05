@@ -149,6 +149,9 @@
   .k-decision .ic { background: var(--amber); color: #fff; transform: rotate(45deg); border-radius: 4px; }
   .k-decision .ic i { transform: rotate(-45deg); font-style: normal; }
   .k-decision .node-t { color: var(--amber); }
+  .k-retired { border-style: dashed; border-color: var(--g400); background: var(--g100); }
+  .k-retired .ic { background: var(--g300); color: var(--g500); }
+  .k-retired .node-t { color: var(--g500); }
   .k-state { width: 190px; text-align: center; border-radius: 16px; padding: 14px 12px; }
   .k-state .node-t { font-size: 16px; margin: 0; }
   .st-pend { background: var(--accent-bg); color: var(--accent); border-color: var(--accent); }
@@ -294,7 +297,7 @@
   <div class="ui card topbar">
     <button class="icon-btn" id="toggle-panel" aria-label="Mostrar u ocultar el panel" aria-expanded="true" title="Panel (P)">☰</button>
     <span class="name">App<span>Flow</span> · Martha Rdz</span>
-    <span class="ver">v49 · 2026-09-26</span>
+    <span class="ver">v50 · 2026-10-05</span>
   </div>
 
   <aside class="ui card panel" id="panel" aria-label="Navegación del tablero">
@@ -341,11 +344,15 @@
    DATOS. Mantener en sincronía con docs/AppFlow.md (mismos flujos,
    mismos pasos y mismos cabos sueltos).
 
-   Tipos de nodo: screen · input · sys · api · db · ext · ok · err
+   Tipos de nodo: screen · input · sys · api · db · ext · ok · err · retired
    Decisión: { k:'decision', t, d?, b:[{ c:'Sí', s:[...] }] }  (s vacío = sigue al siguiente paso)
    r:'duena' marca un paso que la trabajadora no ve. i:'C1' lo liga a un cabo suelto.
    ok y err terminan el camino: no se conectan con el paso siguiente.
+   Un flujo retirado conserva su número (los cabos sueltos lo siguen citando)
+   y termina en un nodo 'retired'.
    ===================================================================== */
+
+const META = { version: 'v50', fecha: '2026-10-05', endpoints: 11, limiteEndpoints: 12, tablas: 10, tablasSinUso: 2 };
 
 const KINDS = {
   screen: { ic: '▢', label: 'Pantalla', color: 'var(--ink)' },
@@ -357,8 +364,9 @@ const KINDS = {
   ok: { ic: '✓', label: 'Termina bien', color: 'var(--green)' },
   err: { ic: '!', label: 'Termina en error', color: 'var(--red)' },
   decision: { ic: '<i>?</i>', label: 'Decisión', color: 'var(--amber)' },
+  retired: { ic: '⊘', label: 'Retirado', color: 'var(--g500)' },
 };
-const TERMINAL = new Set(['ok', 'err']);
+const TERMINAL = new Set(['ok', 'err', 'retired']);
 
 const FLOWS = [
   {
@@ -368,8 +376,8 @@ const FLOWS = [
       { k: 'screen', t: 'Abre la app', d: 'index.html carga app.js y registra sw.js' },
       { k: 'decision', t: '¿Hay sesión local vigente?', d: 'Vence junto con el token', b: [
         { c: 'No', s: [{ k: 'ok', t: 'Va a Login' }] },
-        { c: 'Sí', s: [{ k: 'decision', t: '¿La ruta es de su rol?', b: [
-          { c: 'No', s: [{ k: 'ok', t: 'Va a Inicio', d: 'Trabajadora fuera de login, home, agenda, agendar y cita' }] },
+        { c: 'Sí', s: [{ k: 'decision', t: '¿La ruta es de su rol y existe?', b: [
+          { c: 'No', s: [{ k: 'ok', t: 'Va a Inicio', d: 'Trabajadora fuera de login, home y cita, o una ruta que ya no existe (ej. #agenda de una notificación vieja)' }] },
           { c: 'Sí', s: [{ k: 'sys', t: 'render() + init() de la vista' }] },
         ] }] },
       ] },
@@ -392,7 +400,7 @@ const FLOWS = [
     steps: [
       { k: 'input', t: 'Teclea 6 dígitos', d: 'Se envía solo al sexto' },
       { k: 'api', t: 'POST /api/login' },
-      { k: 'db', t: 'login_attempts', d: 'Cuenta los fallos de esta IP en 15 min. El cron borra los de más de 30 días', i: 'C12' },
+      { k: 'db', t: 'login_attempts', d: 'Cuenta los fallos de esta IP en 15 min. El cron diario (/api/cron/limpieza) borra los de más de 30 días', i: 'C12' },
       { k: 'decision', t: '¿5 o más fallos?', b: [
         { c: 'Sí', s: [{ k: 'err', t: '429 · Demasiados intentos' }] },
         { c: 'No', s: [] },
@@ -439,97 +447,80 @@ const FLOWS = [
   },
   {
     id: 'F3', title: 'Registrar Cita', roles: ['duena', 'trab'],
-    entrada: 'Clienta, items con precio, comisiones, nota y método de pago', fin: 'Inicio con toast verde',
+    entrada: 'Clienta, items con precio, comisiones, nota, anticipo y método de pago', fin: 'Inicio con toast verde',
     steps: [
       { k: 'screen', t: 'Inicio → Registrar Cita' },
       { k: 'decision', t: '¿El salón tiene servicios o productos?', b: [
         { c: 'No', s: [{ k: 'err', t: 'Estado vacío', d: 'Dueña: “Ir a Configuración”. Trabajadora: “Pídele a la dueña”', i: 'C10' }] },
         { c: 'Sí', s: [] },
       ] },
-      { k: 'input', t: 'Clienta y fecha', d: 'Autocompleta y muestra citas agendadas pendientes de esa fecha. La Agenda puede abrirlo en otro día (#cita?fecha=)' },
-      { k: 'decision', t: '¿Toca un recuadro de cita agendada?', b: [
-        { c: 'Sí', s: [{ k: 'sys', t: 'Guarda agendaId y anticipo', d: 'Se sueltan si luego cambia el nombre o la fecha', i: 'C7' }] },
+      { k: 'input', t: 'Clienta y fecha', d: 'Autocompleta. En paralelo pide GET /api/citas?anticipos=pendientes' },
+      { k: 'decision', t: '¿Tiene un anticipo de la Agenda?', d: 'Ver F14', b: [
+        { c: 'Sí', s: [{ k: 'sys', t: 'Aviso “Ya tiene anticipo”', d: 'Monto y fecha. Se ofrece en el paso de anticipo' }] },
         { c: 'No', s: [] },
       ] },
       { k: 'input', t: 'Servicios y productos', d: 'Al menos uno. Pasos ocultos si no hay catálogo' },
       { k: 'input', t: 'Precio de cada item', d: 'Teclado numérico, uno por uno' },
       { k: 'input', t: 'Comisiones', d: 'Trabajadora + %. La trabajadora solo se elige a sí misma' },
       { k: 'input', t: 'Fórmula o notas', d: 'Muestra la nota fija (alergias) si hay' },
+      { k: 'decision', t: '¿Dejó anticipo?', d: 'Paso nuevo en v50. Va dentro del total', b: [
+        { c: 'Sí', s: [{ k: 'decision', t: '¿Es el anticipo de la Agenda?', b: [
+          { c: 'Sí', s: [{ k: 'input', t: 'Toca su tarjeta', d: 'Monto = el de esa fila + anticipo_origen_id. Se suelta si luego cambia la clienta', i: 'C7' }] },
+          { c: 'No', s: [
+            { k: 'input', t: 'Teclea el monto' },
+            { k: 'decision', t: '¿Anticipo ≤ total?', b: [
+              { c: 'No', s: [{ k: 'err', t: 'Toast: no puede ser mayor que el total' }] },
+              { c: 'Sí', s: [] },
+            ] },
+          ] },
+        ] }] },
+        { c: 'No', s: [{ k: 'input', t: 'Toca “Sin anticipo”' }] },
+      ] },
       { k: 'input', t: 'Método de pago' },
-      { k: 'screen', t: 'Confirmar', d: 'Con agenda: a cobrar hoy = total − anticipo' },
-      { k: 'api', t: 'POST /api/citas' },
-      { k: 'decision', t: '¿Viene de una cita agendada?', b: [
-        { c: 'Sí', s: [{ k: 'decision', t: '¿Sigue pendiente?', b: [
-          { c: 'No', s: [{ k: 'err', t: '400 · Ya fue registrada' }] },
-          { c: 'Sí', s: [{ k: 'db', t: 'citas_agendadas → completada', d: 'Misma sentencia que el cobro', i: 'C3' }] },
+      { k: 'screen', t: 'Confirmar', d: 'Total, Anticipo y “Resta por cobrar”' },
+      { k: 'api', t: 'POST /api/citas', d: 'Revisa anticipo ≤ total (también la base)' },
+      { k: 'decision', t: '¿Trae anticipo de la Agenda?', b: [
+        { c: 'Sí', s: [{ k: 'decision', t: '¿Sigue viva, es del salón y el monto coincide?', b: [
+          { c: 'No', s: [{ k: 'err', t: '409 · Ya se aplicó a otra cita', d: 'No registra nada. Regresa al paso de anticipo' }] },
+          { c: 'Sí', s: [{ k: 'db', t: 'citas · oculta la fila vieja', d: 'deleted_at, en la misma sentencia que la cita' }] },
         ] }] },
         { c: 'No', s: [] },
       ] },
-      { k: 'db', t: 'citas + comisiones', d: 'Una sola sentencia: todo o nada', i: 'C3' },
+      { k: 'db', t: 'citas + comisiones', d: 'Una sola sentencia: todo o nada. total = precio completo, con el anticipo dentro', i: 'C3' },
       { k: 'decision', t: '¿La registró una trabajadora?', b: [
         { c: 'Sí', s: [{ k: 'ext', t: 'Push a la dueña' }] },
         { c: 'No', s: [] },
       ] },
       { k: 'ok', t: 'Toast verde → Inicio' },
     ],
-    tablas: ['citas', 'comisiones', 'citas_agendadas', 'clientas', 'push_subscriptions'], issues: ['C3', 'C7', 'C10'],
+    tablas: ['citas', 'comisiones', 'clientas', 'push_subscriptions'], issues: ['C3', 'C7', 'C10'],
   },
   {
-    id: 'F4', title: 'Agendar Cita', roles: ['duena', 'trab'],
-    entrada: 'Clienta, fecha, hora, anticipo y nota', fin: 'Agenda con la cita nueva',
+    id: 'F4', title: 'Agendar Cita (retirado en v50)', roles: ['duena', 'trab'],
+    entrada: 'Ya no existe', fin: 'Las citas se registran solo en Registrar Cita (F3)',
     steps: [
-      { k: 'screen', t: 'Agenda → + → Agendar cita', d: 'Abre en el día elegido en Mes, o en hoy' },
-      { k: 'input', t: 'Clienta, fecha y hora', d: 'Hora en 12 h, minutos de 10 en 10' },
-      { k: 'input', t: 'Teléfono (opcional)', d: 'Dueña, o trabajadora con permiso de teléfonos' },
-      { k: 'input', t: 'Anticipo', d: '$0 = sin anticipo' },
-      { k: 'decision', t: '¿Anticipo mayor a $0?', b: [
-        { c: 'Sí', s: [{ k: 'input', t: 'Método de pago del anticipo' }] },
-        { c: 'No', s: [] },
-      ] },
-      { k: 'input', t: 'Nota opcional' },
-      { k: 'api', t: 'POST /api/citas-agendadas' },
-      { k: 'db', t: 'citas_agendadas', d: 'Misma sentencia que el anticipo (CTEs)' },
-      { k: 'decision', t: '¿Hubo anticipo?', b: [
-        { c: 'Sí', s: [{ k: 'db', t: 'citas · item anticipo', d: 'Fecha = hoy en México (lib/fecha.js)', i: 'C2' }] },
-        { c: 'No', s: [] },
-      ] },
-      { k: 'decision', t: '¿Cambió el teléfono?', d: 'Solo si puede ver teléfonos', b: [
-        { c: 'Sí', s: [{ k: 'api', t: 'POST /api/clientas', d: 'Si falla, la cita igual queda. Trabajadora: solo el teléfono' }] },
-        { c: 'No', s: [] },
-      ] },
-      { k: 'ok', t: 'Toast → Agenda' },
+      { k: 'screen', t: 'Agenda → Agendar cita', d: 'Clienta, teléfono, fecha, hora, anticipo y nota' },
+      { k: 'retired', t: 'Retirado en v50', d: 'Se retiró la Agenda. El anticipo se captura en F3; los que ya se cobraron siguen en F14', i: 'C2' },
     ],
-    tablas: ['citas_agendadas', 'citas', 'clientas'], issues: ['C2'],
+    tablas: ['citas_agendadas (sin uso)'], issues: ['C2'],
   },
   {
-    id: 'F5', title: 'Ciclo de vida de una cita agendada', roles: ['duena'], type: 'states',
-    entrada: 'Tocar una cita en la Agenda', fin: 'La cita en su nuevo estado',
-    tablas: ['citas_agendadas', 'citas'], issues: ['C1', 'C14'],
-  },
-  {
-    id: 'F6', title: 'Vacaciones y días libres', roles: ['duena'],
-    entrada: 'Quién, desde, hasta y nota', fin: 'Banner en Agenda y día coloreado en Mes',
+    id: 'F5', title: 'Cita agendada (retirado en v50)', roles: ['duena'],
+    entrada: 'Ya no existe', fin: 'Sin estados de cita agendada',
     steps: [
-      { k: 'screen', t: 'Agenda → + → Vacaciones / día libre' },
-      { k: 'input', t: 'Quién, desde, hasta, nota' },
-      { k: 'decision', t: '¿“Hasta” es igual o después de “desde”?', b: [
-        { c: 'No', s: [{ k: 'err', t: 'Toast de error' }] },
-        { c: 'Sí', s: [
-          { k: 'api', t: 'POST /api/citas-agendadas', d: 'recurso: ausencia' },
-          { k: 'db', t: 'ausencias' },
-          { k: 'sys', t: 'Banner en Agenda + día coloreado en Mes' },
-        ] },
-      ] },
-      { k: 'input', t: '× Eliminar ausencia' },
-      { k: 'decision', t: '¿Eliminar estos días libres?', d: 'Quién, rango y nota', i: 'C11', b: [
-        { c: 'No, volver', s: [{ k: 'ok', t: 'Sin cambios' }] },
-        { c: 'Sí, eliminar', s: [
-          { k: 'api', t: 'DELETE /api/citas-agendadas', d: 'recurso: ausencia' },
-          { k: 'ok', t: 'Toast con Deshacer' },
-        ] },
-      ] },
+      { k: 'screen', t: 'Agenda → menú de una cita', d: 'Cancelar, no asistió, reagendar, WhatsApp y “Sin cerrar”', i: 'C14' },
+      { k: 'retired', t: 'Retirado en v50', d: 'Se retiró la Agenda. Eliminar una cita ya cobrada pasa solo por Ver Registros (F8)', i: 'C1' },
     ],
-    tablas: ['ausencias'], issues: ['C11'],
+    tablas: ['citas_agendadas (sin uso)'], issues: ['C1', 'C14'],
+  },
+  {
+    id: 'F6', title: 'Vacaciones (retirado en v50)', roles: ['duena'],
+    entrada: 'Ya no existe', fin: 'Sin vacaciones ni días libres',
+    steps: [
+      { k: 'screen', t: 'Agenda → Vacaciones / día libre' },
+      { k: 'retired', t: 'Retirado en v50', d: 'Se retiró la Agenda', i: 'C11' },
+    ],
+    tablas: ['ausencias (sin uso)'], issues: ['C11'],
   },
   {
     id: 'F7', title: 'Registrar Gasto', roles: ['duena'],
@@ -552,10 +543,10 @@ const FLOWS = [
     steps: [
       { k: 'screen', t: 'Más → Ver Registros' },
       { k: 'api', t: 'GET /api/citas + /api/gastos', d: 'Si la respuesta no es JSON (ej. 502), mensaje claro', i: 'C9' },
-      { k: 'screen', t: 'Totales y tarjetas del día' },
+      { k: 'screen', t: 'Totales y tarjetas del día', d: '“Incluye anticipo de $X” (v50) o “Anticipo aplicado: −$X” (cobro viejo de la Agenda)' },
       { k: 'decision', t: '¿Qué hace?', b: [
         { c: 'Editar nota', s: [{ k: 'api', t: 'PATCH /api/citas' }, { k: 'ok', t: 'Nota guardada' }] },
-        { c: 'Compartir recibo', s: [{ k: 'decision', t: '¿Hay hoja nativa?', b: [
+        { c: 'Compartir recibo', s: [{ k: 'decision', t: '¿Hay hoja nativa?', d: 'Con anticipo agrega Anticipo y “Resto pagado”', b: [
           { c: 'Sí', s: [{ k: 'ok', t: 'WhatsApp, iMessage…' }] },
           { c: 'No', s: [{ k: 'decision', t: '¿Hay teléfono?', b: [
             { c: 'Sí', s: [{ k: 'ok', t: 'Abre wa.me' }] },
@@ -565,8 +556,17 @@ const FLOWS = [
         { c: 'Eliminar', s: [
           { k: 'screen', t: 'Modal de confirmación' },
           { k: 'api', t: 'DELETE /api/citas o /gastos' },
-          { k: 'db', t: 'deleted_at', d: 'La cita y sus comisiones' },
-          { k: 'ok', t: 'Toast con Deshacer (5 s)' },
+          { k: 'db', t: 'deleted_at', d: 'La cita y sus comisiones. Si aplicó un anticipo de la Agenda, ese vuelve a su día (F14)' },
+          { k: 'decision', t: '¿Toca Deshacer en 5 s?', b: [
+            { c: 'Sí', s: [
+              { k: 'api', t: 'PATCH /api/citas', d: 'restore' },
+              { k: 'decision', t: '¿Su anticipo ya se aplicó a otra cita?', b: [
+                { c: 'Sí', s: [{ k: 'err', t: '409 · No se restaura', d: 'Toast con el motivo' }] },
+                { c: 'No', s: [{ k: 'ok', t: 'Vuelve la cita', d: 'Con sus comisiones; el anticipo se oculta otra vez' }] },
+              ] },
+            ] },
+            { c: 'No', s: [{ k: 'ok', t: 'Queda borrada' }] },
+          ] },
         ] },
       ] },
     ],
@@ -579,9 +579,9 @@ const FLOWS = [
       { k: 'screen', t: 'Inicio → Clientas' },
       { k: 'api', t: 'GET /api/clientas?historial=1', d: 'Una sola llamada' },
       { k: 'input', t: 'Busca por nombre', d: 'Filtra en el navegador, sin llamadas por tecla' },
-      { k: 'screen', t: 'Tarjeta: visitas, total, última fórmula' },
+      { k: 'screen', t: 'Tarjeta: visitas, total, última fórmula', d: 'Una fila de solo anticipo no cuenta como visita' },
       { k: 'decision', t: '¿Qué edita?', b: [
-        { c: 'Teléfono o nota fija', s: [{ k: 'api', t: 'POST /api/clientas', d: 'Manda nota y teléfono juntos' }, { k: 'db', t: 'clientas' }] },
+        { c: 'Teléfono o nota fija', s: [{ k: 'api', t: 'POST /api/clientas', d: 'Manda nota y teléfono juntos. A una trabajadora: 403' }, { k: 'db', t: 'clientas' }] },
         { c: 'Nota de una visita', s: [{ k: 'api', t: 'PATCH /api/citas' }, { k: 'db', t: 'citas' }] },
       ] },
       { k: 'ok', t: 'Toast verde, sin recargar' },
@@ -601,7 +601,7 @@ const FLOWS = [
           ] },
         ] },
         { c: 'Comisiones', s: [{ k: 'api', t: 'GET /api/comisiones', d: 'Rango editable' }, { k: 'ok', t: 'Total y detalle por trabajadora' }] },
-        { c: 'Dashboard', s: [{ k: 'api', t: 'GET /api/dashboard', d: 'Mes elegido, nunca futuro' }, { k: 'ok', t: 'KPIs, gráfica y top 5' }] },
+        { c: 'Dashboard', s: [{ k: 'api', t: 'GET /api/dashboard', d: 'Mes elegido, nunca futuro. Ingresos = suma de total' }, { k: 'ok', t: 'KPIs, gráfica y top 5' }] },
       ] },
     ],
     tablas: ['citas', 'gastos', 'comisiones'], issues: [],
@@ -633,12 +633,6 @@ const FLOWS = [
             { c: 'Sí', s: [{ k: 'ok', t: '“Tiene acceso”' }] },
           ] },
         ] },
-        { c: 'Permisos', s: [
-          { k: 'input', t: 'Interruptor “Teléfonos de clientas”', d: 'Apagado por default' },
-          { k: 'api', t: 'POST /api/trabajador-pin', d: 'permisos: { telefonos }' },
-          { k: 'db', t: 'salones.trabajadoras[].permisos', d: 'Se lee en cada llamada: vale al momento' },
-          { k: 'ok', t: '“Ya puede / ya no ve los teléfonos”' },
-        ] },
         { c: 'Quitar acceso', s: [
           { k: 'api', t: 'POST /api/trabajador-pin', d: 'remove: true' },
           { k: 'db', t: 'salones.trabajadoras' },
@@ -647,11 +641,12 @@ const FLOWS = [
         ] },
       ] },
     ],
+    notes: ['Permisos de trabajadora: hoy no hay ninguno, así que “Puede usar” no aparece. “Teléfonos de clientas” se retiró en v50.'],
     tablas: ['salones', 'webauthn_credentials'], issues: ['C4', 'C6', 'C8'],
   },
   {
     id: 'F12', title: 'Notificaciones push', roles: ['duena'],
-    entrada: 'Activar en Configuración, cron diario o cita de trabajadora', fin: 'Notificación en el celular de la dueña',
+    entrada: 'Activar en Configuración o cita de trabajadora', fin: 'Notificación en el celular de la dueña',
     steps: [
       { k: 'decision', t: '¿Qué lo dispara?', b: [
         { c: 'Activar', s: [
@@ -665,22 +660,15 @@ const FLOWS = [
             ] },
           ] },
         ] },
-        { c: 'Cron 18:00 CDMX', s: [
-          { k: 'api', t: 'GET /api/cron/reminder-citas' },
-          { k: 'db', t: 'login_attempts', d: 'Borra los de más de 30 días', i: 'C12' },
-          { k: 'db', t: 'citas_agendadas', d: 'Pendientes de mañana' },
-          { k: 'ext', t: 'Push “Tienes N citas mañana”' },
-          { k: 'ok', t: 'Toque → Agenda' },
-        ] },
-        { c: 'Trabajadora cobra', s: [
+        { c: 'Trabajadora registra cita', s: [
           { k: 'api', t: 'POST /api/citas' },
           { k: 'ext', t: 'Push “Nueva cita registrada”' },
           { k: 'ok', t: 'Toque → Registros' },
         ] },
       ] },
     ],
-    notes: ['Una suscripción que responde 404 o 410 se borra sola.'],
-    tablas: ['push_subscriptions', 'citas_agendadas', 'login_attempts'], issues: ['C12'],
+    notes: ['Una suscripción que responde 404 o 410 se borra sola.', 'v50: se retiró el recordatorio de “citas de mañana”. Una notificación vieja con #agenda lleva al Inicio.'],
+    tablas: ['push_subscriptions'], issues: [],
   },
   {
     id: 'F13', title: 'Actualización de la app', roles: ['duena', 'trab'],
@@ -695,90 +683,114 @@ const FLOWS = [
     ],
     tablas: [], issues: [],
   },
+  {
+    id: 'F14', title: 'Anticipos que dejó la Agenda', roles: ['duena', 'trab'], type: 'states',
+    entrada: 'Fila de solo anticipo que la Agenda guardó antes de v50', fin: 'Dentro de una cita, o pendiente en su día',
+    tablas: ['citas'], issues: ['C3', 'C7'],
+    // Extras del diagrama de estados (ver STATES, STATE_EDGES y TRANSITIONS)
+    stateLabels: [{ state: 'orig', t: 'Un solo item “anticipo”' }, { state: 'apl', t: 'Cuenta dentro del total de la cita' }],
+    stickies: [
+      { b: 'Candado al aplicar', t: 'Solo si sigue viva, es del salón y el monto coincide. Si no: 409 y no se registra la cita.', x: 40, y: 22, issue: 'C3' },
+      { b: 'Deshacer con candado', t: 'Si mientras tanto se aplicó a otra cita, la cita borrada no se restaura (409).', x: 712, y: 300, w: 220 },
+    ],
+    foot: 'La trabajadora puede aplicar un anticipo al registrar la cita (ve la lista de pendientes). Eliminar y Deshacer son solo de la dueña.',
+  },
 ];
 
-/* F5: estados y transiciones */
+/* F14: estados y transiciones de un anticipo de la Agenda */
 const STATES = [
-  { id: 'pend', cls: 'st-pend', t: 'Pendiente', x: 385, y: 170 },
-  { id: 'comp', cls: 'st-comp', t: 'Completada', x: 745, y: 170 },
-  { id: 'canc', cls: 'st-canc', t: 'Cancelada', x: 25, y: 170 },
-  { id: 'noas', cls: 'st-noas', t: 'No asistió', x: 385, y: 370 },
-  { id: 'del', cls: 'st-del', t: 'Borrada', x: 745, y: 370 },
+  { id: 'orig', cls: 'st-canc', t: 'Cobrado al agendar', x: 25, y: 170 },
+  { id: 'pend', cls: 'st-pend', t: 'Pendiente de aplicar', x: 385, y: 170 },
+  { id: 'apl', cls: 'st-comp', t: 'Aplicado a una cita', x: 745, y: 170 },
+  { id: 'del', cls: 'st-del', t: 'Borrado en Registros', x: 385, y: 370 },
 ];
 const STATE_EDGES = [
-  { a: 'pend', as: 'r', b: 'comp', bs: 'l', off: 0, t: 'Cobrar (F3)', ly: -14 },
-  { a: 'pend', as: 'l-', b: 'canc', bs: 'r-', off: 0, t: 'Cancelar (confirma)', ly: -16 },
-  { a: 'canc', as: 'r+', b: 'pend', bs: 'l+', off: 0, t: 'Volver a pendiente', ly: 16 },
-  { a: 'pend', as: 'bm-', b: 'noas', bs: 't-', off: 0, t: 'No asistió (confirma)', lx: -84 },
-  { a: 'noas', as: 't+', b: 'pend', bs: 'bm+', off: 0, t: 'Volver', lx: 44 },
-  { a: 'noas', as: 'r', b: 'del', bs: 'l', off: 0, t: 'Eliminar (no completada)', issue: 'C1' },
+  { a: 'orig', as: 'r', b: 'pend', bs: 'l', off: 0, t: 'Queda en su día', ly: -14 },
+  { a: 'pend', as: 'r-', b: 'apl', bs: 'l-', off: 0, t: 'Registrar Cita lo aplica', ly: -16 },
+  { a: 'apl', as: 'l+', b: 'pend', bs: 'r+', off: 0, t: 'Eliminar la cita', ly: 16 },
+  { a: 'pend', as: 'bm-', b: 'del', bs: 't-', off: 0, t: 'Eliminar su fila', lx: -70 },
+  { a: 'del', as: 't+', b: 'pend', bs: 'bm+', off: 0, t: 'Deshacer', lx: 44 },
 ];
 const TRANSITIONS = [
-  ['Pendiente → Completada', 'Cobrar en Registrar Cita', 'POST /api/citas con agenda_id', '', ''],
-  ['Pendiente → Cancelada / No asistió', 'Menú de la cita (confirma)', 'PATCH {id, estado}', 'El anticipo se queda como ingreso', ''],
-  ['Cancelada / No asistió → Pendiente', '“Volver a pendiente” o Deshacer', 'PATCH {id, estado}', '', ''],
-  ['Pendiente → Pendiente', 'Reagendar, nota, teléfono', 'PATCH {id, fecha, hora, nota}', '', ''],
-  ['Pendiente / cancelada / no asistió → Borrada', 'Eliminar (confirma)', 'DELETE {id}', 'Borra solo su anticipo', 'C1'],
-  ['Completada → Borrada', 'No se permite', 'DELETE {id} → 400', 'El cobro se corrige en Ver Registros', 'C1'],
-  ['Borrada → estado anterior', 'Deshacer', 'PATCH {id, restore}', 'Restaura su anticipo', ''],
-  ['Pendiente de una fecha pasada', 'Aparece en “Sin cerrar”: Registrar cobro, no asistió o cancelar', 'Abre #cita?fecha=', 'El anticipo se concilia al cobrarla', 'C14'],
+  ['Cobrado al agendar → Pendiente', 'Antes de v50, al agendar con anticipo', '—', 'Ingreso del día en que se pagó', ''],
+  ['Pendiente → Aplicado', 'Registrar Cita: “Ya tiene anticipo” y tocar su tarjeta', 'POST /api/citas con anticipo_origen_id', 'Sale de su día y cuenta dentro del total de la cita', 'C7'],
+  ['Pendiente → Aplicado, ya usado', 'Otro dispositivo lo aplicó primero', 'POST → 409', 'No se registra nada; regresa al paso de anticipo', 'C3'],
+  ['Aplicado → Pendiente', 'Eliminar la cita en Ver Registros (dueña)', 'DELETE /api/citas', 'Regresa a su día original', ''],
+  ['Pendiente → Aplicado (Deshacer)', 'Deshacer en el aviso (dueña)', 'PATCH {restore}', 'Vuelven la cita y sus comisiones; se oculta otra vez', ''],
+  ['Deshacer con el anticipo ya usado', 'Se aplicó a otra cita mientras tanto', 'PATCH {restore} → 409', 'La cita no se restaura', ''],
+  ['Pendiente ↔ Borrado', 'Eliminar su fila en Ver Registros / Deshacer (dueña)', 'DELETE / PATCH {restore}', 'Sale o vuelve a los ingresos de su día', ''],
 ];
 
 const MONEY = {
+  fin: 'Ingresos = suma de total de las citas vivas; el anticipo va dentro. Ganancia neta = ingresos − gastos − comisiones',
   head: ['Evento', 'Fila en citas', 'Fecha', 'Registros', 'Ingresos', 'Cuenta como cita', 'Comisiones'],
   rows: [
-    ['Cita normal', '1 fila con servicios y productos', 'La elegida', 'yes', 'yes', 'yes', 'Si se asignaron'],
-    ['Anticipo al agendar', '1 fila, item anticipo', 'Hoy en México', 'yes', 'yes', 'no', '—'],
-    ['Cobro de cita agendada', '1 fila, total − anticipo', 'La elegida', 'yes', 'yes', 'yes', 'Sobre el precio completo'],
-    ['Cancelar / No asistió', 'Sin cambio', '—', 'El anticipo sigue', 'yes', '—', '—'],
-    ['Eliminar cita agendada (no completada)', 'Borra solo su anticipo', '—', 'no', 'no', 'no', '—'],
-    ['Eliminar cita agendada completada', 'No se permite (400)', '—', '—', '—', '—', '—'],
+    ['Cita sin anticipo', '1 fila con servicios y productos, anticipo 0', 'La elegida', 'yes', 'yes', 'yes', 'Si se asignaron'],
+    ['Cita con anticipo (v50)', '1 fila: total = precio completo, anticipo dentro', 'La elegida', '“Incluye anticipo de $X”', 'El total completo', 'yes', 'Sobre el precio completo'],
+    ['Anticipo de la Agenda pendiente', '1 fila, item anticipo', 'El día que se pagó', 'yes', 'yes', 'no', '—'],
+    ['Cita que aplica ese anticipo', 'Inserta la cita y oculta la fila del anticipo', 'La de la cita', 'La cita; el anticipo sale de su día', 'Total completo, en el día de la cita', 'yes', 'Sobre el precio completo'],
+    ['Eliminar esa cita', 'Borra la cita y revive la fila del anticipo', 'El anticipo vuelve a su día', 'El anticipo reaparece', 'Solo el anticipo, en su día', 'no', 'Se borran'],
+    ['Cobro viejo de la Agenda (antes de v50)', '1 fila, total ya restado (anticipo_aplicado)', 'La elegida', '“Anticipo aplicado: −$X”', 'El neto (el anticipo cuenta en su fila)', 'yes', 'Sobre el precio completo'],
     ['Eliminar en Registros', 'Borra la fila', '—', 'no', 'no', 'no', 'Se borran'],
     ['Gasto', 'Tabla gastos', 'Hoy del dispositivo', 'yes', 'Resta en gastos', '—', '—'],
+    ['⚠ Datos de la Agenda que no cuadran', 'Ver C15, C16 y C17', '—', '—', '—', '—', '—'],
   ],
 };
 
+/* Cabos sueltos. ok = cómo se resolvió (si falta, está abierto). v = versión
+   en que se resolvió. estado = etiqueta del encabezado si no basta con eso.
+   nota = lo que cambió después (ej. v50). flow = marco donde ocurre (null
+   si no vive en un flujo; where dice dónde). */
 const ISSUES = [
-  { id: 'C1', ok: 'El DELETE rechaza una completada (400) y solo borra la fila del anticipo. La Agenda ya no ofrece “Eliminar” en una completada.', sev: 'alta', flow: 'F5', t: 'Eliminar una cita agendada ya completada borra también el cobro de la visita',
+  { id: 'C15', sev: 'alta', flow: null, where: 'Datos de la base · Ver Registros del 2026-09-29', estado: 'Pendiente de decidir', t: 'Victoria G está registrada dos veces el 2026-09-29',
+    p: 'Dos citas de $1,980: una capturada a mano y otra que vino del cobro en la Agenda. Si fue una sola visita, los ingresos de ese día traen $1,980 de más.',
+    fix: 'Pendiente de decidir con la dueña. Si fue una sola visita, eliminar una en Ver Registros (se borran también sus comisiones).' },
+  { id: 'C16', sev: 'media', flow: null, where: 'Datos de la base · cobro viejo de la Agenda', estado: 'Pendiente de decidir', t: 'Ximena Gonzalez, 2026-09-30: sus $250 de anticipo no cuentan en ningún lado',
+    p: 'Su cobro de la Agenda quedó con total $0 y anticipo_aplicado 250, y la fila de ese anticipo está borrada. Esos $250 no aparecen en ingresos.',
+    fix: 'Pendiente de decidir con la dueña. Si sí se recibieron, restaurar la fila del anticipo o corregir el total de la cita.' },
+  { id: 'C17', sev: 'media', flow: null, where: 'Datos de la base · citas_agendadas', estado: 'Pendiente de decidir', t: 'Natalia Mireles y Mon aguilera salen “completada” pero sus cobros están borrados',
+    p: 'En citas_agendadas están completadas, pero las filas del cobro en citas tienen deleted_at. Esas visitas no cuentan en ingresos, y la Agenda ya no las muestra.',
+    fix: 'Pendiente de decidir con la dueña. Si las visitas se cobraron, restaurar los cobros; si no, dejarlos borrados.' },
+  { id: 'C1', v: 'v46', estado: 'Retirado v50', ok: 'El DELETE rechaza una completada (400) y solo borra la fila del anticipo. La Agenda ya no ofrece “Eliminar” en una completada.', nota: 'v50: se retiró la Agenda. Una cita cobrada solo se elimina en Ver Registros, con sus comisiones.', sev: 'alta', flow: 'F5', t: 'Eliminar una cita agendada ya completada borra también el cobro de la visita',
     p: 'DELETE /api/citas-agendadas borra todas las filas de citas con ese agenda_id, y el cobro final también lo lleva. Desaparece el ingreso real pero sus comisiones siguen contando.',
     fix: 'No ofrecer “Eliminar” en una completada y, en el backend, borrar solo la fila del depósito o rechazar el DELETE.' },
-  { id: 'C2', ok: 'lib/fecha.js con fechaMexico(): la usan el anticipo, clientas y el cron.', sev: 'alta', flow: 'F4', t: 'El anticipo se registra con la fecha UTC del servidor',
+  { id: 'C2', v: 'v46', estado: 'Retirado v50', ok: 'lib/fecha.js con fechaMexico(): la usan el anticipo, clientas y el cron.', nota: 'v50: se retiró la Agenda. El anticipo va en la cita, con la fecha elegida. fechaMexico() sigue en clientas.', sev: 'alta', flow: 'F4', t: 'El anticipo se registra con la fecha UTC del servidor',
     p: 'Entre 18:00 y 23:59 de Ciudad de México la fecha UTC ya es mañana. El anticipo cae en los Registros del día siguiente.',
     fix: 'Mover fechaMexico() del cron a lib/ y usarla aquí, o que el cliente mande la fecha.' },
-  { id: 'C3', ok: 'Completar la cita agendada, insertar el cobro y sus comisiones es una sola sentencia. agenda_id se valida como uuid.', sev: 'media', flow: 'F3', t: 'Cobrar una cita agendada no es atómico',
+  { id: 'C3', v: 'v46', ok: 'Completar la cita agendada, insertar el cobro y sus comisiones es una sola sentencia. agenda_id se valida como uuid.', nota: 'v50: ya no hay agenda_id. Ocultar el anticipo de la Agenda, insertar la cita y sus comisiones sigue siendo una sola sentencia.', sev: 'media', flow: 'F3', t: 'Cobrar una cita agendada no es atómico',
     p: 'Primero se marca completada y luego se insertan cita y comisiones por separado. Si falla el insert, queda completada sin cobro.',
     fix: 'Una sola sentencia con CTEs, como al agendar con anticipo.' },
-  { id: 'C4', ok: 'Un 401 borra la sesión y lleva a Login con aviso. La expiración local sale del propio token.', sev: 'media', flow: 'F0', t: 'Token vencido sin salida a Login',
+  { id: 'C4', v: 'v46', ok: 'Un 401 borra la sesión y lleva a Login con aviso. La expiración local sale del propio token.', sev: 'media', flow: 'F0', t: 'Token vencido sin salida a Login',
     p: 'fetchAPI no trata el 401 y “Guardar Cambios” renueva la sesión local 8 h más. Cada pantalla muestra “Error al cargar…”.',
     fix: 'Ante un 401: logout() y llevar a Login. saveSession debe conservar expires_at.' },
-  { id: 'C5', ok: 'La plantilla copia solo el nombre de cada trabajadora.', sev: 'media', flow: null, t: 'crear-salon --plantilla copia los PINs de las trabajadoras',
+  { id: 'C5', v: 'v46', ok: 'La plantilla copia solo el nombre de cada trabajadora.', sev: 'media', flow: null, t: 'crear-salon --plantilla copia los PINs de las trabajadoras',
     p: 'Dos salones terminan con PINs idénticos y el login entra al primero que encuentra.',
     fix: 'Copiar solo el nombre de cada trabajadora.' },
-  { id: 'C6', ok: 'pinEnUso() compartido: revisa dueñas (nuevo y legacy) y trabajadoras de todos los salones.', sev: 'media', flow: null, t: 'crear-salon --pin no revisa si el PIN ya existe',
+  { id: 'C6', v: 'v46', ok: 'pinEnUso() compartido: revisa dueñas (nuevo y legacy) y trabajadoras de todos los salones.', sev: 'media', flow: null, t: 'crear-salon --pin no revisa si el PIN ya existe',
     p: 'trabajador-pin.js sí lo revisa; el script no.',
     fix: 'La misma consulta en_uso antes de insertar.' },
-  { id: 'C7', ok: 'Si cambian el nombre o la fecha, se sueltan agendaId y su anticipo.', sev: 'media', flow: 'F3', t: 'El vínculo con la cita agendada sobrevive a un cambio de nombre',
+  { id: 'C7', v: 'v46', ok: 'Si cambian el nombre o la fecha, se sueltan agendaId y su anticipo.', nota: 'v50: ya no hay recuadro de cita agendada. Si se eligió un anticipo de la Agenda y luego se escribe otra clienta, se suelta.', sev: 'media', flow: 'F3', t: 'El vínculo con la cita agendada sobrevive a un cambio de nombre',
     p: 'Si tocas un recuadro y luego escribes otra clienta, el cobro completa la cita de la primera y descuenta su anticipo.',
     fix: 'Limpiar agendaId y anticipo si el nombre o la fecha cambian.' },
-  { id: 'C14', ok: 'Sección “Sin cerrar” en la Agenda con “Registrar cobro”, no asistió o cancelar.', sev: 'media', flow: 'F5', t: 'Citas agendadas vencidas se quedan en “pendiente”',
+  { id: 'C14', v: 'v46', estado: 'Retirado v50', ok: 'Sección “Sin cerrar” en la Agenda con “Registrar cobro”, no asistió o cancelar.', nota: 'v50: se retiró la Agenda y con ella “Sin cerrar”. Los anticipos sin conciliar se aplican desde Registrar Cita (F14).', sev: 'media', flow: 'F5', t: 'Citas agendadas vencidas se quedan en “pendiente”',
     p: 'La Agenda empieza en hoy: una cita de ayer sin cerrar desaparece de la lista y su anticipo queda sin conciliar.',
     fix: 'Sección “Sin cerrar” con las pendientes de fechas pasadas.' },
-  { id: 'C8', ok: 'Quitar acceso o borrarla borra su Face ID, y el login revisa que siga con acceso.', sev: 'baja', flow: 'F2', t: 'Quitar acceso no borra el Face ID de la trabajadora',
+  { id: 'C8', v: 'v46', ok: 'Quitar acceso o borrarla borra su Face ID, y el login revisa que siga con acceso.', sev: 'baja', flow: 'F2', t: 'Quitar acceso no borra el Face ID de la trabajadora',
     p: 'El login con Face ID no revisa que ella siga con acceso. Hoy solo la dueña ve el botón de activar.',
     fix: 'Verificar en el login y borrar sus credenciales al quitar el acceso.' },
-  { id: 'C9', ok: 'fetchAPI lee texto, intenta JSON y da un mensaje claro según el código.', sev: 'baja', flow: 'F8', t: 'fetchAPI asume que toda respuesta es JSON',
+  { id: 'C9', v: 'v46', ok: 'fetchAPI lee texto, intenta JSON y da un mensaje claro según el código.', sev: 'baja', flow: 'F8', t: 'fetchAPI asume que toda respuesta es JSON',
     p: 'Un 502 o 504 de Vercel con HTML truena en response.json() y se pierde el mensaje.',
     fix: 'Leer como texto, intentar JSON y caer a un mensaje genérico.' },
-  { id: 'C10', ok: 'La trabajadora ve “Pídele a la dueña que los agregue”, sin botón.', sev: 'baja', flow: 'F3', t: 'Trabajadora sin catálogo ve “Ir a Configuración”',
+  { id: 'C10', v: 'v46', ok: 'La trabajadora ve “Pídele a la dueña que los agregue”, sin botón.', sev: 'baja', flow: 'F3', t: 'Trabajadora sin catálogo ve “Ir a Configuración”',
     p: 'Al tocarlo, el router la regresa al Inicio sin explicación.',
     fix: 'Para ella: “Pídele a la dueña que agregue servicios”.' },
-  { id: 'C11', ok: 'Pide confirmación con quién, rango y nota. Sigue con Deshacer.', sev: 'baja', flow: 'F6', t: 'Borrar una ausencia no pide confirmación',
+  { id: 'C11', v: 'v46', estado: 'Retirado v50', ok: 'Pide confirmación con quién, rango y nota. Sigue con Deshacer.', nota: 'v50: se retiró la Agenda. Ya no hay vacaciones ni días libres.', sev: 'baja', flow: 'F6', t: 'Borrar una ausencia no pide confirmación',
     p: 'Todo lo demás en la Agenda la pide desde la v43.',
     fix: 'Usar el mismo paso “¿Seguro?” del menú de citas.' },
-  { id: 'C12', ok: 'El cron diario borra los intentos de más de 30 días.', sev: 'baja', flow: 'F1', t: 'login_attempts nunca se limpia',
+  { id: 'C12', v: 'v46', ok: 'El cron diario borra los intentos de más de 30 días.', nota: 'v50: el cron es ahora /api/cron/limpieza y solo hace esto.', sev: 'baja', flow: 'F1', t: 'login_attempts nunca se limpia',
     p: 'Cada intento de login agrega una fila para siempre.',
     fix: 'Borrar filas de más de 30 días en el cron diario.' },
-  { id: 'C13', ok: 'scripts/migrations/000_base.sql, exportado de la base real. Las pruebas levantan la base con 000 a 007.', sev: 'baja', flow: null, t: 'Las tablas base no tienen DDL en el repo',
+  { id: 'C13', v: 'v46', ok: 'scripts/migrations/000_base.sql, exportado de la base real. Las pruebas levantan la base con todas las migraciones (000 a 008 en v50).', sev: 'baja', flow: null, t: 'Las tablas base no tienen DDL en el repo',
     p: 'No se puede levantar una base desde cero solo con las migraciones.',
     fix: 'Exportar el esquema real a 000_base.sql.' },
 ];
@@ -788,12 +800,13 @@ const ISSUES = [
 const ROWS = [
   [
     { title: 'Acceso y plataforma', ids: ['F0', 'F1', 'F2', 'F13'] },
-    { title: 'Citas y dinero', ids: ['F3', 'F4', 'F5'] },
+    { title: 'Citas', ids: ['F3', 'F14'] },
     { title: 'Referencia', ids: ['DINERO', 'CABOS'] },
   ],
   [
-    { title: 'Operación diaria', ids: ['F6', 'F7', 'F8', 'F9'] },
+    { title: 'Operación diaria', ids: ['F7', 'F8', 'F9'] },
     { title: 'Administración', ids: ['F10', 'F11', 'F12'] },
+    { title: 'Retirado', ids: ['F4', 'F5', 'F6'] },
   ],
 ];
 
@@ -1118,28 +1131,32 @@ function buildStatesFrame(f) {
     const lab = addLabel(body, e.t, lx, ly, `elabel--state ${abierta ? 'elabel--issue' : ''}`);
     if (e.issue) lab.dataset.issue = e.issue;
   }
-  // Bucle sobre Pendiente: reagendar, nota, teléfono
-  const p = byId.pend;
-  const lx1 = p._x + p._w / 2 - 34;
-  const lx2 = p._x + p._w / 2 + 34;
-  paths.push(`<path class="edge" d="M${lx1} ${p._y} C${lx1 - 10} ${p._y - 56}, ${lx2 + 10} ${p._y - 56}, ${lx2} ${p._y}" marker-end="url(#arrow)"/>`);
-  addLabel(body, 'Reagendar · nota · teléfono', p._x + p._w / 2, p._y - 48, 'elabel--state');
+  // Bucle opcional sobre un estado (f.loop = { state, t })
+  if (f.loop) {
+    const p = byId[f.loop.state];
+    const lx1 = p._x + p._w / 2 - 34;
+    const lx2 = p._x + p._w / 2 + 34;
+    paths.push(`<path class="edge" d="M${lx1} ${p._y} C${lx1 - 10} ${p._y - 56}, ${lx2 + 10} ${p._y - 56}, ${lx2} ${p._y}" marker-end="url(#arrow)"/>`);
+    addLabel(body, f.loop.t, p._x + p._w / 2, p._y - 48, 'elabel--state');
+  }
   svg.innerHTML = `${arrowDefs()}${paths.join('')}`;
 
-  const d = byId.del;
-  addLabel(body, 'Deshacer: vuelve con su estado', d._x + d._w / 2, d._y + d._h + 26, 'elabel--state');
+  // Etiquetas bajo un estado (f.stateLabels = [{ state, t }])
+  for (const l of f.stateLabels || []) {
+    const d = byId[l.state];
+    addLabel(body, l.t, d._x + d._w / 2, d._y + d._h + 26, 'elabel--state');
+  }
 
-  const c14 = el('div', 'note-sticky note-sticky--ok', '<b>✓ C14 · Sin cerrar</b>Las pendientes de fechas pasadas salen arriba en la Agenda con “Registrar cobro”.');
-  c14.dataset.issue = 'C14';
-  c14.style.left = '40px';
-  c14.style.top = '24px';
-  body.appendChild(c14);
-  const c1 = el('div', 'note-sticky note-sticky--ok', '<b>✓ C1</b>Una completada no se elimina aquí: su cobro se corrige en Ver Registros.');
-  c1.dataset.issue = 'C1';
-  c1.style.left = '728px';
-  c1.style.top = '252px';
-  c1.style.width = '200px';
-  body.appendChild(c1);
+  // Notas adhesivas (f.stickies = [{ b, t, x, y, w?, issue? }])
+  for (const n of f.stickies || []) {
+    const ok = n.issue && issueById[n.issue].ok;
+    const sticky = el('div', `note-sticky ${ok ? 'note-sticky--ok' : ''}`, `<b>${n.issue ? `${ok ? '✓' : '⚠'} ${esc(n.issue)} · ` : ''}${esc(n.b)}</b>${esc(n.t)}`);
+    if (n.issue) sticky.dataset.issue = n.issue;
+    sticky.style.left = `${n.x}px`;
+    sticky.style.top = `${n.y}px`;
+    if (n.w) sticky.style.width = `${n.w}px`;
+    body.appendChild(sticky);
+  }
 
   const tbl = el('div', 'tbl');
   tbl.innerHTML = `<table>
@@ -1148,7 +1165,7 @@ function buildStatesFrame(f) {
       <tr ${i ? `data-issue="${i}"` : ''}><td><b>${esc(a)}</b></td><td>${esc(b)}</td><td class="mono">${esc(c)}</td>
       <td>${esc(dd)}</td><td>${i ? `<button type="button" class="chip ${issueById[i].ok ? 'badge--ok' : `sev-${issueById[i].sev}`}" data-goto-sticky="${i}">${issueById[i].ok ? '✓' : '⚠'} ${i}</button>` : ''}</td></tr>`).join('')}
     </tbody></table>
-    <p style="margin-top:12px;color:var(--ink-muted);font-size:13px">La trabajadora solo ve la información de la cita y un botón “Cerrar”.</p>`;
+    ${f.foot ? `<p style="margin-top:12px;color:var(--ink-muted);font-size:13px">${esc(f.foot)}</p>` : ''}`;
   fr.appendChild(tbl);
   frameFooter(f, fr);
   fr.style.width = `${W}px`;
@@ -1156,7 +1173,7 @@ function buildStatesFrame(f) {
 }
 
 function buildMoneyFrame() {
-  const f = { id: 'DINERO', title: 'Mapa del dinero', entrada: 'Cada evento que mueve dinero', fin: 'Dónde se refleja. Ganancia neta = ingresos − gastos − comisiones' };
+  const f = { id: 'DINERO', title: 'Mapa del dinero', entrada: 'Cada evento que mueve dinero', fin: MONEY.fin };
   const fr = frameShell(f);
   $('.frame-body', fr).remove();
   const cell = (v) => (v === 'yes' ? '<span class="yes">✓</span>' : v === 'no' ? '<span class="no">✕</span>' : `<span class="${/⚠/.test(v) ? 'warn' : ''}">${esc(v)}</span>`);
@@ -1175,7 +1192,7 @@ function buildMoneyFrame() {
 function buildIssuesFrame() {
   const count = (sev) => ISSUES.filter((x) => x.sev === sev).length;
   const resueltos = ISSUES.filter((x) => x.ok).length;
-  const f = { id: 'CABOS', title: 'Cabos sueltos', entrada: `${ISSUES.length} hallazgos: ${count('alta')} alta, ${count('media')} media, ${count('baja')} baja`, fin: resueltos === ISSUES.length ? 'Todos resueltos en v46' : `${resueltos} de ${ISSUES.length} resueltos` };
+  const f = { id: 'CABOS', title: 'Cabos sueltos', entrada: `${ISSUES.length} hallazgos: ${count('alta')} alta, ${count('media')} media, ${count('baja')} baja`, fin: resueltos === ISSUES.length ? 'Todos resueltos' : `${resueltos} de ${ISSUES.length} resueltos · ${ISSUES.length - resueltos} pendientes de decidir con la dueña` };
   const fr = frameShell(f);
   $('.frame-body', fr).remove();
   const grid = el('div', 'stickies');
@@ -1184,13 +1201,14 @@ function buildIssuesFrame() {
     const s = el('article', `sticky ${x.ok ? 'resuelto' : x.sev}`);
     s.id = `sticky-${x.id}`;
     s.innerHTML = `
-      <div class="sticky-head"><span class="sticky-id">${x.ok ? '✓ ' : ''}${x.id}</span><span class="sticky-sev">${x.ok ? `Resuelto v46 · ${label[x.sev]}` : label[x.sev]}</span></div>
+      <div class="sticky-head"><span class="sticky-id">${x.ok ? '✓ ' : ''}${x.id}</span><span class="sticky-sev">${esc(x.estado || (x.ok ? `Resuelto ${x.v}` : 'Abierto'))} · ${label[x.sev]}</span></div>
       <h3>${esc(x.t)}</h3>
       <p>${esc(x.p)}</p>
-      ${x.ok ? `<p><b>Solución:</b> ${esc(x.ok)}</p>` : `<p><b>Propuesta:</b> ${esc(x.fix)}</p>`}
-      ${x.flow ? `<button type="button" class="go" data-goto-issue="${x.id}">Ver en ${x.flow} →</button>` : '<div class="where">Operación / base de datos</div>'}`;
+      ${x.ok ? `<p><b>Solución${x.v ? ` (${esc(x.v)})` : ''}:</b> ${esc(x.ok)}</p>` : `<p><b>Propuesta:</b> ${esc(x.fix)}</p>`}
+      ${x.nota ? `<p><b>${esc(x.nota.split(':')[0])}:</b>${esc(x.nota.slice(x.nota.indexOf(':') + 1))}</p>` : ''}
+      ${x.flow ? `<button type="button" class="go" data-goto-issue="${x.id}">Ver en ${x.flow} →</button>` : `<div class="where">${esc(x.where || 'Operación / base de datos')}</div>`}`;
     grid.appendChild(s);
-    searchIndex.push({ el: s, text: norm(`${x.id} ${x.t} ${x.p} ${x.fix} ${x.ok || ''}`), flow: 'CABOS', label: `${x.id} · ${x.t}` });
+    searchIndex.push({ el: s, text: norm(`${x.id} ${x.t} ${x.p} ${x.fix} ${x.ok || ''} ${x.nota || ''}`), flow: 'CABOS', label: `${x.id} · ${x.t}` });
   }
   fr.appendChild(grid);
   return fr;
@@ -1202,8 +1220,8 @@ function buildBoard() {
     <h1>Mapa de flujos de la app</h1>
     <p>Cada flujo de punta a punta: la pantalla que lo recibe, el endpoint que llama, las tablas que toca, sus desvíos y dónde quedó algo sin resolver.</p>
     <div class="chips">
-      <span><b>${FLOWS.length}</b> flujos</span><span><b>12</b> endpoints (límite de Vercel)</span>
-      <span><b>10</b> tablas</span><span><b>${ISSUES.filter((x) => x.ok).length} de ${ISSUES.length}</b> cabos sueltos resueltos</span><span>Versión <b>v46</b></span>
+      <span><b>${FLOWS.filter((f) => !f.steps || !f.steps.some((s) => s.k === 'retired')).length}</b> flujos (+${FLOWS.filter((f) => f.steps && f.steps.some((s) => s.k === 'retired')).length} retirados)</span><span><b>${META.endpoints}</b> endpoints (límite de Vercel: ${META.limiteEndpoints})</span>
+      <span><b>${META.tablas}</b> tablas (${META.tablasSinUso} sin uso)</span><span><b>${ISSUES.filter((x) => x.ok).length} de ${ISSUES.length}</b> cabos sueltos resueltos</span><span>Versión <b>${META.version}</b> · ${META.fecha}</span>
     </div>`);
   world.appendChild(title);
   title.style.left = '0px';

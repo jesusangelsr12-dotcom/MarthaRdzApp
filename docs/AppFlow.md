@@ -1,12 +1,19 @@
 # AppFlow · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-09-26 · **Versión de la app:** v49 · **Tablero interactivo:** [AppFlow.html](AppFlow.html) (arrastra, acerca y aleja como en Miro)
+**Última revisión:** 2026-10-05 · **Versión de la app:** v50 · **Tablero interactivo:** [AppFlow.html](AppFlow.html) (arrastra, acerca y aleja como en Miro)
 
 Este documento sigue cada acción desde que la persona toca algo hasta donde
 termina: qué pantalla la recibe, qué endpoint llama, qué tablas toca, qué ve
 al final y por qué caminos se puede desviar. Sirve para encontrar lo que
 está suelto o sin resolver. Esos hallazgos viven al final, en
 [Cabos sueltos](#cabos-sueltos). Los 14 primeros se resolvieron en la v46.
+C15 a C17 están abiertos: son datos que dejó la Agenda y falta decidirlos
+con la dueña.
+
+**v50: se retiró la Agenda.** F4, F5 y F6 se quedan aquí como "retirado"
+para que sus números no cambien y los cabos sueltos que apuntan a ellos
+sigan llevando a algún lado. Los anticipos que la Agenda dejó registrados
+tienen su propio flujo nuevo: [F14](#f14--anticipos-que-dejó-la-agenda).
 
 **Cómo leer los diagramas:** los rectángulos son pantallas o pasos, los
 rombos son decisiones y los cilindros son tablas. En los textos,
@@ -20,9 +27,9 @@ rombos son decisiones y los cilindros son tablas. En los textos,
 | F1 | [Entrar con PIN](#f1--entrar-con-pin) | 👤 |
 | F2 | [Face ID / Touch ID](#f2--face-id--touch-id) | 👤 |
 | F3 | [Registrar Cita](#f3--registrar-cita) | 👤 |
-| F4 | [Agendar Cita](#f4--agendar-cita) | 👤 |
-| F5 | [Ciclo de vida de una cita agendada](#f5--ciclo-de-vida-de-una-cita-agendada) | 👑 |
-| F6 | [Vacaciones y días libres](#f6--vacaciones-y-días-libres) | 👑 |
+| F4 | [Agendar Cita](#f4--agendar-cita--retirado-en-v50) | Retirado en v50 |
+| F5 | [Ciclo de vida de una cita agendada](#f5--ciclo-de-vida-de-una-cita-agendada--retirado-en-v50) | Retirado en v50 |
+| F6 | [Vacaciones y días libres](#f6--vacaciones-y-días-libres--retirado-en-v50) | Retirado en v50 |
 | F7 | [Registrar Gasto](#f7--registrar-gasto) | 👑 |
 | F8 | [Registros del día](#f8--registros-del-día) | 👑 |
 | F9 | [Clientas](#f9--clientas) | 👑 |
@@ -30,6 +37,7 @@ rombos son decisiones y los cilindros son tablas. En los textos,
 | F11 | [Configuración](#f11--configuración) | 👑 |
 | F12 | [Notificaciones push](#f12--notificaciones-push) | 👑 recibe |
 | F13 | [Actualización de la app](#f13--actualización-de-la-app) | 👤 |
+| F14 | [Anticipos que dejó la Agenda](#f14--anticipos-que-dejó-la-agenda) | 👤 aplica · 👑 elimina |
 | | [Mapa del dinero](#mapa-del-dinero) | |
 | | [Cabos sueltos](#cabos-sueltos) | |
 
@@ -42,8 +50,10 @@ flowchart TD
   B --> D{¿Hay jr_session<br/>y no expiró?}
   D -- No --> L["#login"]
   D -- Sí --> E{¿Ruta permitida<br/>para su rol?}
-  E -->|"No: trabajadora fuera de sus 5 rutas"| H["#home"]
-  E -- Sí --> V[render + init de la vista]
+  E -->|"No: trabajadora fuera de login, home y cita"| H["#home"]
+  E -- Sí --> E2{¿La ruta existe?}
+  E2 -->|"No: ej. #agenda de una notificación vieja"| H
+  E2 -- Sí --> V[render + init de la vista]
   V --> API[Llamadas a /api con el token]
   API --> T{¿Responde 401?}
   T -- Sí --> Z["Borra la sesión · toast 'Tu sesión expiró' · #login"]
@@ -55,7 +65,8 @@ flowchart TD
 
 - **Entrada:** abrir la app o cambiar de hash.
 - **Termina en:** la vista pedida, `#login` o `#home`.
-- **Aristas:** sesión expirada en el navegador → login. Rol sin permiso → inicio. Token vencido en el servidor (401) → login con aviso.
+- **Rutas de la trabajadora:** `login`, `home` y `cita` (`RUTAS_TRABAJADORA`). Desde la v50 ya no existen `agenda` ni `agendar`.
+- **Aristas:** sesión expirada en el navegador → login. Rol sin permiso → inicio. Ruta que ya no existe (ej. `#agenda` de un acceso o una notificación de antes) → inicio, en vez de pantalla en blanco. Token vencido en el servidor (401) → login con aviso.
 - **Regla:** la expiración local sale del propio token, así que las dos siempre coinciden ([C4](#c4), resuelto).
 
 ## F1 · Entrar con PIN
@@ -77,10 +88,11 @@ flowchart TD
   OK --> S[saveSession en localStorage] --> H["#home completo"]
   OKT --> S2[saveSession] --> H2["#home de trabajadora"]
   DB[(login_attempts)] -.-> C
-  CR[Cron diario] -.->|"borra filas de más de 30 días"| DB
+  CR["Cron diario 18:00 CDMX<br/>/api/cron/limpieza"] -.->|"borra filas de más de 30 días"| DB
 ```
 
 - **Tablas:** `login_attempts` (lee y escribe), `salones` (lee; escribe `pin_hash_v2` si migra).
+- **Cron:** desde la v50 el cron diario es `/api/cron/limpieza` (antes `/api/cron/reminder-citas`) y solo hace esto ([C12](#c12), resuelto).
 - **Termina en:** inicio según el rol, o error en login.
 
 ## F2 · Face ID / Touch ID
@@ -123,115 +135,72 @@ flowchart TD
   B -- No --> Z0["Estado vacío · dueña: 'Ir a Configuración'<br/>trabajadora: 'Pídele a la dueña'"]
   B -- Sí --> C[Paso Clienta + fecha]
   C -. carga en paralelo .-> C1[GET clientas · autocompletar y notas fijas]
-  C -. carga en paralelo .-> C2[GET citas-agendadas fecha, pendiente]
-  C --> D{¿Toca un recuadro<br/>de cita agendada?}
-  D -- Sí --> D1[agendaId + anticipo] --> E
+  C -. carga en paralelo .-> C2[GET citas?anticipos=pendientes]
+  C --> D{¿Esa clienta tiene un<br/>anticipo de la Agenda?}
+  D -- Sí --> D1["Aviso 'Ya tiene anticipo'<br/>monto y fecha"] --> E
   D -- No --> E[Servicios]
-  C -. "si luego cambia nombre o fecha" .-> D2[Suelta agendaId y anticipo]
   E --> F[Productos] --> G[Precio de cada item]
   G --> H{¿Hay trabajadoras?}
   H -- Sí --> I[Comisiones<br/>trabajadora: solo ella misma]
   H -- No --> J
-  I --> J[Fórmula / notas<br/>muestra nota fija] --> K[Método de pago] --> L[Confirmar]
+  I --> J[Fórmula / notas<br/>muestra nota fija]
+  J --> AN{¿Dejó anticipo?}
+  AN -- No --> SA["Toca 'Sin anticipo'"] --> K
+  AN -- Sí --> AO{¿Es el anticipo<br/>de la Agenda?}
+  AO -- Sí --> AO1[Toca su tarjeta · monto + anticipo_origen_id] --> K
+  AO -- No --> AT[Teclea el monto] --> AV{¿Anticipo ≤ total?}
+  AV -- No --> Z2[Toast 'no puede ser mayor que el total']
+  AV -- Sí --> K
+  C -. "si luego cambia la clienta" .-> D2[Suelta el anticipo de la Agenda]
+  K[Método de pago] --> L["Confirmar<br/>Total · Anticipo · Resta por cobrar"]
   L --> M[POST /api/citas]
   M --> TX
   subgraph TX [Una sola sentencia: todo o nada]
-    N{¿agenda_id?}
-    N -- Sí --> O{¿La cita agendada<br/>sigue pendiente?}
-    O -- Sí --> P[(citas_agendadas → completada)]
+    N{¿anticipo_origen_id?}
+    N -- Sí --> O{¿La fila sigue viva, es del salón<br/>y el monto coincide?}
+    O -- Sí --> P[(oculta la fila vieja: deleted_at)]
     N -- No --> Q
-    P --> Q[(insert citas)] --> R[(insert comisiones)]
+    P --> Q[(insert citas: total completo + anticipo)] --> R[(insert comisiones)]
   end
-  O -- No --> Z1[400 'ya fue registrada']
+  O -- No --> Z1["409 'Ese anticipo ya se aplicó'<br/>no se registra nada · vuelve al paso de anticipo"]
   R --> S{¿Es trabajadora?}
   S -- Sí --> T[Push a la dueña]
   S -- No --> U
   T --> U["Toast verde → #home"]
 ```
 
-- **Entrada:** nombre, fecha, items con precio, comisiones, nota, método de pago.
-- **Reglas:** al menos un servicio o producto. Con cita agendada: `total = suma − min(anticipo, suma)`; la comisión va sobre el precio completo.
-- **Tablas:** `citas_agendadas` (update), `citas` (insert), `comisiones` (insert), `push_subscriptions` (lee).
+- **Entrada:** nombre, fecha, items con precio, comisiones, nota, anticipo y método de pago.
+- **Pasos:** clienta → servicios → productos → precios → comisiones → notas → **anticipo** (nuevo en v50) → pago → confirmar. Servicios, productos y comisiones se saltan si el salón no los tiene.
+- **Anticipo dentro del total:** una cita de $2,500 con $500 de anticipo se guarda con `total = 2500` y `anticipo = 500`. Los $2,500 cuentan como ingreso el día de la cita y las comisiones salen sobre el precio completo. Confirmar muestra Total, Anticipo y "Resta por cobrar" ($2,000).
+- **Candado del monto:** el anticipo nunca puede ser mayor que el total. Lo revisan el paso de anticipo, Confirmar (por si cambiaron precios después), la API (400) y la base (`citas_anticipo_valido`).
+- **Anticipo de la Agenda:** si la clienta tiene uno pendiente ([F14](#f14--anticipos-que-dejó-la-agenda)), se avisa en el primer paso y se ofrece en una tarjeta en el paso de anticipo. Al tocarla, el monto es el de esa fila. Si después se escribe otra clienta, ese anticipo se suelta ([C7](#c7)). Si otro dispositivo ya lo aplicó, el POST responde 409, la app refresca la lista y regresa al paso de anticipo.
+- **Tablas:** `citas` (insert, y update de la fila vieja del anticipo), `comisiones` (insert), `push_subscriptions` (lee).
 - **Termina en:** inicio con toast verde. En error, se queda en Confirmar con el botón reactivado.
-- **Entrada desde la Agenda:** `#cita?fecha=YYYY-MM-DD` abre el flujo en ese día, con sus recuadros de citas agendadas (así se cobra una cita "sin cerrar").
-- **Resueltos:** [C3](#c3) (cobro atómico), [C7](#c7) (el vínculo se suelta si cambia el nombre o la fecha), [C10](#c10) (mensaje para la trabajadora sin catálogo).
+- **Ya no existe (v50):** el recuadro de citas agendadas, `agenda_id` y abrir el flujo en otro día con `#cita?fecha=`.
+- **Resueltos:** [C3](#c3) (la cita, sus comisiones y la fila vieja del anticipo van en una sola sentencia), [C7](#c7) (el anticipo de otra clienta se suelta), [C10](#c10) (mensaje para la trabajadora sin catálogo).
 
-## F4 · Agendar Cita
+## F4 · Agendar Cita — retirado en v50
 
-```mermaid
-flowchart TD
-  A["Agenda → + → Agendar cita<br/>o #agendar?fecha="] --> B[Clienta · teléfono 👑/permiso · fecha · hora]
-  B --> C[Anticipo con teclado]
-  C --> D{¿Anticipo > 0?}
-  D -- Sí --> E[Método de pago del anticipo] --> F
-  D -- No --> F[Nota opcional<br/>muestra nota fija 👑]
-  F --> G[Confirmar] --> H[POST /api/citas-agendadas]
-  H --> I[(citas_agendadas insert)]
-  I --> J{¿Anticipo > 0?}
-  J -- Sí --> K[(citas insert: item anticipo, fecha = hoy en México)]
-  K --> K2[(citas_agendadas.deposito_cita_id)]
-  J -- No --> L
-  K2 --> L{¿Teléfono cambió? 👑/permiso}
-  L -- Sí --> M[POST /api/clientas<br/>falla en silencio]
-  L -- No --> N
-  M --> N["Toast → #agenda"]
-```
+Se retiró con la Agenda. Ya no se agendan citas: se registran a mano en
+[F3](#f3--registrar-cita), y el anticipo se captura ahí. Los anticipos que
+se cobraron al agendar siguen vivos en su día ([F14](#f14--anticipos-que-dejó-la-agenda)).
+Con ella se fueron `POST /api/citas-agendadas`, el teléfono al agendar y el
+permiso "Teléfonos de clientas". La tabla `citas_agendadas` se queda en la
+base, sin uso. Cabo suelto ligado: [C2](#c2).
 
-- **Tablas:** `citas_agendadas`, `citas` (si hay anticipo), `clientas` (si cambió el teléfono). Las tres primeras en una sola sentencia.
-- **Teléfono:** lo ve la dueña, y una trabajadora solo si tiene el permiso "Teléfonos de clientas" (el servidor manda `permiso_telefonos`). Con permiso, la trabajadora también puede agregar el teléfono y "Confirmar por WhatsApp" desde el menú de una cita pendiente en la Agenda.
-- **Termina en:** Agenda con la cita nueva.
-- **Regla:** el servidor fecha el anticipo con `fechaMexico()` de `lib/fecha.js`, nunca con la fecha UTC ([C2](#c2), resuelto).
+## F5 · Ciclo de vida de una cita agendada — retirado en v50
 
-## F5 · Ciclo de vida de una cita agendada
+Se retiró con la Agenda: ya no hay estados pendiente, completada,
+cancelada ni no asistió, ni sección "Sin cerrar", ni "Confirmar por
+WhatsApp". Los estados que quedaron guardados en `citas_agendadas` no se
+usan. Cabos sueltos ligados: [C1](#c1) y [C14](#c14). Lo que sí sigue
+teniendo un ciclo es el anticipo que dejó la Agenda: ver
+[F14](#f14--anticipos-que-dejó-la-agenda).
 
-```mermaid
-stateDiagram-v2
-  [*] --> pendiente: Agendar (F4)
-  pendiente --> completada: Cobrar en Registrar Cita (F3)
-  pendiente --> cancelada: Cancelar 👑 (confirma)
-  pendiente --> no_asistio: No asistió 👑 (confirma)
-  cancelada --> pendiente: Volver a pendiente / Deshacer
-  no_asistio --> pendiente: Volver a pendiente / Deshacer
-  pendiente --> pendiente: Reagendar · editar nota · teléfono
-  pendiente --> borrada: Eliminar 👑
-  cancelada --> borrada: Eliminar 👑
-  no_asistio --> borrada: Eliminar 👑
-  note right of completada
-    No se elimina aquí.
-    Su cobro se corrige en Ver Registros.
-  end note
-  note right of borrada
-    Deshacer la restaura
-    con el estado que tenía
-  end note
-```
+## F6 · Vacaciones y días libres — retirado en v50
 
-| Acción | Endpoint | Efecto en el dinero |
-|---|---|---|
-| Cancelar / No asistió | `PATCH {id, estado}` | El anticipo **se queda** como ingreso |
-| Registrar cobro | Abre `#cita?fecha=` | El cobro de F3. Solo si está pendiente y su fecha ya llegó |
-| Eliminar | `DELETE {id}` | Borra solo la fila del **anticipo**. Una completada responde 400 |
-| Deshacer eliminar | `PATCH {id, restore}` | Restaura la cita agendada y su anticipo |
-| Confirmar por WhatsApp | Ninguno (abre `wa.me`) | Ninguno. Solo si hay teléfono y está pendiente |
-
-- **Trabajadora:** ve la información de la cita y un botón "Cerrar". Nada más.
-- **Sin cerrar (👑):** la vista Agenda muestra arriba las citas de días pasados que siguen pendientes, para cobrarlas, marcarlas como no asistió o cancelarlas.
-- **Resueltos:** [C1](#c1) (una completada ya no se elimina desde la Agenda), [C14](#c14) (sección "Sin cerrar").
-
-## F6 · Vacaciones y días libres
-
-```mermaid
-flowchart LR
-  A[Agenda → + → Vacaciones] --> B[Quién · desde · hasta · nota]
-  B --> C{¿hasta ≥ desde?}
-  C -- No --> Z[Toast de error]
-  C -- Sí --> D[POST citas-agendadas recurso=ausencia] --> E[(ausencias)] --> F[Banner en Agenda + día coloreado en Mes]
-  F --> G[× Eliminar] --> G2{"¿Eliminar estos días libres?"}
-  G2 -- No, volver --> F
-  G2 -- Sí, eliminar --> H[DELETE ausencia] --> I[Toast con Deshacer]
-```
-
-- **Resuelto:** [C11](#c11) (ya pide confirmación, como el resto de la Agenda).
+Se retiró con la Agenda. La tabla `ausencias` se queda en la base, sin
+uso. Cabo suelto ligado: [C11](#c11).
 
 ## F7 · Registrar Gasto
 
@@ -246,7 +215,7 @@ flowchart LR
 ```mermaid
 flowchart TD
   A[Más → Ver Registros] --> B[GET citas + GET gastos de la fecha]
-  B --> C[Totales + tarjetas]
+  B --> C["Totales + tarjetas<br/>'Incluye anticipo de $X' o 'Anticipo aplicado: −$X'"]
   C --> D[✎ Nota] --> D1[PATCH /api/citas nota]
   C --> E[Compartir recibo] --> E1{¿navigator.share?}
   E1 -- Sí --> E2[Hoja nativa]
@@ -254,9 +223,19 @@ flowchart TD
   E3 -- Sí --> E4[wa.me]
   E3 -- No --> E5[Toast: agrega el teléfono]
   C --> F[× Eliminar] --> F1[Modal de confirmación] --> F2[DELETE cita o gasto]
-  F2 --> F3[(deleted_at en citas + comisiones)]
-  F3 --> F4[Toast con Deshacer 5 s] --> F5[PATCH restore]
+  F2 --> F3[(deleted_at en citas + comisiones<br/>revive el anticipo de la Agenda si lo usó)]
+  F3 --> F4{¿Toca Deshacer<br/>en 5 s?}
+  F4 -- No --> F6[Queda borrada]
+  F4 -- Sí --> F5[PATCH restore]
+  F5 --> F7{¿Su anticipo de la Agenda<br/>ya se aplicó a otra cita?}
+  F7 -- Sí --> F8["409 · no se restaura<br/>toast con el motivo"]
+  F7 -- No --> F9[Vuelven la cita y sus comisiones<br/>y se vuelve a ocultar el anticipo]
 ```
+
+- **Anticipo en la tarjeta:** una cita de la v50 con anticipo dice "Incluye anticipo de $X" (va dentro del total). Un cobro viejo de la Agenda dice "Anticipo aplicado: −$X" (ese total se guardó ya restado). Una fila de solo anticipo muestra su desglose.
+- **Recibo:** si la cita trae anticipo, agrega "Anticipo" y "Resto pagado".
+- **Eliminar una cita que aplicó un anticipo de la Agenda:** la fila del anticipo regresa a su día original como pendiente, en la misma sentencia ([F14](#f14--anticipos-que-dejó-la-agenda)). El dinero sí se recibió; solo la cita fue un error.
+- **Deshacer:** vuelve a ocultar ese anticipo. Si mientras tanto se aplicó a otra cita, responde 409 y la app muestra el motivo, para no contarlo dos veces.
 
 ## F9 · Clientas
 
@@ -272,6 +251,9 @@ flowchart LR
   Q --> U[(citas)]
 ```
 
+- Las filas de solo anticipo de la Agenda no cuentan como visita.
+- Solo la dueña. Desde la v50 la trabajadora nunca recibe teléfonos y el `POST` le responde 403 (se retiró el permiso "Teléfonos de clientas").
+
 ## F10 · Reportes
 
 | Pantalla | Llamadas | Rango |
@@ -281,6 +263,7 @@ flowchart LR
 | Dashboard | `GET dashboard` | Mes elegido. Mes actual llega hasta hoy |
 
 Si el resumen del inicio falla, la tarjeta se oculta (no muestra error).
+Cómo cuenta cada peso: ver [Mapa del dinero](#mapa-del-dinero).
 
 ## F11 · Configuración
 
@@ -300,17 +283,16 @@ flowchart TD
   P2 -- No --> P3[409 'ya está en uso']
   P2 -- Sí --> F
   B --> Q[Quitar acceso] --> Q1[POST trabajador-pin remove] --> F
-  B --> R[Interruptor 'Teléfonos de clientas'] --> R1[POST trabajador-pin permisos] --> F
   Q1 --> WQ[(borra su webauthn_credentials)]
   E --> WE[(borra el Face ID de las trabajadoras eliminadas)]
 ```
 
 - **Sin botón "Guardar":** cada alta o baja se guarda sola. Los guardados van en fila y cada uno manda el catálogo completo, así dos cambios rápidos no se pisan.
 - **Trabajadora recién agregada:** darle PIN espera a que termine su guardado (antes necesitaba "Guardar Cambios" o daba 404).
-- **Permisos:** sección "Puede usar" en cada trabajadora. Se guardan al momento y el servidor los lee en cada llamada, así que valen sin que ella cierre sesión.
+- **Permisos:** hoy no hay ninguno, así que la sección "Puede usar" no aparece. "Teléfonos de clientas" se retiró en la v50 junto con la Agenda; lo que quedó guardado en `salones.trabajadoras[].permisos` ya no vale. Un permiso nuevo se agrega en `PERMISOS_TRABAJADORA` (`lib/auth.js`) y en `PERMISOS` (`public/js/views/config.js`).
 - **Deshacer:** solo para servicios y productos. Quitar a una trabajadora le borra PIN y Face ID en el servidor, por eso no se ofrece.
 - **PIN libre:** se revisa contra dueñas (hash nuevo y legacy) y trabajadoras de todos los salones, excepto ella misma.
-- **Resueltos:** [C4](#c4) (guardar ya no alarga la sesión local), [C8](#c8) (quitar acceso corta también su Face ID).
+- **Resueltos:** [C4](#c4) (guardar ya no alarga la sesión local), [C6](#c6) (PIN único en todo el sistema), [C8](#c8) (quitar acceso corta también su Face ID).
 
 ## F12 · Notificaciones push
 
@@ -322,15 +304,16 @@ flowchart LR
     B -- No --> C[Permiso del sistema] --> D[GET public_key] --> E[pushManager.subscribe] --> F[POST push-subscribe] --> G[(push_subscriptions)]
   end
   subgraph Enviar
-    H[Cron 18:00 CDMX] --> I[(citas_agendadas pendientes de mañana)] --> J[enviarPushSalon]
-    H --> LA[(login_attempts: borra más de 30 días)]
-    K[Trabajadora registra cita F3] --> J
+    K[Trabajadora registra cita F3] --> J[enviarPushSalon]
     J --> L{¿404 / 410?}
     L -- Sí --> M[Borra la suscripción]
     L -- No --> N[Notificación en el celular]
   end
-  N --> O["Toque → abre #agenda o #registros"]
+  N --> O["Toque → abre #registros"]
 ```
+
+- **Único aviso:** "Nueva cita registrada" cuando una trabajadora registra una cita.
+- **Retirado en v50:** el recordatorio diario de "citas de mañana". Una notificación vieja que abra `#agenda` lleva al inicio ([F0](#f0--arranque-y-navegación)).
 
 ## F13 · Actualización de la app
 
@@ -353,46 +336,124 @@ sequenceDiagram
 "Actualizar app" (Configuración o inicio de la trabajadora) hace lo mismo
 al momento: `update()`, espera hasta 8 s a que el SW nuevo se active y recarga.
 
+## F14 · Anticipos que dejó la Agenda
+
+Antes de la v50, la Agenda guardaba cada anticipo como una fila propia de
+`citas` (un solo item `{tipo: 'anticipo'}`) el día que se pagaba. Las que
+siguen vivas son **anticipos pendientes**: cuentan como ingreso de su día
+hasta que se aplican a una cita.
+
+```mermaid
+stateDiagram-v2
+  [*] --> pendiente: Se cobró al agendar (antes de v50)
+  pendiente --> aplicado: Registrar Cita lo aplica (F3) · candado
+  aplicado --> pendiente: Eliminar la cita 👑 (F8)
+  pendiente --> aplicado: Deshacer la eliminación 👑
+  pendiente --> borrado: Eliminar su fila en Ver Registros 👑
+  borrado --> pendiente: Deshacer 👑
+  note right of aplicado
+    Fila vieja oculta (deleted_at).
+    Su dinero cuenta dentro del
+    total de la cita, en su día.
+  end note
+```
+
+| Transición | Cómo | Endpoint | Efecto en el dinero |
+|---|---|---|---|
+| Pendiente → aplicado | Registrar Cita: "Ya tiene anticipo" y tocar su tarjeta (👤) | `POST /api/citas` con `anticipo_origen_id` | Sale de su día y cuenta dentro del total de la cita |
+| Pendiente → aplicado, ya usado | Otro dispositivo lo aplicó primero | `POST` → 409 | No se registra nada; la app regresa al paso de anticipo |
+| Aplicado → pendiente | Eliminar la cita en Ver Registros 👑 | `DELETE /api/citas` | Regresa a su día original como pendiente |
+| Pendiente → aplicado (Deshacer) | "Deshacer" en el aviso 👑 | `PATCH {restore}` | Vuelven la cita y sus comisiones, y se oculta otra vez |
+| Deshacer con el anticipo ya usado | Se aplicó a otra cita mientras tanto | `PATCH {restore}` → 409 | La cita no se restaura (se contaría dos veces) |
+| Pendiente ↔ borrado | Eliminar su fila en Ver Registros / Deshacer 👑 | `DELETE` / `PATCH {restore}` | Sale o vuelve a los ingresos de su día |
+
+- **Lista:** `GET /api/citas?anticipos=pendientes` → `[{id, clienta, fecha, monto}]`. La trabajadora también la puede pedir: la necesita para registrar bien la cita.
+- **Candado:** al registrar la cita, la fila vieja se oculta en **la misma sentencia** que inserta la cita, y solo si sigue viva, es del mismo salón y el monto coincide. Si no, responde 409 y no inserta nada. Así el mismo anticipo no se aplica dos veces.
+- **Termina en:** el anticipo dentro de una cita, o pendiente en su día.
+- **Cabos ligados:** [C3](#c3) (el candado va en la misma sentencia que la cita) y [C7](#c7) (el anticipo de otra clienta se suelta).
+
 ## Mapa del dinero
 
 Dónde entra y dónde sale cada peso, y cómo se refleja en cada pantalla.
 
+**Ingresos = suma de `total` de las citas vivas** (sin `deleted_at`). El
+anticipo va **dentro** del total, nunca se suma aparte. Una fila de solo
+anticipo de la Agenda cuenta en su día hasta que se aplica a una cita.
+
 | Evento | Fila en `citas` | `fecha` | Registros | Dashboard ingresos | Dashboard citas | Comisiones |
 |---|---|---|:---:|:---:|:---:|:---:|
-| Cita normal | 1 (items servicio/producto) | La elegida | ✅ | ✅ | ✅ | Si se asignaron |
-| Anticipo al agendar | 1 (item `anticipo`) | Hoy en México | ✅ | ✅ | ❌ | ❌ |
-| Cobro de cita agendada | 1 (`total − anticipo`) | La elegida | ✅ con "Anticipo aplicado" | ✅ | ✅ | Sobre precio completo |
-| Cancelar / No asistió | Sin cambio | | El anticipo sigue | ✅ | | |
-| Eliminar cita agendada (no completada) | Borra solo su anticipo | | | | | Sin cambio (no tiene) |
-| Eliminar cita agendada completada | No se permite (400) | | | | | |
+| Cita sin anticipo | 1 (servicios y productos), `anticipo = 0` | La elegida | ✅ | ✅ total | ✅ | Si se asignaron |
+| Cita con anticipo (v50) | 1, `total` = precio completo, `anticipo` dentro | La elegida | ✅ "Incluye anticipo de $X" | ✅ total completo | ✅ | Sobre el precio completo |
+| Anticipo de la Agenda pendiente | 1 (item `anticipo`) | El día que se pagó | ✅ | ✅ | ❌ | ❌ |
+| Cita que aplica ese anticipo | Inserta la cita y oculta la fila del anticipo | La de la cita | ✅ la cita; el anticipo sale de su día | ✅ total completo en el día de la cita | ✅ | Sobre el precio completo |
+| Eliminar esa cita | Borra la cita y revive la fila del anticipo | El anticipo vuelve a su día | El anticipo reaparece | Solo el anticipo, en su día | ❌ | Se borran |
+| Cobro viejo de la Agenda (antes de v50) | 1, `total` ya restado (`anticipo_aplicado`) | La elegida | ✅ "Anticipo aplicado: −$X" | ✅ el neto (el anticipo cuenta en su fila) | ✅ | Sobre el precio completo |
 | Eliminar cita en Registros | Borra la fila | | | | | Se borran |
 | Gasto | `gastos` | Hoy del dispositivo | ✅ | Gastos | | |
 
 `Ganancia neta = ingresos − gastos − comisiones`.
 
+Datos de la Agenda que hoy no cuadran con esta tabla: [C15](#c15),
+[C16](#c16) y [C17](#c17).
+
 ## Cabos sueltos
 
 Lo que al recorrer los flujos quedó abierto, ambiguo o inconsistente.
-**Los 14 se resolvieron en la v46** (2026-09-26). Cada uno tiene su prueba
-automática o su recorrido en navegador (ver [Testing.md](Testing.md)). Si
-aparece uno nuevo, agrégalo como C15 con estado "Abierto".
+**C1 a C14 se resolvieron en la v46** (2026-09-26). Cada uno tiene su prueba
+automática o su recorrido en navegador (ver [Testing.md](Testing.md)).
+C1, C2, C11 y C14 eran de la Agenda: en la v50 se retiró, así que ya no
+aplican. **C15 a C17 están abiertos:** son datos reales que dejó la Agenda,
+pendientes de decidir con la dueña. Si aparece uno nuevo, agrégalo como C18
+con estado "Abierto".
 
 | # | Prioridad | Flujo | Estado |
 |---|---|---|---|
-| [C1](#c1) | 🔴 Alta | F5 | ✅ Resuelto (v46) |
-| [C2](#c2) | 🔴 Alta | F4 | ✅ Resuelto (v46) |
+| [C15](#c15) | 🔴 Alta | Datos | ⏳ Abierto · pendiente de decidir con la dueña |
+| [C16](#c16) | 🟠 Media | Datos | ⏳ Abierto · pendiente de decidir con la dueña |
+| [C17](#c17) | 🟠 Media | Datos | ⏳ Abierto · pendiente de decidir con la dueña |
+| [C1](#c1) | 🔴 Alta | F5 (retirado) | ✅ Resuelto (v46) · v50: se retiró la Agenda |
+| [C2](#c2) | 🔴 Alta | F4 (retirado) | ✅ Resuelto (v46) · v50: se retiró la Agenda |
 | [C3](#c3) | 🟠 Media | F3 | ✅ Resuelto (v46) |
 | [C4](#c4) | 🟠 Media | F0, F11 | ✅ Resuelto (v46) |
 | [C5](#c5) | 🟠 Media | Operación | ✅ Resuelto (v46) |
 | [C6](#c6) | 🟠 Media | Operación | ✅ Resuelto (v46) |
 | [C7](#c7) | 🟠 Media | F3 | ✅ Resuelto (v46) |
-| [C14](#c14) | 🟠 Media | F5 | ✅ Resuelto (v46) |
+| [C14](#c14) | 🟠 Media | F5 (retirado) | ✅ Resuelto (v46) · v50: se retiró la Agenda |
 | [C8](#c8) | 🟡 Baja | F2, F11 | ✅ Resuelto (v46) |
 | [C9](#c9) | 🟡 Baja | Todos | ✅ Resuelto (v46) |
 | [C10](#c10) | 🟡 Baja | F3 | ✅ Resuelto (v46) |
-| [C11](#c11) | 🟡 Baja | F6 | ✅ Resuelto (v46) |
+| [C11](#c11) | 🟡 Baja | F6 (retirado) | ✅ Resuelto (v46) · v50: se retiró la Agenda |
 | [C12](#c12) | 🟡 Baja | F1 | ✅ Resuelto (v46) |
 | [C13](#c13) | 🟡 Baja | Base de datos | ✅ Resuelto (v46) |
+
+### C15
+
+**Victoria G está registrada dos veces el 2026-09-29.** Hay dos citas de
+$1,980 cada una: una capturada a mano y otra que vino del cobro en la
+Agenda. Si es la misma visita, los ingresos de ese día traen $1,980 de más
+(y las comisiones, si se asignaron en las dos).
+**Pendiente de decidir con la dueña:** si fue una sola visita, eliminar
+una de las dos en Ver Registros (se borran también sus comisiones).
+
+### C16
+
+**Ximena Gonzalez, 2026-09-30: sus $250 de anticipo no cuentan en ningún
+lado.** Su cita se cobró desde la Agenda con total $0 y
+`anticipo_aplicado = 250`, y la fila de ese anticipo está borrada. Como el
+cobro guardó el total ya restado y el anticipo no está vivo, esos $250 no
+aparecen en ingresos.
+**Pendiente de decidir con la dueña:** si sí se recibieron, restaurar la
+fila del anticipo o corregir el total de la cita.
+
+### C17
+
+**Natalia Mireles y Mon aguilera salen "completada" en `citas_agendadas`
+pero sus cobros están borrados.** La Agenda las marcó como cobradas, pero
+las filas del cobro en `citas` tienen `deleted_at`. Hoy esos estados ya no
+se ven en la app (la Agenda se retiró), así que esas visitas no cuentan en
+ingresos.
+**Pendiente de decidir con la dueña:** si las visitas sí ocurrieron y se
+cobraron, restaurar los cobros; si no, dejarlos borrados.
 
 ### C1
 
@@ -409,6 +470,8 @@ desde Registros) y en el backend limitar el borrado a la fila del depósito
 
 **Resuelto en v46.** El DELETE rechaza una cita `completada` con 400 ("Esta cita ya se cobró…") y, como segunda barrera, solo borra la fila de `citas` que es anticipo (`items @> [{tipo: anticipo}]`). La Agenda ya no ofrece "Eliminar" en una completada y explica que el cobro se corrige en Ver Registros. Prueba: `test/api.test.js`.
 
+**v50: se retiró la Agenda.** `/api/citas-agendadas` ya no existe. Eliminar una cita en Ver Registros sigue borrando también sus comisiones.
+
 ### C2
 
 **El anticipo se registra con la fecha UTC del servidor.**
@@ -421,6 +484,8 @@ en otra semana o mes del Dashboard. Lo mismo pasa con `clientas.actualizado`.
 
 **Resuelto en v46.** Nueva `lib/fecha.js` con `fechaMexico()`. La usan el anticipo, `clientas.actualizado` y el cron. Prueba: `test/api.test.js` (casos a las 19:00 de México y cambios de mes y año).
 
+**v50: se retiró la Agenda.** Ya no hay anticipo fechado por el servidor: el de Registrar Cita va en la cita, con la fecha que se elige. `fechaMexico()` sigue en `clientas.actualizado`.
+
 ### C3
 
 **Cobrar una cita agendada no es atómico.**
@@ -431,6 +496,8 @@ registrada".
 **Propuesta:** una sola sentencia con CTEs (como ya se hace al agendar con anticipo).
 
 **Resuelto en v46.** `POST /api/citas` marca la cita agendada, inserta el cobro e inserta las comisiones en una sola sentencia con CTEs. Si algo falla, no queda nada a medias. `agenda_id` se valida como uuid (antes un id mal formado daba 500). Prueba: `test/api.test.js` fuerza una falla en comisiones y revisa que la cita agendada siga pendiente.
+
+**v50:** ya no hay cita agendada ni `agenda_id`. La regla sigue: ocultar la fila del anticipo de la Agenda, insertar la cita e insertar las comisiones es una sola sentencia ([F3](#f3--registrar-cita)).
 
 ### C4
 
@@ -473,6 +540,8 @@ fecha ya no coinciden con la cita agendada elegida.
 
 **Resuelto en v46.** Al avanzar del primer paso, si el nombre (normalizado) o la fecha ya no son los de la cita agendada elegida, se sueltan `agendaId` y su anticipo. Probado en navegador contra la base: el cobro de otra clienta queda sin `agenda_id` y la cita agendada sigue pendiente.
 
+**v50:** ya no hay recuadro de cita agendada. La regla sigue con el anticipo de la Agenda: si se eligió uno y luego se escribe otra clienta, se suelta (`soltarAnticipoAjeno()` en `cita.js`), así la cita de otra persona no se lleva un anticipo ajeno.
+
 ### C8
 
 **Quitar acceso o borrar una trabajadora no borra su Face ID.**
@@ -509,6 +578,8 @@ la pide desde la v43. Tiene "Deshacer", pero rompe la regla del design system.
 
 **Resuelto en v46.** La × abre "¿Eliminar estos días libres?" con quién, rango y nota, y los botones "No, volver" y "Sí, eliminar". Sigue ofreciendo "Deshacer".
 
+**v50: se retiró la Agenda.** Ya no hay vacaciones ni días libres. La tabla `ausencias` se queda sin uso.
+
 ### C12
 
 **`login_attempts` nunca se limpia.** Crece con cada intento.
@@ -516,13 +587,15 @@ la pide desde la v43. Tiene "Deshacer", pero rompe la regla del design system.
 
 **Resuelto en v46.** El cron diario borra las filas de más de 30 días (en su propio `try`, no afecta los recordatorios) y reporta `intentos_borrados`. Prueba: `test/api.test.js`.
 
+**v50:** el cron se llama ahora `/api/cron/limpieza` y solo hace esto (el recordatorio de citas se retiró con la Agenda).
+
 ### C13
 
 **Las tablas base no tienen DDL en el repo.** No se puede levantar una base
 desde cero solo con `scripts/migrations/`.
 **Propuesta:** exportar el esquema real a `000_base.sql`.
 
-**Resuelto en v46.** `scripts/migrations/000_base.sql`, exportado de la base real en Neon. Con 000 a 007 se levanta la base completa; las pruebas de integración lo hacen en cada corrida.
+**Resuelto en v46.** `scripts/migrations/000_base.sql`, exportado de la base real en Neon. Con 000 a 007 se levanta la base completa; las pruebas de integración lo hacen en cada corrida. Desde la v50 son 000 a 008.
 
 ### C14
 
@@ -534,3 +607,5 @@ ni cierre automático, y el anticipo queda sin conciliar.
 pasadas, para marcarlas como cobradas, no asistió o canceladas.
 
 **Resuelto en v46.** La vista Agenda (dueña) muestra arriba "Sin cerrar (N)" con las pendientes de días pasados. Su menú agrega "Registrar cobro", que abre Registrar Cita en ese día con su recuadro listo. Probado en navegador.
+
+**v50: se retiró la Agenda**, y con ella "Sin cerrar". Los anticipos que quedaron sin conciliar se aplican desde Registrar Cita ([F14](#f14--anticipos-que-dejó-la-agenda)).
