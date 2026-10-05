@@ -100,11 +100,13 @@ export function createCita(sheetId, cita) {
   });
 }
 
-/** Eliminar una cita */
-export function deleteCita(sheetId, fecha, timestamp, clienta) {
+/** Eliminar una cita. Si es el cobro de una cita agendada, `conAnticipo`
+ * borra también su anticipo y la cita agendada; sin él, el anticipo se
+ * queda y la cita agendada vuelve a pendiente. */
+export function deleteCita(sheetId, fecha, timestamp, clienta, conAnticipo = false) {
   return fetchAPI('citas', {
     method: 'DELETE',
-    body: { sheet_id: sheetId, fecha, timestamp, clienta },
+    body: { sheet_id: sheetId, fecha, timestamp, clienta, con_anticipo: conAnticipo || undefined },
   });
 }
 

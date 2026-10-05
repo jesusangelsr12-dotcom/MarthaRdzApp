@@ -11,7 +11,12 @@
  *        el anticipo aplicado y las comisiones de esa cita, todo en una
  *        sola sentencia. Una fila de solo-anticipo no se corrige aquí: su
  *        monto vive en la cita agendada (se corrige desde la Agenda).
- * DELETE { fecha, timestamp, clienta } → { success }
+ * DELETE { fecha, timestamp, clienta, con_anticipo? } → { success }
+ *        Si es el cobro de una cita agendada: sin `con_anticipo`, su anticipo
+ *        se queda y la cita agendada vuelve a `pendiente` (para cobrarla de
+ *        nuevo). Con `con_anticipo: true` se borran también su fila de
+ *        anticipo y la cita agendada, como "Eliminar" en la Agenda. Todo en
+ *        una sola sentencia; el restore (PATCH) lo regresa todo junto.
  *
  * Todas las llamadas requieren `Authorization: Bearer <token>` (emitido por
  * /api/login). El salón de cada consulta es SIEMPRE el del token verificado
@@ -69,6 +74,9 @@ function validarComisiones(comisiones) {
     isFiniteNumber(c.comision, { min: 0, max: 1_000_000 })
   );
 }
+
+// Filas de `citas` que son solo el depósito de un anticipo (no una visita).
+const SOLO_ANTICIPO = '[{"tipo":"anticipo"}]';
 
 const redondear = (n) => Math.round(n * 100) / 100;
 
@@ -147,6 +155,82 @@ async function corregirCobro(sql, res, salonId, { fecha, timestamp, clienta, ite
   return res.status(200).json({ success: true, total });
 }
 
+/** PATCH con `restore`: deshace un DELETE reciente (el "Deshacer" del
+ * toast). Regresa la cita y sus comisiones y, si era el cobro de una cita
+ * agendada, lo que se borró o cambió con él (ver DELETE). */
+async function restaurarCita(sql, res, salonId, { fecha, timestamp, clienta }) {
+  const borradas = await sql`
+    select id, agenda_id, (items @> ${SOLO_ANTICIPO}::jsonb) as es_anticipo
+    from citas
+    where salon_id = ${salonId} and fecha = ${fecha} and timestamp = ${timestamp} and clienta = ${clienta}
+      and deleted_at is not null
+    order by deleted_at desc
+  `;
+  if (borradas.length === 0) {
+    return res.status(404).json({ error: 'Cita no encontrada o ya no se puede restaurar' });
+  }
+
+  const cobro = borradas.find((b) => b.agenda_id && !b.es_anticipo) || null;
+  if (cobro) {
+    // Si mientras tanto esa cita agendada se volvió a cobrar o cambió de
+    // estado, regresar este cobro la dejaría cobrada dos veces o con un
+    // cobro que no le corresponde.
+    const [agenda] = await sql`
+      select a.estado, a.deleted_at is null as viva,
+             a.deleted_at is not null and a.deleted_at = (select deleted_at from citas where id = ${cobro.id}) as borrada_junto,
+             exists (
+               select 1 from citas o
+               where o.agenda_id = a.id and o.salon_id = ${salonId} and o.deleted_at is null
+                 and not (o.items @> ${SOLO_ANTICIPO}::jsonb)
+             ) as otro_cobro
+      from citas_agendadas a
+      where a.id = ${cobro.agenda_id} and a.salon_id = ${salonId}
+    `;
+    const sePuede = agenda && !agenda.otro_cobro &&
+      (agenda.borrada_junto || (agenda.viva && (agenda.estado === 'pendiente' || agenda.estado === 'completada')));
+    if (!sePuede) {
+      return res.status(409).json({ error: 'Esa cita de la Agenda ya cambió; no se puede deshacer' });
+    }
+  }
+  const agendaId = cobro ? cobro.agenda_id : null;
+  const cobroId = cobro ? cobro.id : null;
+
+  // Todo junto, igual que el DELETE. Lo de la Agenda solo se regresa si se
+  // borró en el mismo momento que el cobro (mismo deleted_at).
+  await sql`
+    with restaurada as (
+      update citas set deleted_at = null
+      where salon_id = ${salonId} and fecha = ${fecha} and timestamp = ${timestamp} and clienta = ${clienta}
+        and deleted_at is not null
+      returning id
+    ),
+    comisiones_restauradas as (
+      update comisiones set deleted_at = null
+      where salon_id = ${salonId} and fecha = ${fecha} and timestamp = ${timestamp} and clienta = ${clienta}
+        and deleted_at is not null
+      returning id
+    ),
+    anticipos as (
+      update citas set deleted_at = null
+      where ${agendaId}::uuid is not null and agenda_id = ${agendaId}::uuid and salon_id = ${salonId}
+        and items @> ${SOLO_ANTICIPO}::jsonb
+        and deleted_at = (select deleted_at from citas where id = ${cobroId}::uuid)
+        and not (fecha = ${fecha} and timestamp = ${timestamp} and clienta = ${clienta})
+      returning id
+    ),
+    agenda as (
+      update citas_agendadas set deleted_at = null, estado = 'completada'
+      where ${agendaId}::uuid is not null and id = ${agendaId}::uuid and salon_id = ${salonId}
+        and (deleted_at = (select deleted_at from citas where id = ${cobroId}::uuid)
+             or (deleted_at is null and estado = 'pendiente'))
+      returning id
+    )
+    select (select count(*) from restaurada)::int as citas
+  `;
+
+  return res.status(200).json({ success: true });
+}
+
 module.exports = async function handler(req, res) {
   const salonId = requireSession(req, res);
   if (!salonId) return;
@@ -167,7 +251,10 @@ module.exports = async function handler(req, res) {
 
       const rows = await sql`
         select c.fecha::text as fecha, c.timestamp, c.clienta, c.items, c.total, c.metodo_pago, c.nota,
-               c.anticipo_aplicado, c.agenda_id, a.anticipo as anticipo_agenda
+               c.anticipo_aplicado, c.agenda_id, a.anticipo as anticipo_agenda,
+               (select coalesce(sum(d.total), 0) from citas d
+                where d.agenda_id = c.agenda_id and d.salon_id = c.salon_id and d.deleted_at is null
+                  and d.items @> ${SOLO_ANTICIPO}::jsonb) as anticipo_registrado
         from citas c
         left join citas_agendadas a on a.id = c.agenda_id and a.salon_id = c.salon_id
         where c.salon_id = ${salonId} and c.fecha = ${fecha} and c.deleted_at is null
@@ -187,6 +274,9 @@ module.exports = async function handler(req, res) {
         // agendada, y para recalcular el anticipo al corregir el cobro.
         agenda_id: row.agenda_id || '',
         anticipo_agenda: row.anticipo_agenda != null ? Number(row.anticipo_agenda) : 0,
+        // Anticipo de esa cita agendada que sigue vivo en ingresos: al
+        // eliminar su cobro, la app pregunta si se borra también.
+        anticipo_registrado: Number(row.anticipo_registrado) || 0,
       }));
 
       return res.status(200).json({ citas });
@@ -302,24 +392,7 @@ module.exports = async function handler(req, res) {
 
       // restore: deshacer un DELETE reciente (el botón "Deshacer" del toast).
       if (restore === true) {
-        const rows = await sql`
-          update citas set deleted_at = null
-          where salon_id = ${salonId} and fecha = ${fecha} and timestamp = ${timestamp} and clienta = ${clienta}
-            and deleted_at is not null
-          returning id
-        `;
-        if (rows.length === 0) {
-          return res.status(404).json({ error: 'Cita no encontrada o ya no se puede restaurar' });
-        }
-
-        // Las comisiones de esta cita se restauran junto con ella (ver DELETE).
-        await sql`
-          update comisiones set deleted_at = null
-          where salon_id = ${salonId} and fecha = ${fecha} and timestamp = ${timestamp} and clienta = ${clienta}
-            and deleted_at is not null
-        `;
-
-        return res.status(200).json({ success: true });
+        return restaurarCita(sql, res, salonId, { fecha, timestamp, clienta });
       }
 
       // Una nota vacía es válida: sirve para borrarla
@@ -346,34 +419,67 @@ module.exports = async function handler(req, res) {
         return res.status(403).json({ error: 'Esta cuenta no tiene acceso a esto' });
       }
 
-      const { fecha, timestamp, clienta } = req.body || {};
+      const { fecha, timestamp, clienta, con_anticipo } = req.body || {};
 
       if (!isDateStr(fecha) || !isNonEmptyString(timestamp, 20) || !isNonEmptyString(clienta, 200)) {
         return res.status(400).json({ error: 'Faltan datos para identificar la cita' });
       }
+      if (con_anticipo !== undefined && typeof con_anticipo !== 'boolean') {
+        return res.status(400).json({ error: 'con_anticipo inválido' });
+      }
+      const conAnticipo = con_anticipo === true;
 
-      const rows = await sql`
-        update citas set deleted_at = now()
-        where salon_id = ${salonId} and fecha = ${fecha} and timestamp = ${timestamp} and clienta = ${clienta}
-          and deleted_at is null
-        returning id
+      // Una sola sentencia:
+      // - La cita y sus comisiones. Las comisiones no llevan un id de cita
+      //   enlazado: se identifican igual que ella (salón + fecha + timestamp
+      //   + clienta). Sin esto seguían contando en Comisiones y Dashboard.
+      // - Si era el cobro de una cita agendada (nunca la fila del anticipo):
+      //   sin `con_anticipo` la cita agendada vuelve a pendiente y su
+      //   anticipo se queda; con `con_anticipo` se borran su anticipo y la
+      //   cita agendada. Antes se quedaba "completada" sin cobro (C15).
+      // Todo lleva el mismo now(): así el restore sabe qué se borró junto.
+      const [resultado] = await sql`
+        with cobro as (
+          update citas set deleted_at = now()
+          where salon_id = ${salonId} and fecha = ${fecha} and timestamp = ${timestamp} and clienta = ${clienta}
+            and deleted_at is null
+          returning id, agenda_id, items
+        ),
+        comisiones_borradas as (
+          update comisiones set deleted_at = now()
+          where salon_id = ${salonId} and fecha = ${fecha} and timestamp = ${timestamp} and clienta = ${clienta}
+            and deleted_at is null and exists (select 1 from cobro)
+          returning id
+        ),
+        ligada as (
+          select distinct agenda_id from cobro
+          where agenda_id is not null and not (items @> ${SOLO_ANTICIPO}::jsonb)
+        ),
+        anticipos as (
+          update citas set deleted_at = now()
+          where ${conAnticipo} and salon_id = ${salonId} and deleted_at is null
+            and items @> ${SOLO_ANTICIPO}::jsonb and agenda_id in (select agenda_id from ligada)
+            and not (fecha = ${fecha} and timestamp = ${timestamp} and clienta = ${clienta})
+          returning id
+        ),
+        agenda as (
+          update citas_agendadas
+          set deleted_at = case when ${conAnticipo} then now() else null end,
+              estado = case when ${conAnticipo} then estado else 'pendiente' end
+          where id in (select agenda_id from ligada) and salon_id = ${salonId}
+            and deleted_at is null and estado = 'completada'
+          returning id
+        )
+        select (select count(*) from cobro)::int as citas,
+               (select count(*) from anticipos)::int as anticipos,
+               (select count(*) from agenda)::int as agendas
       `;
 
-      if (rows.length === 0) {
+      if (!resultado || resultado.citas === 0) {
         return res.status(404).json({ error: 'Cita no encontrada' });
       }
 
-      // Las comisiones no llevan un id de cita enlazado — se identifican
-      // igual que ella (salón + fecha + timestamp + clienta). Sin esto
-      // quedaban huérfanas: seguían contando en Comisiones y en el Dashboard
-      // aunque el ingreso ya no existiera.
-      await sql`
-        update comisiones set deleted_at = now()
-        where salon_id = ${salonId} and fecha = ${fecha} and timestamp = ${timestamp} and clienta = ${clienta}
-          and deleted_at is null
-      `;
-
-      return res.status(200).json({ success: true });
+      return res.status(200).json({ success: true, anticipos: resultado.anticipos, agendas: resultado.agendas });
     }
 
     res.status(405).json({ error: 'Método no permitido' });

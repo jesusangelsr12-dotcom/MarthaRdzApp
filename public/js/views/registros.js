@@ -138,10 +138,19 @@ async function loadTelefonos() {
 // Estado del modal
 let pendingDelete = null;
 
+/** ¿Es el cobro de una cita agendada? (no la fila de su anticipo) */
+function esCobroDeAgenda(c) {
+  return Boolean(c.agenda_id) && !esSoloAnticipo(c);
+}
+
 function openDeleteModal(type, data, displayName) {
-  pendingDelete = { type, data };
-  document.getElementById('delete-modal-text').textContent =
-    `\u00bfEliminar ${type === 'cita' ? 'la cita de' : 'el gasto'} "${displayName}"?`;
+  pendingDelete = { type, data, conAnticipo: false };
+  const texto = `\u00bfEliminar ${type === 'cita' ? 'la cita de' : 'el gasto'} "${displayName}"?`;
+  // Un cobro de la Agenda sin anticipo: la cita vuelve a pendiente para
+  // poder cobrarla de nuevo (ver DELETE en api/citas.js).
+  document.getElementById('delete-modal-text').textContent = type === 'cita' && esCobroDeAgenda(data)
+    ? `${texto} La cita vuelve a quedar pendiente en la Agenda.`
+    : texto;
   document.getElementById('delete-modal').classList.remove('hidden');
 
   const confirmBtn = document.getElementById('delete-modal-confirm');
@@ -156,21 +165,28 @@ function closeDeleteModal() {
 async function handleConfirmDelete() {
   if (!pendingDelete) return;
 
-  const { type, data } = pendingDelete;
+  const { type, data, conAnticipo } = pendingDelete;
   closeDeleteModal();
+  await eliminarRegistro(type, data, conAnticipo);
+}
 
+async function eliminarRegistro(type, data, conAnticipo = false) {
   try {
     showLoader();
     if (type === 'cita') {
-      await deleteCita(session.sheet_id, data.fecha, data.timestamp, data.clienta);
+      await deleteCita(session.sheet_id, data.fecha, data.timestamp, data.clienta, conAnticipo);
     } else {
       await deleteGasto(session.sheet_id, data.fecha, data.timestamp, data.descripcion);
     }
     hideLoader();
+    let mensaje = 'Registro eliminado';
+    if (type === 'cita' && esCobroDeAgenda(data)) {
+      mensaje = conAnticipo ? 'Cobro y anticipo eliminados' : 'Cobro eliminado. La cita volvió a pendiente';
+    }
     // "Deshacer" solo alcanza mientras el toast está visible; el borrado ya
     // se hizo (soft-delete), así que deshacer es restaurarlo, no cancelar
     // una acción pendiente.
-    showToast('Registro eliminado', 'success', 5000, {
+    showToast(mensaje, 'success', 5000, {
       label: 'Deshacer',
       onClick: () => undoDelete(type, data),
     });
@@ -194,7 +210,7 @@ async function undoDelete(type, data) {
     loadRegistros();
   } catch (error) {
     hideLoader();
-    showToast('No se pudo deshacer', 'error');
+    showToast(error.message || 'No se pudo deshacer', 'error');
   }
 }
 
@@ -429,7 +445,9 @@ function renderRegistros(citas, gastos) {
 
       if (type === 'cita') {
         const c = citas[index];
-        openDeleteModal('cita', c, c.clienta);
+        // Cobro de una cita agendada con anticipo: preguntar qué se borra
+        if (esCobroDeAgenda(c) && c.anticipo_registrado > 0) abrirEleccionBorrado(c);
+        else openDeleteModal('cita', c, c.clienta);
       } else {
         const g = gastos[index];
         openDeleteModal('gasto', g, g.descripcion);
@@ -622,5 +640,47 @@ function abrirEditorCobro(index) {
       hideLoader();
       showToast(error.message || 'No se pudo corregir el cobro', 'error');
     }
+  });
+}
+
+/** Eliminar el cobro de una cita agendada que tiene anticipo: el anticipo
+ * es dinero que se recibió aparte, así que se pregunta si se borra también.
+ * - Solo el cobro: el anticipo se queda y la cita vuelve a pendiente en la
+ *   Agenda, para cobrarla de nuevo.
+ * - Cobro y anticipo: se va todo, también la cita de la Agenda (igual que
+ *   "Eliminar" ahí). "Deshacer" regresa todo en ambos casos. */
+function abrirEleccionBorrado(c) {
+  const modal = document.getElementById('cobro-modal');
+  const content = document.getElementById('cobro-modal-content');
+  const anticipo = c.anticipo_registrado;
+
+  content.innerHTML = `
+    <div class="action-sheet-confirm">
+      <h3 class="delete-modal-title">¿Qué quieres eliminar?</h3>
+      <p class="delete-modal-text">
+        <strong>${escapeHTML(c.clienta)}</strong><br>
+        Esta cita venía de la Agenda con un anticipo de ${formatMXN(anticipo)}.
+      </p>
+    </div>
+    <button class="action-sheet-btn action-sheet-btn--danger" id="borrar-solo-cobro">
+      Solo el cobro · ${formatMXN(c.total)}
+      <span class="action-sheet-btn-sub">El anticipo se queda y la cita vuelve a pendiente en la Agenda</span>
+    </button>
+    <button class="action-sheet-btn action-sheet-btn--danger" id="borrar-con-anticipo">
+      Cobro y anticipo · ${formatMXN(c.total + anticipo)}
+      <span class="action-sheet-btn-sub">Se borra todo, también la cita de la Agenda</span>
+    </button>
+    <button class="btn btn-outline mt-16" id="borrar-cancelar">Cancelar</button>
+  `;
+  modal.classList.remove('hidden');
+
+  document.getElementById('borrar-cancelar').addEventListener('click', cerrarEditorCobro);
+  document.getElementById('borrar-solo-cobro').addEventListener('click', () => {
+    cerrarEditorCobro();
+    eliminarRegistro('cita', c, false);
+  });
+  document.getElementById('borrar-con-anticipo').addEventListener('click', () => {
+    cerrarEditorCobro();
+    eliminarRegistro('cita', c, true);
   });
 }

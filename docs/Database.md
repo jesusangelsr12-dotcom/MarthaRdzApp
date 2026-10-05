@@ -185,6 +185,7 @@ Se borra sola cuando el push service responde 404 o 410.
 2. **Restaurar** = `deleted_at = null`. Solo desde el botón "Deshacer" (no hay papelera en la UI).
 3. **En cascada lógica:**
    - Borrar cita → borra sus comisiones (mismo salón, fecha, timestamp y clienta).
+   - Borrar el cobro de una cita agendada → su cita agendada vuelve a `pendiente`; o, con `con_anticipo`, se borran también sus filas de anticipo y la cita agendada. Todo con el mismo `deleted_at`: el restore regresa solo lo que se borró en ese momento.
    - Borrar cita agendada → borra **solo su fila de anticipo** en `citas` (la de `agenda_id` con item `anticipo`). Una cita agendada `completada` no se puede borrar: su cobro se corrige en Registros.
    - Cancelar / "No asistió" **no** borra el anticipo: el dinero sí se recibió.
 4. **Candado de cobro:** `update citas_agendadas set estado='completada' where estado='pendiente'`. Si no toca filas, se rechaza el cobro. Va en la **misma sentencia** que el insert de la cita y de sus comisiones: todo o nada.

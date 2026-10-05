@@ -556,3 +556,105 @@ test('Cobro · solo cambian precios: ni items distintos, ni anticipos, ni trabaj
   assert.equal(Number(sigue.total), 800);
   await t.cerrar();
 });
+
+// --- Eliminar en Ver Registros el cobro de una cita agendada (v50, C15) ---
+
+async function cobroDeAgenda(t, token, anticipo = 200) {
+  const agendaId = await agendarConAnticipo(t, token, anticipo);
+  const r = await t.llamar('citas', {
+    method: 'POST', token,
+    body: citaBase({
+      total: 800 - anticipo, agenda_id: agendaId, anticipo_aplicado: anticipo,
+      comisiones: [{ trabajadora: 'Aly', item: 'Tinte', tipo: 'servicio', costo: 800, pct: 40, comision: 320 }],
+    }),
+  });
+  assert.equal(r.statusCode, 201, JSON.stringify(r.body));
+  return agendaId;
+}
+const idCobro = { fecha: '2026-09-26', timestamp: '14:30:05', clienta: 'María López' };
+const estadoAgenda = async (sql, id) => (await sql`select estado, deleted_at from citas_agendadas where id = ${id}`)[0];
+const vivas = async (sql) => (await sql`select count(*)::int as n from citas where deleted_at is null`)[0].n;
+const comisionesVivas = async (sql) => (await sql`select count(*)::int as n from comisiones where deleted_at is null`)[0].n;
+
+test('C15 · borrar solo el cobro: el anticipo se queda y la cita vuelve a pendiente; Deshacer lo regresa', async () => {
+  const t = await crearEntorno();
+  const salonId = await salonDePrueba(t.sql, { trabajadoras: [{ nombre: 'Aly' }] });
+  const token = createSessionToken(salonId);
+  const agendaId = await cobroDeAgenda(t, token);
+
+  const g = await t.llamar('citas', { token, query: { fecha: '2026-09-26' } });
+  assert.equal(g.body.citas[0].anticipo_registrado, 200, 'Registros sabe que hay anticipo que preguntar');
+
+  const del = await t.llamar('citas', { method: 'DELETE', token, body: idCobro });
+  assert.equal(del.statusCode, 200, JSON.stringify(del.body));
+  assert.equal(await vivas(t.sql), 1, 'solo queda el anticipo');
+  assert.equal(await comisionesVivas(t.sql), 0);
+  let agenda = await estadoAgenda(t.sql, agendaId);
+  assert.deepEqual([agenda.estado, agenda.deleted_at], ['pendiente', null], 'se puede volver a cobrar');
+
+  const undo = await t.llamar('citas', { method: 'PATCH', token, body: { ...idCobro, restore: true } });
+  assert.equal(undo.statusCode, 200, JSON.stringify(undo.body));
+  assert.equal(await vivas(t.sql), 2);
+  assert.equal(await comisionesVivas(t.sql), 1);
+  agenda = await estadoAgenda(t.sql, agendaId);
+  assert.equal(agenda.estado, 'completada');
+  await t.cerrar();
+});
+
+test('C15 · borrar cobro y anticipo: se va todo, también la cita agendada; Deshacer regresa todo', async () => {
+  const t = await crearEntorno();
+  const salonId = await salonDePrueba(t.sql, { trabajadoras: [{ nombre: 'Aly' }] });
+  const token = createSessionToken(salonId);
+  const agendaId = await cobroDeAgenda(t, token);
+  // Otro anticipo borrado antes (de otra corrección) no debe revivir con Deshacer
+  await t.sql`
+    insert into citas (salon_id, fecha, timestamp, clienta, items, total, metodo_pago, agenda_id, deleted_at)
+    values (${salonId}, '2026-09-01', '09:00:00', 'María López', '[{"tipo":"anticipo","nombre":"Anticipo — María López","costo":50}]'::jsonb, 50, 'Efectivo', ${agendaId}, now() - interval '1 day')
+  `;
+
+  const malo = await t.llamar('citas', { method: 'DELETE', token, body: { ...idCobro, con_anticipo: 'si' } });
+  assert.equal(malo.statusCode, 400);
+
+  const del = await t.llamar('citas', { method: 'DELETE', token, body: { ...idCobro, con_anticipo: true } });
+  assert.equal(del.statusCode, 200, JSON.stringify(del.body));
+  assert.equal(del.body.anticipos, 1);
+  assert.equal(await vivas(t.sql), 0, 'ni cobro ni anticipo');
+  assert.equal(await comisionesVivas(t.sql), 0);
+  assert.ok((await estadoAgenda(t.sql, agendaId)).deleted_at, 'la cita agendada también se borra');
+
+  const undo = await t.llamar('citas', { method: 'PATCH', token, body: { ...idCobro, restore: true } });
+  assert.equal(undo.statusCode, 200, JSON.stringify(undo.body));
+  assert.equal(await vivas(t.sql), 2, 'cobro y su anticipo, no el viejo');
+  assert.equal(await comisionesVivas(t.sql), 1);
+  const agenda = await estadoAgenda(t.sql, agendaId);
+  assert.deepEqual([agenda.estado, agenda.deleted_at], ['completada', null]);
+  await t.cerrar();
+});
+
+test('C15 · Deshacer no aplica si la cita agendada ya se volvió a cobrar; una cita normal se borra como siempre', async () => {
+  const t = await crearEntorno();
+  const salonId = await salonDePrueba(t.sql, { trabajadoras: [{ nombre: 'Aly' }] });
+  const token = createSessionToken(salonId);
+  const agendaId = await cobroDeAgenda(t, token);
+  await t.llamar('citas', { method: 'DELETE', token, body: idCobro });
+  const otraVez = await t.llamar('citas', {
+    method: 'POST', token, body: citaBase({ timestamp: '15:00:00', total: 600, agenda_id: agendaId, anticipo_aplicado: 200 }),
+  });
+  assert.equal(otraVez.statusCode, 201, 'la cita pendiente se puede cobrar de nuevo');
+  const undo = await t.llamar('citas', { method: 'PATCH', token, body: { ...idCobro, restore: true } });
+  assert.equal(undo.statusCode, 409);
+  const [{ cobros }] = await t.sql`select count(*)::int as cobros from citas where agenda_id = ${agendaId} and deleted_at is null and not (items @> '[{"tipo":"anticipo"}]'::jsonb)`;
+  assert.equal(cobros, 1, 'nunca dos cobros de la misma cita');
+
+  // Cita normal: borrar y deshacer sin tocar la Agenda
+  const normal = { ...idCobro, timestamp: '18:00:00', clienta: 'Ana Ruiz' };
+  await t.llamar('citas', { method: 'POST', token, body: citaBase(normal) });
+  assert.equal((await t.llamar('citas', { method: 'DELETE', token, body: normal })).statusCode, 200);
+  assert.equal((await t.llamar('citas', { method: 'PATCH', token, body: { ...normal, restore: true } })).statusCode, 200);
+
+  // Borrar la fila del anticipo sola sigue igual que antes (no toca la cita agendada)
+  const [dep] = await t.sql`select fecha::text as fecha, timestamp, clienta from citas where agenda_id = ${agendaId} and items @> '[{"tipo":"anticipo"}]'::jsonb`;
+  assert.equal((await t.llamar('citas', { method: 'DELETE', token, body: { ...dep, con_anticipo: true } })).statusCode, 200);
+  assert.equal((await estadoAgenda(t.sql, agendaId)).estado, 'completada');
+  await t.cerrar();
+});

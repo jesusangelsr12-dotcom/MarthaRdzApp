@@ -167,6 +167,11 @@ Descripción → monto → método de pago → confirmar. La fecha siempre es ho
   momento (con el anticipo, si vino de una cita agendada) y sus comisiones se
   recalculan con el mismo %. No se agregan ni quitan items. Una fila de
   anticipo no se corrige aquí: avisa que se corrige desde la Agenda.
+- **Eliminar el cobro de una cita de la Agenda:** si tiene anticipo, pregunta
+  "Solo el cobro" (el anticipo se queda y la cita vuelve a pendiente para
+  cobrarla de nuevo) o "Cobro y anticipo" (se borra todo, también la cita de
+  la Agenda). Sin anticipo, la confirmación avisa que la cita vuelve a
+  pendiente. "Deshacer" regresa todo como estaba.
 - Compartir recibo por la hoja nativa de compartir (WhatsApp, iMessage…).
 - Eliminar con confirmación y "Deshacer" (borrado lógico). Borrar una cita borra sus comisiones.
 

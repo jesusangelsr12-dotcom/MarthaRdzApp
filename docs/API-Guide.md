@@ -78,7 +78,7 @@ Errores: `400 PIN inválido` · `401 PIN incorrecto` · `429 Demasiados intentos
 | `PATCH` nota | 👑 | `{fecha, timestamp, clienta, nota}` | `{success}` |
 | `PATCH` corregir cobro | 👑 | `{fecha, timestamp, clienta, items, metodo_pago}` | `{success, total}` |
 | `PATCH` restaurar | 👑 | `{fecha, timestamp, clienta, restore:true}` | `{success}` (restaura también sus comisiones) |
-| `DELETE` | 👑 | `{fecha, timestamp, clienta}` | `{success}` (borra también sus comisiones) |
+| `DELETE` | 👑 | `{fecha, timestamp, clienta, con_anticipo?}` | `{success, anticipos, agendas}` (borra también sus comisiones; ver abajo si vino de la Agenda) |
 
 ```json
 // POST /api/citas
@@ -113,7 +113,13 @@ Errores: `400 PIN inválido` · `401 PIN incorrecto` · `429 Demasiados intentos
 - El servidor recalcula `total`. Si la cita vino de una agendada, vuelve a aplicar su anticipo completo (`min(anticipo, suma)`), aunque antes se hubiera topado.
 - Sus comisiones (mismo salón, fecha, timestamp, clienta, item y tipo) quedan con `costo` nuevo y `comision = round(costo × pct / 100, 2)`. Cobro y comisiones en **una sola sentencia**.
 - Una fila de solo-anticipo responde `400 El anticipo se corrige desde la Agenda`. Dos filas con la misma identidad, `409`.
-- `GET` agrega `agenda_id` (`''` si no vino de la Agenda) y `anticipo_agenda` (anticipo completo de esa cita agendada, `0` si no hay): la Agenda los usa para llevar a un cobro y el editor para mostrar el total.
+- `GET` agrega `agenda_id` (`''` si no vino de la Agenda), `anticipo_agenda` (anticipo completo de esa cita agendada, `0` si no hay) y `anticipo_registrado` (lo que de ese anticipo sigue vivo en ingresos): la Agenda los usa para llevar a un cobro, el editor para mostrar el total y "Eliminar" para preguntar si se borra el anticipo.
+
+**Eliminar el cobro de una cita agendada (`DELETE`):**
+- Sin `con_anticipo`: la cita agendada vuelve de `completada` a `pendiente` (se puede cobrar de nuevo) y su anticipo se queda.
+- `con_anticipo: true`: se borran también sus filas de anticipo y la cita agendada (como "Eliminar" en la Agenda). `con_anticipo` debe ser booleano.
+- La fila de un anticipo sola se borra como siempre: no toca la cita agendada.
+- Cita, comisiones y lo de la Agenda van en **una sola sentencia** con el mismo `now()`. El restore (`PATCH` con `restore`) regresa lo que se borró en ese mismo momento y vuelve la cita agendada a `completada`. Si mientras tanto se volvió a cobrar o cambió de estado, `409 Esa cita de la Agenda ya cambió; no se puede deshacer`.
 
 ### Agenda y ausencias: `/api/citas-agendadas`
 

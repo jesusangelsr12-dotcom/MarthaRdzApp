@@ -3337,6 +3337,15 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
   color: var(--color-error);
 }
 
+/* Segunda línea de una opción (qué pasa si la eliges) */
+.action-sheet-btn-sub {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--color-gray-500);
+}
+
 .action-sheet-btn--whatsapp {
   background: var(--color-green-light);
   color: var(--color-green);

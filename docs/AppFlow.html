@@ -575,10 +575,13 @@ const FLOWS = [
           ] }] },
         ] }] },
         { c: 'Eliminar', s: [
-          { k: 'screen', t: 'Modal de confirmación' },
-          { k: 'api', t: 'DELETE /api/citas o /gastos' },
-          { k: 'db', t: 'deleted_at', d: 'La cita y sus comisiones', i: 'C15' },
-          { k: 'ok', t: 'Toast con Deshacer (5 s)' },
+          { k: 'decision', t: '¿Cobro de la Agenda con anticipo?', i: 'C15', b: [
+            { c: 'No', s: [{ k: 'screen', t: 'Modal de confirmación', d: 'De la Agenda: avisa que vuelve a pendiente' }] },
+            { c: 'Sí', s: [{ k: 'screen', t: '¿Qué quieres eliminar?', d: 'Solo el cobro: vuelve a pendiente. Cobro y anticipo: se va también de la Agenda' }] },
+          ] },
+          { k: 'api', t: 'DELETE /api/citas o /gastos', d: 'con_anticipo si se eligió' },
+          { k: 'db', t: 'deleted_at', d: 'Cita, comisiones y lo de la Agenda, en una sentencia' },
+          { k: 'ok', t: 'Toast con Deshacer (5 s)', d: 'Regresa todo junto' },
         ] },
       ] },
     ],
@@ -718,7 +721,9 @@ const STATES = [
   { id: 'del', cls: 'st-del', t: 'Borrada', x: 745, y: 370 },
 ];
 const STATE_EDGES = [
-  { a: 'pend', as: 'r', b: 'comp', bs: 'l', off: 0, t: 'Cobrar (F3)', ly: -14 },
+  { a: 'pend', as: 'r-', b: 'comp', bs: 'l-', off: 0, t: 'Cobrar (F3)', ly: -14 },
+  { a: 'comp', as: 'l+', b: 'pend', bs: 'r+', off: 0, t: 'Borrar solo su cobro (F8)', ly: 16, issue: 'C15' },
+  { a: 'comp', as: 'b', b: 'del', bs: 't', off: 0, t: 'Borrar cobro y anticipo (F8)', issue: 'C15' },
   { a: 'pend', as: 'l-', b: 'canc', bs: 'r-', off: 0, t: 'Cancelar (confirma)', ly: -16 },
   { a: 'canc', as: 'r+', b: 'pend', bs: 'l+', off: 0, t: 'Volver a pendiente', ly: 16 },
   { a: 'pend', as: 'bm-', b: 'noas', bs: 't-', off: 0, t: 'No asistió (confirma)', lx: -84 },
@@ -732,9 +737,12 @@ const TRANSITIONS = [
   ['Pendiente → Pendiente', 'Reagendar, nota, teléfono', 'PATCH {id, fecha, hora, nota}', '', ''],
   ['Sin cambio de estado (no completada)', '“Editar anticipo y nota”', 'PATCH {id, anticipo, anticipo_metodo_pago, nota}', 'Su fila de anticipo se corrige en su día; si no había, entra hoy; en $0 se quita', ''],
   ['Pendiente / cancelada / no asistió → Borrada', 'Eliminar (confirma)', 'DELETE {id}', 'Borra solo su anticipo', 'C1'],
-  ['Completada → Borrada', 'No se permite', 'DELETE {id} → 400', 'El cobro se corrige en Ver Registros', 'C1'],
-  ['Completada', '“Ver cobro en Registros”', 'Abre #registros?fecha=&agenda=', 'Ahí se corrige el monto o se elimina el cobro', 'C15'],
+  ['Completada → Borrada (desde la Agenda)', 'No se permite', 'DELETE {id} → 400', 'El cobro se corrige en Ver Registros', 'C1'],
+  ['Completada', '“Ver cobro en Registros”', 'Abre #registros?fecha=&agenda=', 'Ahí se corrige el monto o se elimina el cobro', ''],
+  ['Completada → Pendiente', 'Registros: borrar “Solo el cobro”', 'DELETE /api/citas', 'El anticipo se queda; se puede cobrar de nuevo', 'C15'],
+  ['Completada → Borrada', 'Registros: borrar “Cobro y anticipo”', 'DELETE /api/citas {con_anticipo}', 'Se van cobro, anticipo y la cita agendada', 'C15'],
   ['Borrada → estado anterior', 'Deshacer', 'PATCH {id, restore}', 'Restaura su anticipo', ''],
+  ['Pendiente / Borrada → Completada', 'Deshacer en Registros', 'PATCH /api/citas {restore}', 'Regresa cobro, comisiones y lo borrado junto. 409 si ya se volvió a cobrar', 'C15'],
   ['Pendiente de una fecha pasada', 'Aparece en “Sin cerrar”: Registrar cobro, no asistió o cancelar', 'Abre #cita?fecha=', 'El anticipo se concilia al cobrarla', 'C14'],
 ];
 
@@ -750,6 +758,8 @@ const MONEY = {
     ['Corregir anticipo (Agenda)', 'Corrige su fila; si no había, 1 nueva; en $0 la quita', 'La del anticipo (nueva: hoy)', 'yes', 'yes', 'no', '—'],
     ['Corregir cobro (Registros)', 'Misma fila: precios, total y método', 'Sin cambio', 'yes', 'yes', 'yes', 'Mismo %, precio nuevo'],
     ['Eliminar en Registros', 'Borra la fila', '—', 'no', 'no', 'no', 'Se borran'],
+    ['Eliminar solo el cobro de una cita agendada', 'Borra el cobro; el anticipo se queda', '—', 'Anticipo sigue', 'Anticipo sigue', 'no', 'Se borran'],
+    ['Eliminar cobro y anticipo', 'Borra cobro, anticipo y la cita agendada', '—', 'no', 'no', 'no', 'Se borran'],
     ['Gasto', 'Tabla gastos', 'Hoy del dispositivo', 'yes', 'Resta en gastos', '—', '—'],
   ],
 };
@@ -797,7 +807,7 @@ const ISSUES = [
   { id: 'C13', ok: 'scripts/migrations/000_base.sql, exportado de la base real. Las pruebas levantan la base con 000 a 007.', sev: 'baja', flow: null, t: 'Las tablas base no tienen DDL en el repo',
     p: 'No se puede levantar una base desde cero solo con las migraciones.',
     fix: 'Exportar el esquema real a 000_base.sql.' },
-  { id: 'C15', sev: 'baja', flow: 'F8', t: 'Borrar el cobro de una cita agendada la deja “Completada” sin cobro',
+  { id: 'C15', v: 'v50', ok: 'Eliminar ese cobro pregunta “Solo el cobro” (vuelve a pendiente, el anticipo se queda) o “Cobro y anticipo” (se borra también la cita agendada). Una sentencia; Deshacer regresa todo.', sev: 'baja', flow: 'F8', t: 'Borrar el cobro de una cita agendada la deja “Completada” sin cobro',
     p: 'DELETE /api/citas no regresa la cita agendada a pendiente. Queda Completada: no se puede volver a cobrar ni eliminar, y “Ver cobro en Registros” avisa que no lo encuentra. Antes de v50 corregir un monto obligaba a borrar; hoy se corrige sin borrar.',
     fix: 'Al borrar un cobro con agenda_id, regresar su cita agendada a pendiente en la misma sentencia (y a completada con Deshacer).' },
 ];
@@ -1153,10 +1163,10 @@ function buildStatesFrame(f) {
   c14.style.left = '40px';
   c14.style.top = '24px';
   body.appendChild(c14);
-  const c1 = el('div', 'note-sticky note-sticky--ok', '<b>✓ C1</b>Una completada no se elimina aquí: su cobro se corrige en Ver Registros.');
+  const c1 = el('div', 'note-sticky note-sticky--ok', '<b>✓ C1</b>Una completada no se elimina desde la Agenda: su menú lleva a su cobro en Ver Registros.');
   c1.dataset.issue = 'C1';
   c1.style.left = '728px';
-  c1.style.top = '252px';
+  c1.style.top = '24px';
   c1.style.width = '200px';
   body.appendChild(c1);
 
@@ -1194,7 +1204,7 @@ function buildMoneyFrame() {
 function buildIssuesFrame() {
   const count = (sev) => ISSUES.filter((x) => x.sev === sev).length;
   const resueltos = ISSUES.filter((x) => x.ok).length;
-  const f = { id: 'CABOS', title: 'Cabos sueltos', entrada: `${ISSUES.length} hallazgos: ${count('alta')} alta, ${count('media')} media, ${count('baja')} baja`, fin: resueltos === ISSUES.length ? 'Todos resueltos en v46' : `${resueltos} de ${ISSUES.length} resueltos` };
+  const f = { id: 'CABOS', title: 'Cabos sueltos', entrada: `${ISSUES.length} hallazgos: ${count('alta')} alta, ${count('media')} media, ${count('baja')} baja`, fin: resueltos === ISSUES.length ? 'Todos resueltos (C1–C14 en v46, C15 en v50)' : `${resueltos} de ${ISSUES.length} resueltos` };
   const fr = frameShell(f);
   $('.frame-body', fr).remove();
   const grid = el('div', 'stickies');
@@ -1203,7 +1213,7 @@ function buildIssuesFrame() {
     const s = el('article', `sticky ${x.ok ? 'resuelto' : x.sev}`);
     s.id = `sticky-${x.id}`;
     s.innerHTML = `
-      <div class="sticky-head"><span class="sticky-id">${x.ok ? '✓ ' : ''}${x.id}</span><span class="sticky-sev">${x.ok ? `Resuelto v46 · ${label[x.sev]}` : label[x.sev]}</span></div>
+      <div class="sticky-head"><span class="sticky-id">${x.ok ? '✓ ' : ''}${x.id}</span><span class="sticky-sev">${x.ok ? `Resuelto ${x.v || 'v46'} · ${label[x.sev]}` : label[x.sev]}</span></div>
       <h3>${esc(x.t)}</h3>
       <p>${esc(x.p)}</p>
       ${x.ok ? `<p><b>Solución:</b> ${esc(x.ok)}</p>` : `<p><b>Propuesta:</b> ${esc(x.fix)}</p>`}

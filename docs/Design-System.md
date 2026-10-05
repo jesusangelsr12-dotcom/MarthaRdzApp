@@ -157,6 +157,7 @@ evita el zoom por doble tap al teclear el PIN.
 | Modal / hoja de acciones | `.delete-modal`, `.action-sheet-content` | Fondo difuminado. Confirmación con botón rojo. Alto máximo de la pantalla con scroll interno; "Cancelar"/"Guardar" con relleno lateral de 12 px para caber en 320 px |
 | Botón de acción principal en hoja | `.action-sheet-btn--cobrar` | Menta claro con texto menta profundo. "Registrar cobro" |
 | Nota en hoja de acciones | `.multi-select-hint.action-sheet-nota` | Explica por qué falta una acción (ej. cita ya cobrada) |
+| Opción con consecuencia | `.action-sheet-btn` + `.action-sheet-btn-sub` | Segunda línea gris que dice qué pasa al elegirla (ej. "Solo el cobro" / "Cobro y anticipo") |
 | Fila con fecha | `.agenda-row-fecha` | Fecha corta bajo el nombre, en "Sin cerrar" |
 | Toast | `#toast`, `.toast-success`, `.toast-error`, `.toast-action` | Abajo al centro, del ancho de su texto (`max-content`, tope de pantalla − 40 px). 3 s (5 s si trae "Deshacer"). `z-index` 1002: encima de modales y menús |
 | Interruptor | `.config-permiso` + `input.config-permiso-input` (`role="switch"`) | Permisos de una trabajadora. Apagado: Gris Plata con borde gris 500 (3:1). Encendido: `--color-accent`. Se guarda al tocarlo |
