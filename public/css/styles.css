@@ -3276,6 +3276,16 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
   display: flex;
   flex-direction: column;
   gap: 8px;
+  /* Un editor largo (un cobro con varios items) no se sale de la pantalla */
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+}
+
+/* En un celular angosto (320 px) "Cancelar" + "Guardar" no cabían con el
+   relleno normal de .btn y se salían del menú */
+.action-sheet-content .step-actions .btn {
+  padding-left: 12px;
+  padding-right: 12px;
 }
 
 .action-sheet-confirm {
@@ -3344,4 +3354,116 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 
 .home-footer .app-version {
   margin: 4px 0 0;
+}
+
+/* ============================================
+   Corregir dinero: anticipo (Agenda) y cobro (Ver Registros)
+   ============================================ */
+
+/* Campo de dinero con "$" adelante */
+.money-input {
+  position: relative;
+}
+
+.money-input::before {
+  content: '$';
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-gray-500);
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.money-input .input {
+  padding-left: 30px;
+  font-weight: 600;
+}
+
+.anticipo-editor-hint {
+  margin: 0;
+}
+
+/* Monto de un cobro en Ver Registros: se toca para corregirlo */
+.record-amount-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 6px 6px;
+  margin: -6px 0;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-family);
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.record-amount-btn:active {
+  background: var(--color-gray-100);
+}
+
+.record-amount-edit {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--color-gray-400);
+}
+
+/* El cobro al que llevó la Agenda ("Ver cobro en Registros") */
+.record-item {
+  transition: box-shadow 0.6s ease;
+}
+
+.record-item--foco {
+  box-shadow: 0 0 0 2px var(--color-accent), var(--shadow-sm);
+}
+
+.cobro-item-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cobro-item-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  overflow-wrap: break-word;
+}
+
+.cobro-item-row .money-input {
+  width: 116px;
+  flex-shrink: 0;
+}
+
+.cobro-linea {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.85rem;
+  color: var(--color-gray-500);
+}
+
+.cobro-linea--anticipo {
+  color: var(--color-slate);
+  font-weight: 600;
+}
+
+.cobro-linea--total {
+  padding-top: 12px;
+  margin-top: 4px;
+  border-top: 1px solid var(--color-gray-200);
+}
+
+.cobro-total-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-green);
 }

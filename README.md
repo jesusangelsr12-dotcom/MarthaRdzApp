@@ -14,9 +14,9 @@ misma base de datos (una base de Neon propia, separada de cualquier otra app). C
 | Para la dueña | Para una trabajadora (acceso limitado) |
 |---|---|
 | Registrar citas (servicios, productos, precios, comisiones, fórmula, pago) | Registrar citas y asignarse su propia comisión |
-| Agendar citas futuras con anticipo y confirmarlas por WhatsApp | Ver la agenda completa y agendar citas |
+| Agendar citas futuras con anticipo (y corregirlo) y confirmarlas por WhatsApp | Ver la agenda completa y agendar citas |
 | Registrar gastos | |
-| Ver registros del día, borrar con "Deshacer" y compartir recibos | |
+| Ver registros del día, corregir el monto de un cobro, borrar con "Deshacer" y compartir recibos | |
 | Historial de clientas con fórmulas, nota fija y teléfono | |
 | Reporte de comisiones y dashboard mensual | |
 | Configurar catálogo, trabajadoras y sus PINs | |

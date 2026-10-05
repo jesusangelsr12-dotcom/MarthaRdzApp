@@ -155,6 +155,15 @@ export function getHistorial(sheetId) {
   return fetchAPI(`clientas?sheet_id=${encodeURIComponent(sheetId)}&historial=1`);
 }
 
+/** Corregir el cobro de una cita ya registrada: precios de sus items y
+ * método de pago. El servidor recalcula total, anticipo y comisiones. */
+export function updateCobro(sheetId, { fecha, timestamp, clienta, items, metodo_pago }) {
+  return fetchAPI('citas', {
+    method: 'PATCH',
+    body: { sheet_id: sheetId, fecha, timestamp, clienta, items, metodo_pago },
+  });
+}
+
 /** Editar la nota / fórmula de una cita ya registrada */
 export function updateCitaNota(sheetId, { fecha, timestamp, clienta, nota }) {
   return fetchAPI('citas', {
@@ -215,6 +224,15 @@ export function updateCitaAgendada(sheetId, { id, estado, nota, fecha, hora }) {
   return fetchAPI('citas-agendadas', {
     method: 'PATCH',
     body: { sheet_id: sheetId, id, estado, nota, fecha, hora },
+  });
+}
+
+/** Corregir el anticipo de una cita agendada (y su nota). Su ingreso en
+ * Registros se ajusta solo; `timestamp` sirve si el anticipo es nuevo. */
+export function updateAnticipoAgendada(sheetId, { id, anticipo, anticipo_metodo_pago, timestamp, nota }) {
+  return fetchAPI('citas-agendadas', {
+    method: 'PATCH',
+    body: { sheet_id: sheetId, id, anticipo, anticipo_metodo_pago, timestamp, nota },
   });
 }
 

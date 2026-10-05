@@ -1,6 +1,6 @@
 # PRD · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-09-26 · **Versión de la app:** v49 (`CACHE_NAME` en `public/sw.js`)
+**Última revisión:** 2026-10-05 · **Versión de la app:** v50 (`CACHE_NAME` en `public/sw.js`)
 
 ## 1. El problema
 
@@ -54,7 +54,8 @@ La regla viva está en [CLAUDE.md](../CLAUDE.md). Resumen:
 | Asignar comisión | A cualquier trabajadora | Solo a sí misma |
 | Ver y agregar teléfono de clientas, confirmar por WhatsApp | ✅ | Solo con permiso (apagado por default) |
 | Ver nota fija (alergias) de clientas | ✅ | ❌ |
-| Reagendar, cambiar estado, editar nota o eliminar cita agendada | ✅ | ❌ |
+| Reagendar, cambiar estado, editar anticipo o nota, o eliminar cita agendada | ✅ | ❌ |
+| Corregir el cobro de una cita ya registrada (precios, método de pago) | ✅ | ❌ |
 | Marcar vacaciones / días libres | ✅ | ❌ |
 | Registrar gasto | ✅ | ❌ |
 | Ver Registros, Comisiones, Dashboard, resumen semanal | ✅ | ❌ |
@@ -126,13 +127,20 @@ Pasos dinámicos. Solo aparecen los que aplican al salón:
 - **Sin cerrar** (dueña): arriba de la vista Agenda, las citas de días pasados que siguen pendientes, para que ninguna se pierda de vista con su anticipo.
 - Vista **Mes**: calendario con punto en días con citas y color en días con ausencias.
 - Menú por cita (dueña): registrar cobro (si es de hoy o de un día pasado),
-  confirmar por WhatsApp, agregar/cambiar teléfono, editar nota, reagendar,
-  "No asistió", cancelar, volver a pendiente y eliminar.
+  confirmar por WhatsApp, agregar/cambiar teléfono, editar anticipo y nota
+  (un solo editor), reagendar, "No asistió", cancelar, volver a pendiente y
+  eliminar.
+- **Editar anticipo y nota** (cita no cobrada): monto y método de pago del
+  anticipo, más la nota. Si el anticipo cambia, su ingreso en Registros se
+  corrige solo en el día en que se recibió; si antes era $0, se registra hoy;
+  si pasa a $0, su ingreso se quita.
 - Mensaje de confirmación por WhatsApp (se puede editar antes de enviar):
   "Hola! Te escribo de Martha Rdz Hair Artist para confirmar tu próxima cita
   el día viernes 9 de octubre a las 4:30 PM. ¿Confirmas tu cita? Gracias!"
 - Cancelar, "No asistió", eliminar y borrar vacaciones piden confirmación y ofrecen "Deshacer".
-- Una cita **ya cobrada** no se elimina desde la Agenda: su cobro se corrige en Ver Registros.
+- Una cita **ya cobrada** no se elimina desde la Agenda: su menú lleva con un
+  toque a **"Ver cobro en Registros"**, que abre Registros en ese día con el
+  cobro resaltado ("← Atrás" regresa a la Agenda).
 - Botón "+": agendar cita o marcar vacaciones / día libre (dueña o una trabajadora).
 
 **Estados de una cita agendada:** `pendiente → completada` (solo al cobrarla),
@@ -154,6 +162,11 @@ Descripción → monto → método de pago → confirmar. La fecha siempre es ho
 
 - Selector de fecha (hasta hoy). Totales de ingresos y gastos.
 - Cada cita muestra desglose, anticipo aplicado y su fórmula editable.
+- **Corregir cobro:** tocar el monto de una cita abre un editor con el precio
+  de cada servicio/producto y el método de pago. El total se recalcula al
+  momento (con el anticipo, si vino de una cita agendada) y sus comisiones se
+  recalculan con el mismo %. No se agregan ni quitan items. Una fila de
+  anticipo no se corrige aquí: avisa que se corrige desde la Agenda.
 - Compartir recibo por la hoja nativa de compartir (WhatsApp, iMessage…).
 - Eliminar con confirmación y "Deshacer" (borrado lógico). Borrar una cita borra sus comisiones.
 

@@ -1,6 +1,6 @@
 # Guía de API · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-09-26 · **Base:** `/api` (mismo dominio que la app)
+**Última revisión:** 2026-10-05 · **Base:** `/api` (mismo dominio que la app)
 
 ## 1. Reglas generales
 
@@ -73,9 +73,10 @@ Errores: `400 PIN inválido` · `401 PIN incorrecto` · `429 Demasiados intentos
 
 | Método | Permiso | Entrada | Salida |
 |---|---|---|---|
-| `GET` | 👑 | `?fecha=YYYY-MM-DD` | `{citas:[{fecha, timestamp, clienta, items, total, metodo_pago, nota, anticipo_aplicado}]}` |
+| `GET` | 👑 | `?fecha=YYYY-MM-DD` | `{citas:[{fecha, timestamp, clienta, items, total, metodo_pago, nota, anticipo_aplicado, agenda_id, anticipo_agenda}]}` |
 | `POST` | 👤 | Ver abajo | `201 {success}` |
 | `PATCH` nota | 👑 | `{fecha, timestamp, clienta, nota}` | `{success}` |
+| `PATCH` corregir cobro | 👑 | `{fecha, timestamp, clienta, items, metodo_pago}` | `{success, total}` |
 | `PATCH` restaurar | 👑 | `{fecha, timestamp, clienta, restore:true}` | `{success}` (restaura también sus comisiones) |
 | `DELETE` | 👑 | `{fecha, timestamp, clienta}` | `{success}` (borra también sus comisiones) |
 
@@ -107,6 +108,13 @@ Errores: `400 PIN inválido` · `401 PIN incorrecto` · `429 Demasiados intentos
 - Marcar la cita agendada, insertar la cita e insertar sus comisiones es **una sola sentencia**: si algo falla, no se guarda nada y se puede reintentar.
 - Trabajadora: cada comisión debe ser suya (`400 Solo puedes asignarte comisión a ti misma`). Además dispara un push a la dueña.
 
+**Corregir cobro (`PATCH` con `items`):**
+- `items` debe traer **los mismos items** (mismo `tipo` y `nombre`, en el mismo orden): solo cambia `costo`. Si no, `400 Solo se pueden corregir los precios de esta cita`.
+- El servidor recalcula `total`. Si la cita vino de una agendada, vuelve a aplicar su anticipo completo (`min(anticipo, suma)`), aunque antes se hubiera topado.
+- Sus comisiones (mismo salón, fecha, timestamp, clienta, item y tipo) quedan con `costo` nuevo y `comision = round(costo × pct / 100, 2)`. Cobro y comisiones en **una sola sentencia**.
+- Una fila de solo-anticipo responde `400 El anticipo se corrige desde la Agenda`. Dos filas con la misma identidad, `409`.
+- `GET` agrega `agenda_id` (`''` si no vino de la Agenda) y `anticipo_agenda` (anticipo completo de esa cita agendada, `0` si no hay): la Agenda los usa para llevar a un cobro y el editor para mostrar el total.
+
 ### Agenda y ausencias: `/api/citas-agendadas`
 
 Sin `recurso` en el body es una cita agendada. Con `recurso: 'ausencia'` es una ausencia.
@@ -116,6 +124,7 @@ Sin `recurso` en el body es una cita agendada. Con `recurso: 'ausencia'` es una 
 | `GET` | 👤 | `?fecha=` o `?desde=&hasta=`, opcional `&estado=` | `{citas_agendadas:[{id, clienta, fecha, hora, anticipo, anticipo_metodo_pago, nota, estado}], ausencias:[{id, trabajadora, desde, hasta, nota}]}` |
 | `POST` cita | 👤 | `{clienta, fecha, hora, anticipo, anticipo_metodo_pago?, nota?, timestamp}` | `201 {success, id}` |
 | `PATCH` editar | 👑 | `{id, estado?, nota?, fecha?, hora?}` | `{success}` |
+| `PATCH` anticipo | 👑 | `{id, anticipo, anticipo_metodo_pago?, timestamp?, nota?}` | `{success}` |
 | `PATCH` restaurar | 👑 | `{id, restore:true}` | `{success}` (restaura también el anticipo) |
 | `DELETE` | 👑 | `{id}` | `{success}` (borra también su anticipo). `400` si ya está `completada` |
 | `POST` ausencia | 👑 | `{recurso:'ausencia', trabajadora?, desde, hasta, nota?}` | `201 {success, id}` |
@@ -128,6 +137,11 @@ Sin `recurso` en el body es una cita agendada. Con `recurso: 'ausencia'` es una 
 - `DELETE` de una cita `completada` responde `400 Esta cita ya se cobró…`: su cobro se corrige en Ver Registros. En las demás, borra solo la fila del anticipo (nunca un cobro).
 - `GET ?hasta=<ayer>&estado=pendiente` (sin `desde`) da las pendientes de días pasados: la sección "Sin cerrar" de la Agenda.
 - `PATCH` nunca pone `completada` (eso solo lo hace `POST /api/citas`) y no edita una cita ya completada.
+- `PATCH` con `anticipo`: mismas reglas de método que el `POST`; `timestamp` es obligatorio si `anticipo > 0`. En una sola sentencia con la cita agendada:
+  - ya tenía fila de anticipo viva → se corrige esa fila (monto, item y método) **en su mismo día**;
+  - no tenía (o se borró en Ver Registros) → se crea una con fecha de hoy en México;
+  - `anticipo = 0` → su fila se borra (lógico) y se suelta (`agenda_id = null`), para que "Deshacer" de un `DELETE` posterior no la reviva.
+  - Cita `completada` → `404` (su anticipo ya se descontó del cobro).
 - Ausencia sin `trabajadora` es de la dueña. `hasta >= desde`.
 
 ### Clientas: `/api/clientas`

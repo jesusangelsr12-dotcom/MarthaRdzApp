@@ -20,6 +20,11 @@
  * PATCH  { id, restore } | { id, estado?, nota?, fecha?, hora? } → deshacer un
  *        borrado, o cambiar estado (nunca a "completada" por aquí — eso solo
  *        pasa dentro de POST /api/citas) / editar logística.
+ * PATCH  { id, anticipo, anticipo_metodo_pago?, timestamp?, nota? } → corregir
+ *        el anticipo (y de paso la nota). Su fila de ingreso en `citas` se
+ *        corrige, se crea (fecha de hoy, por eso `timestamp`) o se borra en
+ *        la misma sentencia. No aplica a una cita `completada`: ahí el
+ *        anticipo ya se descontó de su cobro.
  * PATCH  { recurso: 'ausencia', id, restore: true } → deshacer su borrado.
  * DELETE { id } → borrado lógico (para una entrada mal capturada; para
  *        "la clienta no llegó" o "se canceló" usar PATCH con `estado`). Si
@@ -46,6 +51,7 @@
  * salón, no algo que le toque decidir a quien registra citas.
  */
 
+const crypto = require('crypto');
 const { getSql } = require('../lib/db');
 const { requireSession, getSessionRole } = require('../lib/auth');
 const {
@@ -259,7 +265,7 @@ module.exports = async function handler(req, res) {
         return res.status(403).json({ error: 'Esta cuenta no tiene acceso a esto' });
       }
 
-      const { id, restore, estado, nota, fecha, hora } = req.body || {};
+      const { id, restore, estado, nota, fecha, hora, anticipo, anticipo_metodo_pago, timestamp } = req.body || {};
 
       if (!isNonEmptyString(id, 100)) {
         return res.status(400).json({ error: 'Falta el id de la cita agendada' });
@@ -297,8 +303,99 @@ module.exports = async function handler(req, res) {
       if (hora !== undefined && !isTimeStr(hora)) {
         return res.status(400).json({ error: 'Hora inválida' });
       }
-      if (estado === undefined && nota === undefined && fecha === undefined && hora === undefined) {
+      if (estado === undefined && nota === undefined && fecha === undefined && hora === undefined && anticipo === undefined) {
         return res.status(400).json({ error: 'Nada que actualizar' });
+      }
+
+      if (anticipo !== undefined) {
+        if (!isFiniteNumber(anticipo, { min: 0, max: 10_000_000 })) {
+          return res.status(400).json({ error: 'Anticipo inválido' });
+        }
+        const tieneAnticipo = Number(anticipo) > 0;
+        if (tieneAnticipo && !isMetodoPago(anticipo_metodo_pago)) {
+          return res.status(400).json({ error: 'Falta el método de pago del anticipo' });
+        }
+        if (!tieneAnticipo && anticipo_metodo_pago) {
+          return res.status(400).json({ error: 'No debe haber método de pago sin anticipo' });
+        }
+        if (tieneAnticipo && !isNonEmptyString(timestamp, 20)) {
+          return res.status(400).json({ error: 'Faltan datos requeridos o son inválidos' });
+        }
+
+        // Corregir el anticipo mueve dinero: la cita agendada y su fila de
+        // ingreso en `citas` cambian juntas, en una sola sentencia (igual
+        // que el POST), para que nunca digan montos distintos.
+        // - Ya tenía fila de anticipo y sigue habiendo anticipo → se
+        //   corrige esa fila en su mismo día (es una corrección, no dinero
+        //   nuevo).
+        // - No tenía (o se borró en Ver Registros) → se registra hoy.
+        // - Pasa a $0 → se borra la fila (lógico) y se suelta de la cita,
+        //   para que un "Deshacer" de eliminar la cita no la reviva.
+        // Una cita completada no entra: su anticipo ya se descontó del cobro.
+        const metodoAnticipo = tieneAnticipo ? anticipo_metodo_pago : null;
+        const nuevoDepositoId = crypto.randomUUID();
+        const hoy = fechaMexico();
+
+        const rows = await sql`
+          with deposito_actual as (
+            select c.id from citas c
+            join citas_agendadas a on a.id = c.agenda_id
+            where c.agenda_id = ${id} and c.salon_id = ${salonId} and c.deleted_at is null
+              and c.items @> ${SOLO_ANTICIPO}::jsonb
+              and a.salon_id = ${salonId} and a.deleted_at is null and a.estado <> 'completada'
+          ),
+          agenda as (
+            update citas_agendadas
+            set anticipo = ${anticipo},
+                anticipo_metodo_pago = ${metodoAnticipo},
+                deposito_cita_id = case
+                  when not ${tieneAnticipo} then null
+                  else coalesce((select id from deposito_actual limit 1), ${nuevoDepositoId}::uuid)
+                end,
+                estado = coalesce(${estado ?? null}, estado),
+                nota = coalesce(${nota ?? null}, nota),
+                fecha = coalesce(${fecha ?? null}::date, fecha),
+                hora = coalesce(${hora ?? null}, hora)
+            where id = ${id} and salon_id = ${salonId} and deleted_at is null and estado <> 'completada'
+            returning id, clienta, fecha::text as fecha, hora
+          ),
+          corregido as (
+            update citas
+            set items = jsonb_set(items, '{0,costo}', to_jsonb(${anticipo}::numeric)),
+                total = ${anticipo},
+                metodo_pago = ${metodoAnticipo}
+            where ${tieneAnticipo} and id in (select id from deposito_actual)
+              and exists (select 1 from agenda)
+            returning id
+          ),
+          quitado as (
+            update citas set deleted_at = now(), agenda_id = null
+            where not ${tieneAnticipo} and id in (select id from deposito_actual)
+              and exists (select 1 from agenda)
+            returning id
+          ),
+          nuevo as (
+            insert into citas (id, salon_id, fecha, timestamp, clienta, items, total, metodo_pago, nota, agenda_id)
+            select ${nuevoDepositoId}::uuid, ${salonId}, ${hoy}, ${timestamp ?? null}, agenda.clienta,
+                   jsonb_build_array(jsonb_build_object('tipo', 'anticipo', 'nombre', 'Anticipo — ' || agenda.clienta, 'costo', ${anticipo}::numeric)),
+                   ${anticipo}, ${metodoAnticipo},
+                   'Anticipo de cita agendada para el ' || agenda.fecha || ' ' || agenda.hora, agenda.id
+            from agenda
+            where ${tieneAnticipo} and not exists (select 1 from deposito_actual)
+            returning id
+          )
+          select agenda.id,
+                 (select count(*) from corregido)::int as corregidos,
+                 (select count(*) from quitado)::int as quitados,
+                 (select count(*) from nuevo)::int as nuevos
+          from agenda
+        `;
+
+        if (rows.length === 0) {
+          return res.status(404).json({ error: 'Cita agendada no encontrada o ya completada' });
+        }
+
+        return res.status(200).json({ success: true });
       }
 
       const rows = await sql`

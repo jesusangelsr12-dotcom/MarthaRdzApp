@@ -294,7 +294,7 @@
   <div class="ui card topbar">
     <button class="icon-btn" id="toggle-panel" aria-label="Mostrar u ocultar el panel" aria-expanded="true" title="Panel (P)">☰</button>
     <span class="name">App<span>Flow</span> · Martha Rdz</span>
-    <span class="ver">v49 · 2026-09-26</span>
+    <span class="ver">v50 · 2026-10-05</span>
   </div>
 
   <aside class="ui card panel" id="panel" aria-label="Navegación del tablero">
@@ -504,7 +504,7 @@ const FLOWS = [
   {
     id: 'F5', title: 'Ciclo de vida de una cita agendada', roles: ['duena'], type: 'states',
     entrada: 'Tocar una cita en la Agenda', fin: 'La cita en su nuevo estado',
-    tablas: ['citas_agendadas', 'citas'], issues: ['C1', 'C14'],
+    tablas: ['citas_agendadas', 'citas'], issues: ['C1', 'C14', 'C15'],
   },
   {
     id: 'F6', title: 'Vacaciones y días libres', roles: ['duena'],
@@ -548,13 +548,25 @@ const FLOWS = [
   },
   {
     id: 'F8', title: 'Registros del día', roles: ['duena'],
-    entrada: 'Fecha elegida', fin: 'Nota guardada, recibo compartido o registro borrado',
+    entrada: 'Fecha elegida, o un cobro desde la Agenda', fin: 'Nota guardada, cobro corregido, recibo compartido o registro borrado',
     steps: [
-      { k: 'screen', t: 'Más → Ver Registros' },
+      { k: 'decision', t: '¿De dónde llega?', b: [
+        { c: 'Más', s: [{ k: 'screen', t: 'Ver Registros', d: 'Fecha = hoy' }] },
+        { c: 'Agenda', s: [{ k: 'screen', t: 'Ver cobro en Registros', d: '#registros?fecha=&agenda=. Resalta el cobro; Atrás vuelve a la Agenda' }] },
+      ] },
       { k: 'api', t: 'GET /api/citas + /api/gastos', d: 'Si la respuesta no es JSON (ej. 502), mensaje claro', i: 'C9' },
       { k: 'screen', t: 'Totales y tarjetas del día' },
       { k: 'decision', t: '¿Qué hace?', b: [
         { c: 'Editar nota', s: [{ k: 'api', t: 'PATCH /api/citas' }, { k: 'ok', t: 'Nota guardada' }] },
+        { c: 'Tocar el monto', s: [{ k: 'decision', t: '¿Es una fila de anticipo?', b: [
+          { c: 'Sí', s: [{ k: 'err', t: 'Toast: se corrige en la Agenda' }] },
+          { c: 'No', s: [
+            { k: 'input', t: 'Precios y método de pago', d: 'Total en vivo, con el anticipo' },
+            { k: 'api', t: 'PATCH /api/citas', d: 'items + metodo_pago' },
+            { k: 'db', t: 'citas + comisiones', d: 'Total, anticipo y comisiones en una sentencia' },
+            { k: 'ok', t: 'Toast: Cobro corregido' },
+          ] },
+        ] }] },
         { c: 'Compartir recibo', s: [{ k: 'decision', t: '¿Hay hoja nativa?', b: [
           { c: 'Sí', s: [{ k: 'ok', t: 'WhatsApp, iMessage…' }] },
           { c: 'No', s: [{ k: 'decision', t: '¿Hay teléfono?', b: [
@@ -565,12 +577,12 @@ const FLOWS = [
         { c: 'Eliminar', s: [
           { k: 'screen', t: 'Modal de confirmación' },
           { k: 'api', t: 'DELETE /api/citas o /gastos' },
-          { k: 'db', t: 'deleted_at', d: 'La cita y sus comisiones' },
+          { k: 'db', t: 'deleted_at', d: 'La cita y sus comisiones', i: 'C15' },
           { k: 'ok', t: 'Toast con Deshacer (5 s)' },
         ] },
       ] },
     ],
-    tablas: ['citas', 'gastos', 'comisiones', 'clientas'], issues: ['C9'],
+    tablas: ['citas', 'gastos', 'comisiones', 'clientas', 'citas_agendadas'], issues: ['C9', 'C15'],
   },
   {
     id: 'F9', title: 'Clientas', roles: ['duena'],
@@ -718,8 +730,10 @@ const TRANSITIONS = [
   ['Pendiente → Cancelada / No asistió', 'Menú de la cita (confirma)', 'PATCH {id, estado}', 'El anticipo se queda como ingreso', ''],
   ['Cancelada / No asistió → Pendiente', '“Volver a pendiente” o Deshacer', 'PATCH {id, estado}', '', ''],
   ['Pendiente → Pendiente', 'Reagendar, nota, teléfono', 'PATCH {id, fecha, hora, nota}', '', ''],
+  ['Sin cambio de estado (no completada)', '“Editar anticipo y nota”', 'PATCH {id, anticipo, anticipo_metodo_pago, nota}', 'Su fila de anticipo se corrige en su día; si no había, entra hoy; en $0 se quita', ''],
   ['Pendiente / cancelada / no asistió → Borrada', 'Eliminar (confirma)', 'DELETE {id}', 'Borra solo su anticipo', 'C1'],
   ['Completada → Borrada', 'No se permite', 'DELETE {id} → 400', 'El cobro se corrige en Ver Registros', 'C1'],
+  ['Completada', '“Ver cobro en Registros”', 'Abre #registros?fecha=&agenda=', 'Ahí se corrige el monto o se elimina el cobro', 'C15'],
   ['Borrada → estado anterior', 'Deshacer', 'PATCH {id, restore}', 'Restaura su anticipo', ''],
   ['Pendiente de una fecha pasada', 'Aparece en “Sin cerrar”: Registrar cobro, no asistió o cancelar', 'Abre #cita?fecha=', 'El anticipo se concilia al cobrarla', 'C14'],
 ];
@@ -733,6 +747,8 @@ const MONEY = {
     ['Cancelar / No asistió', 'Sin cambio', '—', 'El anticipo sigue', 'yes', '—', '—'],
     ['Eliminar cita agendada (no completada)', 'Borra solo su anticipo', '—', 'no', 'no', 'no', '—'],
     ['Eliminar cita agendada completada', 'No se permite (400)', '—', '—', '—', '—', '—'],
+    ['Corregir anticipo (Agenda)', 'Corrige su fila; si no había, 1 nueva; en $0 la quita', 'La del anticipo (nueva: hoy)', 'yes', 'yes', 'no', '—'],
+    ['Corregir cobro (Registros)', 'Misma fila: precios, total y método', 'Sin cambio', 'yes', 'yes', 'yes', 'Mismo %, precio nuevo'],
     ['Eliminar en Registros', 'Borra la fila', '—', 'no', 'no', 'no', 'Se borran'],
     ['Gasto', 'Tabla gastos', 'Hoy del dispositivo', 'yes', 'Resta en gastos', '—', '—'],
   ],
@@ -781,6 +797,9 @@ const ISSUES = [
   { id: 'C13', ok: 'scripts/migrations/000_base.sql, exportado de la base real. Las pruebas levantan la base con 000 a 007.', sev: 'baja', flow: null, t: 'Las tablas base no tienen DDL en el repo',
     p: 'No se puede levantar una base desde cero solo con las migraciones.',
     fix: 'Exportar el esquema real a 000_base.sql.' },
+  { id: 'C15', sev: 'baja', flow: 'F8', t: 'Borrar el cobro de una cita agendada la deja “Completada” sin cobro',
+    p: 'DELETE /api/citas no regresa la cita agendada a pendiente. Queda Completada: no se puede volver a cobrar ni eliminar, y “Ver cobro en Registros” avisa que no lo encuentra. Antes de v50 corregir un monto obligaba a borrar; hoy se corrige sin borrar.',
+    fix: 'Al borrar un cobro con agenda_id, regresar su cita agendada a pendiente en la misma sentencia (y a completada con Deshacer).' },
 ];
 
 /* Orden del tablero: dos filas, cada una con grupos por tema. Se acomoda
@@ -1123,7 +1142,7 @@ function buildStatesFrame(f) {
   const lx1 = p._x + p._w / 2 - 34;
   const lx2 = p._x + p._w / 2 + 34;
   paths.push(`<path class="edge" d="M${lx1} ${p._y} C${lx1 - 10} ${p._y - 56}, ${lx2 + 10} ${p._y - 56}, ${lx2} ${p._y}" marker-end="url(#arrow)"/>`);
-  addLabel(body, 'Reagendar · nota · teléfono', p._x + p._w / 2, p._y - 48, 'elabel--state');
+  addLabel(body, 'Reagendar · anticipo y nota · teléfono', p._x + p._w / 2, p._y - 48, 'elabel--state');
   svg.innerHTML = `${arrowDefs()}${paths.join('')}`;
 
   const d = byId.del;
@@ -1203,7 +1222,7 @@ function buildBoard() {
     <p>Cada flujo de punta a punta: la pantalla que lo recibe, el endpoint que llama, las tablas que toca, sus desvíos y dónde quedó algo sin resolver.</p>
     <div class="chips">
       <span><b>${FLOWS.length}</b> flujos</span><span><b>12</b> endpoints (límite de Vercel)</span>
-      <span><b>10</b> tablas</span><span><b>${ISSUES.filter((x) => x.ok).length} de ${ISSUES.length}</b> cabos sueltos resueltos</span><span>Versión <b>v46</b></span>
+      <span><b>10</b> tablas</span><span><b>${ISSUES.filter((x) => x.ok).length} de ${ISSUES.length}</b> cabos sueltos resueltos</span><span>Versión <b>v50</b></span>
     </div>`);
   world.appendChild(title);
   title.style.left = '0px';

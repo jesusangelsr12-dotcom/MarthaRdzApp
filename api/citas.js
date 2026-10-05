@@ -5,6 +5,12 @@
  * POST   { fecha, timestamp, clienta, items, total, metodo_pago, nota?, comisiones?,
  *          agenda_id?, anticipo_aplicado? } → { success }
  * PATCH  { fecha, timestamp, clienta, nota } → { success }
+ * PATCH  { fecha, timestamp, clienta, items, metodo_pago } → { success, total }
+ *        Corrige el cobro: los precios de sus mismos items (no se agregan
+ *        ni se quitan) y el método de pago. El servidor recalcula el total,
+ *        el anticipo aplicado y las comisiones de esa cita, todo en una
+ *        sola sentencia. Una fila de solo-anticipo no se corrige aquí: su
+ *        monto vive en la cita agendada (se corrige desde la Agenda).
  * DELETE { fecha, timestamp, clienta } → { success }
  *
  * Todas las llamadas requieren `Authorization: Bearer <token>` (emitido por
@@ -64,6 +70,83 @@ function validarComisiones(comisiones) {
   );
 }
 
+const redondear = (n) => Math.round(n * 100) / 100;
+
+/** PATCH con `items`: corrige precios y método de pago de un cobro ya
+ * registrado (ver el encabezado). */
+async function corregirCobro(sql, res, salonId, { fecha, timestamp, clienta, items, metodo_pago }) {
+  if (!validarItems(items)) {
+    return res.status(400).json({ error: 'Items inválidos' });
+  }
+  if (!isMetodoPago(metodo_pago)) {
+    return res.status(400).json({ error: 'Método de pago inválido' });
+  }
+
+  const actuales = await sql`
+    select c.id, c.items, c.anticipo_aplicado, a.anticipo as anticipo_agenda
+    from citas c
+    left join citas_agendadas a on a.id = c.agenda_id and a.salon_id = c.salon_id
+    where c.salon_id = ${salonId} and c.fecha = ${fecha} and c.timestamp = ${timestamp} and c.clienta = ${clienta}
+      and c.deleted_at is null
+  `;
+  if (actuales.length === 0) {
+    return res.status(404).json({ error: 'Cita no encontrada' });
+  }
+  if (actuales.length > 1) {
+    return res.status(409).json({ error: 'Hay dos registros iguales a la misma hora; no se puede saber cuál corregir' });
+  }
+
+  const actual = actuales[0];
+  const itemsActuales = Array.isArray(actual.items) ? actual.items : [];
+  if (itemsActuales.some((it) => it.tipo === 'anticipo')) {
+    return res.status(400).json({ error: 'El anticipo se corrige desde la Agenda' });
+  }
+  const mismosItems = itemsActuales.length === items.length &&
+    itemsActuales.every((it, i) => it.tipo === items[i].tipo && it.nombre === items[i].nombre);
+  if (!mismosItems) {
+    return res.status(400).json({ error: 'Solo se pueden corregir los precios de esta cita' });
+  }
+
+  // Se conserva todo lo demás de cada item; solo cambia su precio.
+  const nuevosItems = itemsActuales.map((it, i) => ({ ...it, costo: redondear(Number(items[i].costo)) }));
+  const suma = redondear(nuevosItems.reduce((acc, it) => acc + it.costo, 0));
+
+  // Si vino de una cita agendada, el anticipo se vuelve a aplicar sobre el
+  // precio nuevo, igual que al cobrar: nunca más de lo que cuesta. Se parte
+  // del anticipo de la cita agendada (el aplicado pudo haberse topado).
+  let anticipoAplicado = null;
+  if (actual.anticipo_aplicado != null) {
+    const anticipo = Number(actual.anticipo_agenda ?? actual.anticipo_aplicado);
+    anticipoAplicado = Math.min(anticipo, suma);
+  }
+  const total = redondear(suma - (anticipoAplicado || 0));
+  const itemsJson = JSON.stringify(nuevosItems);
+
+  // Cobro y comisiones juntos: la comisión sigue siendo el mismo % sobre el
+  // precio completo de su item, como al registrar (ver cita.js).
+  await sql`
+    with cobro as (
+      update citas
+      set items = ${itemsJson}::jsonb, total = ${total}, metodo_pago = ${metodo_pago},
+          anticipo_aplicado = ${anticipoAplicado}::numeric
+      where id = ${actual.id} and deleted_at is null
+      returning id
+    ),
+    comisiones_corregidas as (
+      update comisiones co
+      set costo = n.costo, comision = round(n.costo * co.pct / 100, 2)
+      from jsonb_to_recordset(${itemsJson}::jsonb) as n(tipo text, nombre text, costo numeric)
+      where exists (select 1 from cobro)
+        and co.salon_id = ${salonId} and co.fecha = ${fecha} and co.timestamp = ${timestamp} and co.clienta = ${clienta}
+        and co.deleted_at is null and co.item = n.nombre and co.tipo = n.tipo
+      returning co.id
+    )
+    select (select count(*) from cobro)::int as citas
+  `;
+
+  return res.status(200).json({ success: true, total });
+}
+
 module.exports = async function handler(req, res) {
   const salonId = requireSession(req, res);
   if (!salonId) return;
@@ -83,10 +166,12 @@ module.exports = async function handler(req, res) {
       }
 
       const rows = await sql`
-        select fecha::text as fecha, timestamp, clienta, items, total, metodo_pago, nota, anticipo_aplicado
-        from citas
-        where salon_id = ${salonId} and fecha = ${fecha} and deleted_at is null
-        order by timestamp
+        select c.fecha::text as fecha, c.timestamp, c.clienta, c.items, c.total, c.metodo_pago, c.nota,
+               c.anticipo_aplicado, c.agenda_id, a.anticipo as anticipo_agenda
+        from citas c
+        left join citas_agendadas a on a.id = c.agenda_id and a.salon_id = c.salon_id
+        where c.salon_id = ${salonId} and c.fecha = ${fecha} and c.deleted_at is null
+        order by c.timestamp
       `;
 
       const citas = rows.map((row) => ({
@@ -98,6 +183,10 @@ module.exports = async function handler(req, res) {
         metodo_pago: row.metodo_pago,
         nota: row.nota || '',
         anticipo_aplicado: row.anticipo_aplicado != null ? Number(row.anticipo_aplicado) : 0,
+        // Para que la Agenda pueda llevar directo al cobro de una cita
+        // agendada, y para recalcular el anticipo al corregir el cobro.
+        agenda_id: row.agenda_id || '',
+        anticipo_agenda: row.anticipo_agenda != null ? Number(row.anticipo_agenda) : 0,
       }));
 
       return res.status(200).json({ citas });
@@ -201,10 +290,14 @@ module.exports = async function handler(req, res) {
         return res.status(403).json({ error: 'Esta cuenta no tiene acceso a esto' });
       }
 
-      const { fecha, timestamp, clienta, nota, restore } = req.body || {};
+      const { fecha, timestamp, clienta, nota, restore, items, metodo_pago } = req.body || {};
 
       if (!isDateStr(fecha) || !isNonEmptyString(timestamp, 20) || !isNonEmptyString(clienta, 200)) {
         return res.status(400).json({ error: 'Faltan datos para identificar la cita' });
+      }
+
+      if (items !== undefined) {
+        return corregirCobro(sql, res, salonId, { fecha, timestamp, clienta, items, metodo_pago });
       }
 
       // restore: deshacer un DELETE reciente (el botón "Deshacer" del toast).

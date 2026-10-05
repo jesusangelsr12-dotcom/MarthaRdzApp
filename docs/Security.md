@@ -1,6 +1,6 @@
 # Seguridad · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-09-26
+**Última revisión:** 2026-10-05
 
 ## 1. Qué protegemos
 
@@ -55,7 +55,8 @@ Restricciones de trabajadora aplicadas **en el servidor**:
 - Los permisos se leen de la base en cada llamada (`permisosDeTrabajadora()`), no del token: si la dueña los apaga, dejan de valer al momento.
 - Solo la dueña cambia permisos (`POST /api/trabajador-pin` con `permisos`), y solo se aceptan los de `PERMISOS_TRABAJADORA` con valor booleano.
 - `POST /api/citas`: solo comisiones a su nombre.
-- `citas-agendadas`: puede leer y agendar; editar, borrar y todo lo de ausencias es 403.
+- `citas-agendadas`: puede leer y agendar; editar (incluido corregir el anticipo), borrar y todo lo de ausencias es 403.
+- `PATCH /api/citas` (nota, corregir cobro, restaurar) y `DELETE`: 403. El `GET` que trae `agenda_id`/`anticipo_agenda` también es solo de la dueña.
 - Gastos, comisiones, dashboard, config, PINs y push: 403.
 
 El frontend además esconde esas pantallas (`RUTAS_TRABAJADORA`) y botones. Es

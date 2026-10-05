@@ -1,11 +1,16 @@
 /**
  * Pantalla Ver Registros
  * Muestra citas y gastos de cualquier día con totales (ingresos vs gastos)
- * Permite eliminar citas y gastos individuales
+ * Permite eliminar citas y gastos individuales, y corregir el cobro de una
+ * cita (tocar su monto: precios y método de pago).
+ *
+ * La Agenda abre "#registros?fecha=2026-09-20&agenda=<id>" desde una cita
+ * ya cobrada: abre en ese día y resalta su cobro. "← Atrás" regresa a la
+ * Agenda en ese caso.
  */
 
-import { getCitas, getGastos, deleteCita, deleteGasto, restoreCita, restoreGasto, updateCitaNota, getClientas } from '../api.js';
-import { formatMXN, todayISO, showToast, showLoader, hideLoader, escapeHTML, normalizeNombre, loadingHTML } from '../utils.js';
+import { getCitas, getGastos, deleteCita, deleteGasto, restoreCita, restoreGasto, updateCitaNota, updateCobro, getClientas } from '../api.js';
+import { formatMXN, todayISO, showToast, showLoader, hideLoader, escapeHTML, normalizeNombre, loadingHTML, METODOS_PAGO } from '../utils.js';
 import { navigateTo } from '../app.js';
 import { compartirTexto } from '../whatsapp.js';
 
@@ -13,6 +18,25 @@ let session = null;
 let selectedDate = '';
 let citasActuales = [];
 let telefonosPorClienta = {}; // { "clave normalizada": "4421234567" }
+let agendaFoco = ''; // id de la cita agendada cuyo cobro hay que resaltar
+
+/** Lee "?fecha=…&agenda=…" del hash (mismo patrón que cita.js). */
+function paramsDesdeHash() {
+  const hash = window.location.hash;
+  const qIndex = hash.indexOf('?');
+  const params = new URLSearchParams(qIndex === -1 ? '' : hash.slice(qIndex + 1));
+  const fecha = params.get('fecha') || '';
+  return {
+    fecha: /^\d{4}-\d{2}-\d{2}$/.test(fecha) ? fecha : '',
+    agenda: params.get('agenda') || '',
+  };
+}
+
+/** Fila de solo-anticipo (dinero de una cita agendada, no una visita). */
+function esSoloAnticipo(c) {
+  const items = c.items || [];
+  return items.length === 1 && items[0].tipo === 'anticipo';
+}
 
 function formatDateDisplay(dateStr) {
   const d = new Date(dateStr + 'T12:00:00');
@@ -21,7 +45,7 @@ function formatDateDisplay(dateStr) {
 
 export function render(s) {
   session = s;
-  selectedDate = todayISO();
+  selectedDate = paramsDesdeHash().fecha || todayISO();
   return `
     <div class="screen" id="registros-screen">
       <header class="screen-header">
@@ -65,14 +89,23 @@ export function render(s) {
         </div>
       </div>
     </div>
+
+    <!-- Corregir el cobro de una cita -->
+    <div class="delete-modal hidden" id="cobro-modal">
+      <div class="delete-modal-backdrop" id="cobro-modal-backdrop"></div>
+      <div class="delete-modal-content action-sheet-content" id="cobro-modal-content"></div>
+    </div>
   `;
 }
 
 export function init(s) {
   session = s;
-  selectedDate = todayISO();
+  const params = paramsDesdeHash();
+  selectedDate = params.fecha || todayISO();
+  agendaFoco = params.agenda;
+  const vieneDeAgenda = Boolean(agendaFoco);
 
-  document.getElementById('registros-back').addEventListener('click', () => navigateTo('home'));
+  document.getElementById('registros-back').addEventListener('click', () => navigateTo(vieneDeAgenda ? 'agenda' : 'home'));
 
   // Date picker
   const datePicker = document.getElementById('date-picker');
@@ -84,6 +117,7 @@ export function init(s) {
   // Cerrar modal con backdrop o bot\u00f3n cancelar
   document.getElementById('delete-modal-backdrop').addEventListener('click', closeDeleteModal);
   document.getElementById('delete-modal-cancel').addEventListener('click', closeDeleteModal);
+  document.getElementById('cobro-modal-backdrop').addEventListener('click', cerrarEditorCobro);
 
   loadRegistros();
   loadTelefonos();
@@ -184,6 +218,7 @@ async function loadRegistros() {
 
     citasActuales = citas;
     renderRegistros(citas, gastos);
+    resaltarCobroDeAgenda();
   } catch (error) {
     hideLoader();
     document.getElementById('registros-content').innerHTML = `
@@ -340,13 +375,15 @@ function renderRegistros(citas, gastos) {
       <div class="records-section">
         <div class="records-section-title">Citas (${citas.length})</div>
         ${citas.map((c, i) => `
-          <div class="record-item record-item--expandable">
+          <div class="record-item record-item--expandable" data-cita-index="${i}">
             <div class="record-main-row">
               <div class="record-info">
                 <div class="record-title">${escapeHTML(c.clienta)}</div>
                 <div class="record-subtitle">${buildCitaSubtitle(c)}</div>
               </div>
-              <div class="record-amount record-amount--income">${formatMXN(c.total)}</div>
+              <button class="record-amount record-amount--income record-amount-btn" data-edit-cobro="${i}" title="Corregir cobro" aria-label="Corregir cobro de ${escapeHTML(c.clienta)}: ${formatMXN(c.total)}">
+                ${formatMXN(c.total)}<span class="record-amount-edit" aria-hidden="true">✎</span>
+              </button>
               <button class="btn-icon-sm" data-share-recibo="${i}" title="Compartir recibo" aria-label="Compartir recibo de ${escapeHTML(c.clienta)}">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
               </button>
@@ -407,6 +444,13 @@ function renderRegistros(citas, gastos) {
     });
   });
 
+  // Corregir el cobro (tocar el monto)
+  content.querySelectorAll('[data-edit-cobro]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      abrirEditorCobro(parseInt(btn.dataset.editCobro, 10));
+    });
+  });
+
   // Compartir recibo por WhatsApp/iMessage
   content.querySelectorAll('[data-share-recibo]').forEach((btn) => {
     btn.addEventListener('click', async () => {
@@ -420,5 +464,163 @@ function renderRegistros(citas, gastos) {
         showToast(`Agrega el teléfono de ${c.clienta} en Clientas para compartir por WhatsApp`, 'error');
       }
     });
+  });
+}
+
+/** Si se llegó desde la Agenda ("Ver cobro en Registros"), lleva la vista a
+ * ese cobro y lo resalta un momento. Solo la primera vez que carga. */
+function resaltarCobroDeAgenda() {
+  if (!agendaFoco) return;
+  const id = agendaFoco;
+  agendaFoco = '';
+  const index = citasActuales.findIndex((c) => c.agenda_id === id && !esSoloAnticipo(c));
+  const card = index === -1 ? null : document.querySelector(`[data-cita-index="${index}"]`);
+  if (!card) {
+    showToast('No se encontró el cobro de esa cita en este día', 'error');
+    return;
+  }
+  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  card.classList.add('record-item--foco');
+  setTimeout(() => card.classList.remove('record-item--foco'), 2500);
+}
+
+// --- Corregir el cobro de una cita ---
+
+/** Lo mismo que hace el servidor (api/citas.js): el anticipo de la cita
+ * agendada se vuelve a aplicar sobre el precio nuevo, nunca más de lo que
+ * cuesta. Aquí es solo para mostrar el total mientras se escribe. */
+function calcularCobro(c, precios) {
+  const suma = Math.round(precios.reduce((acc, p) => acc + p, 0) * 100) / 100;
+  const anticipoBase = c.anticipo_agenda || c.anticipo_aplicado || 0;
+  const anticipo = (c.anticipo_aplicado || c.anticipo_agenda) ? Math.min(anticipoBase, suma) : 0;
+  return { anticipo, total: Math.round((suma - anticipo) * 100) / 100 };
+}
+
+function cerrarEditorCobro() {
+  document.getElementById('cobro-modal').classList.add('hidden');
+}
+
+function abrirEditorCobro(index) {
+  const c = citasActuales[index];
+  if (!c) return;
+
+  // El monto de un anticipo vive en su cita agendada: corregirlo aquí
+  // dejaría a las dos diciendo cosas distintas.
+  if (esSoloAnticipo(c)) {
+    showToast('El anticipo se corrige desde la Agenda, en "Editar anticipo y nota"', 'error', 4000);
+    return;
+  }
+
+  const items = c.items || [];
+  if (items.length === 0) {
+    showToast('Este registro no tiene desglose de precios para corregir', 'error');
+    return;
+  }
+  // Un método viejo que ya no existe en la lista se tiene que volver a elegir
+  let metodo = METODOS_PAGO.some((m) => m.id === c.metodo_pago) ? c.metodo_pago : '';
+  const conComisiones = (session?.trabajadoras || []).length > 0;
+  const modal = document.getElementById('cobro-modal');
+  const content = document.getElementById('cobro-modal-content');
+
+  content.innerHTML = `
+    <div class="action-sheet-header">
+      <span class="action-sheet-clienta">${escapeHTML(c.clienta)}</span>
+      <span class="action-sheet-meta">Corregir cobro · ${escapeHTML(c.timestamp)}</span>
+    </div>
+    <label class="input-label">${items.length > 1 ? 'Precios' : 'Precio'}</label>
+    ${items.map((it, i) => `
+      <div class="cobro-item-row">
+        <span class="cobro-item-name">
+          <span class="record-items-badge record-items-badge--${it.tipo}">${badgeLetra(it.tipo)}</span>
+          ${escapeHTML(it.nombre)}
+        </span>
+        <div class="money-input">
+          <input type="text" class="input" data-precio="${i}" inputmode="decimal" autocomplete="off"
+            maxlength="10" aria-label="Precio de ${escapeHTML(it.nombre)}" value="${Number(it.costo) || ''}">
+        </div>
+      </div>
+    `).join('')}
+    <div class="cobro-linea cobro-linea--anticipo ${calcularCobro(c, items.map((it) => Number(it.costo) || 0)).anticipo > 0 ? '' : 'hidden'}" id="cobro-anticipo">
+      <span>Anticipo aplicado</span><span id="cobro-anticipo-valor"></span>
+    </div>
+    <div class="cobro-linea cobro-linea--total">
+      <span>Total cobrado</span><span class="cobro-total-value" id="cobro-total"></span>
+    </div>
+    <label class="input-label mt-8" for="cobro-metodo">Método de pago</label>
+    <select class="input" id="cobro-metodo">
+      <option value="" ${metodo ? '' : 'selected'} disabled>Elige…</option>
+      ${METODOS_PAGO.map((m) => `<option value="${m.id}" ${metodo === m.id ? 'selected' : ''}>${m.label}</option>`).join('')}
+    </select>
+    ${conComisiones ? '<p class="multi-select-hint anticipo-editor-hint">Si la cita tiene comisiones, se recalculan con el precio nuevo.</p>' : ''}
+    <div class="step-actions mt-16">
+      <button class="btn btn-outline" id="cobro-cancelar">Cancelar</button>
+      <button class="btn btn-primary" id="cobro-guardar">Guardar</button>
+    </div>
+  `;
+  modal.classList.remove('hidden');
+
+  const inputs = [...content.querySelectorAll('[data-precio]')];
+  const leerPrecios = () => inputs.map((inp) => (inp.value.trim() === '' ? NaN : Number(inp.value)));
+
+  const actualizarTotal = () => {
+    const precios = leerPrecios().map((p) => (Number.isFinite(p) ? p : 0));
+    const { anticipo, total } = calcularCobro(c, precios);
+    document.getElementById('cobro-total').textContent = formatMXN(total);
+    document.getElementById('cobro-anticipo-valor').textContent = `−${formatMXN(anticipo)}`;
+    document.getElementById('cobro-anticipo').classList.toggle('hidden', !(anticipo > 0));
+  };
+  actualizarTotal();
+
+  inputs.forEach((inp) => {
+    inp.addEventListener('input', () => {
+      // Solo dígitos y un punto con hasta 2 decimales
+      const limpio = inp.value.replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1').replace(/(\.\d{2})\d+$/, '$1');
+      if (limpio !== inp.value) inp.value = limpio;
+      actualizarTotal();
+    });
+  });
+
+  document.getElementById('cobro-metodo').addEventListener('change', (e) => {
+    metodo = e.target.value;
+  });
+
+  document.getElementById('cobro-cancelar').addEventListener('click', cerrarEditorCobro);
+  document.getElementById('cobro-guardar').addEventListener('click', async () => {
+    const precios = leerPrecios();
+    const malo = precios.findIndex((p) => !Number.isFinite(p) || p <= 0 || p > 1_000_000);
+    if (malo !== -1) {
+      showToast(`Escribe el precio de ${items[malo].nombre}`, 'error');
+      inputs[malo].focus();
+      return;
+    }
+    if (!metodo) {
+      showToast('Elige el método de pago', 'error');
+      return;
+    }
+
+    const sinCambios = metodo === c.metodo_pago
+      && precios.every((p, i) => Math.round(p * 100) === Math.round(Number(items[i].costo) * 100));
+    if (sinCambios) {
+      cerrarEditorCobro();
+      return;
+    }
+
+    try {
+      showLoader();
+      const res = await updateCobro(session.sheet_id, {
+        fecha: c.fecha,
+        timestamp: c.timestamp,
+        clienta: c.clienta,
+        items: items.map((it, i) => ({ tipo: it.tipo, nombre: it.nombre, costo: Math.round(precios[i] * 100) / 100 })),
+        metodo_pago: metodo,
+      });
+      hideLoader();
+      cerrarEditorCobro();
+      showToast(`Cobro corregido: ${formatMXN(res.total)}`, 'success');
+      loadRegistros();
+    } catch (error) {
+      hideLoader();
+      showToast(error.message || 'No se pudo corregir el cobro', 'error');
+    }
   });
 }

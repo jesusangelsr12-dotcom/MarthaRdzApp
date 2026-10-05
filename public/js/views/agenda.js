@@ -9,9 +9,10 @@
  *
  * Tocar una cita agendada abre un menú con: confirmar por WhatsApp (y
  * agregar/cambiar el teléfono de la clienta ahí mismo), registrar su cobro,
- * editar nota, marcar "no asistió" (si sigue pendiente), cancelar (si sigue
- * pendiente), o eliminar (con "Deshacer", igual que citas/gastos). Una cita
- * ya completada no se elimina aquí: su cobro se corrige en Ver Registros.
+ * editar anticipo y nota (un solo editor), marcar "no asistió" (si sigue
+ * pendiente), cancelar (si sigue pendiente), o eliminar (con "Deshacer",
+ * igual que citas/gastos). Una cita ya completada no se elimina aquí: su
+ * menú lleva directo a su cobro en Ver Registros, donde se corrige.
  *
  * "Sin cerrar" (solo dueña, vista Agenda): citas de días pasados que siguen
  * en pendiente. La lista normal empieza en hoy, así que sin esta sección
@@ -19,10 +20,10 @@
  */
 
 import {
-  getCitasAgendadas, updateCitaAgendada, deleteCitaAgendada, restoreCitaAgendada, getClientas, saveNotaFija,
+  getCitasAgendadas, updateCitaAgendada, updateAnticipoAgendada, deleteCitaAgendada, restoreCitaAgendada, getClientas, saveNotaFija,
   createAusencia, deleteAusencia, restoreAusencia,
 } from '../api.js';
-import { formatMXN, todayISO, showToast, showLoader, hideLoader, escapeHTML, normalizeNombre, loadingHTML, formatRangoFecha, formatFechaLarga, formatHora12 } from '../utils.js';
+import { formatMXN, todayISO, nowTimestamp, showToast, showLoader, hideLoader, escapeHTML, normalizeNombre, loadingHTML, formatRangoFecha, formatFechaLarga, formatHora12, METODOS_PAGO } from '../utils.js';
 import { navigateTo } from '../app.js';
 import { isTrabajadora } from '../auth.js';
 import { abrirWhatsApp } from '../whatsapp.js';
@@ -630,12 +631,16 @@ function openActionSheet(cita) {
     <div class="action-sheet-header">
       <span class="action-sheet-clienta">${escapeHTML(cita.clienta)}</span>
       <span class="action-sheet-meta">${formatFechaLarga(cita.fecha)} · ${formatHora12(cita.hora)}</span>
+      ${cita.anticipo > 0 ? `<span class="agenda-row-anticipo">Anticipo ${formatMXN(cita.anticipo)}${cita.anticipo_metodo_pago ? ` · ${escapeHTML(cita.anticipo_metodo_pago)}` : ''}</span>` : ''}
     </div>
-    ${esCompletada ? '<p class="multi-select-hint action-sheet-nota">Ya se cobró. Si algo quedó mal, corrige o elimina el cobro desde Ver Registros.</p>' : ''}
+    ${esCompletada ? `
+      <p class="multi-select-hint action-sheet-nota">Ya se cobró. Si algo quedó mal, ahí puedes corregir el monto o eliminar el cobro.</p>
+      <button class="action-sheet-btn action-sheet-btn--cobrar" id="accion-ver-cobro">💵 Ver cobro en Registros</button>
+    ` : ''}
     ${puedeCobrarse ? '<button class="action-sheet-btn action-sheet-btn--cobrar" id="accion-cobrar">💵 Registrar cobro</button>' : ''}
     ${esPendiente && telefono ? '<button class="action-sheet-btn action-sheet-btn--whatsapp" id="accion-confirmar-whatsapp">Confirmar por WhatsApp</button>' : ''}
     ${esPendiente ? `<button class="action-sheet-btn" id="accion-telefono">${telefono ? `📱 Cambiar teléfono · ${escapeHTML(formatTelefono(telefono))}` : '📱 Agregar teléfono para WhatsApp'}</button>` : ''}
-    ${!esCompletada ? '<button class="action-sheet-btn" id="accion-editar-nota">✎ Editar nota</button>' : ''}
+    ${!esCompletada ? '<button class="action-sheet-btn" id="accion-editar-nota">✎ Editar anticipo y nota</button>' : ''}
     ${esPendiente ? `
       <button class="action-sheet-btn" id="accion-reagendar">📅 Reagendar</button>
       <button class="action-sheet-btn" id="accion-no-asistio">No asistió</button>
@@ -659,6 +664,17 @@ function openActionSheet(cita) {
     btnCobrar.addEventListener('click', () => {
       closeActionSheet();
       navigateTo(`cita?fecha=${cita.fecha}`);
+    });
+  }
+
+  // Una completada ya no se toca aquí: se lleva directo a su cobro, en el
+  // día de la cita (el cobro siempre queda en ese día, ver cita.js), para
+  // no tener que buscarlo a mano en Ver Registros.
+  const btnVerCobro = document.getElementById('accion-ver-cobro');
+  if (btnVerCobro) {
+    btnVerCobro.addEventListener('click', () => {
+      closeActionSheet();
+      navigateTo(`registros?fecha=${cita.fecha}&agenda=${cita.id}`);
     });
   }
 
@@ -745,13 +761,32 @@ function closeActionSheet() {
   document.getElementById('action-sheet').classList.add('hidden');
 }
 
+/** Editor de anticipo y nota en uno solo — corregir el anticipo es raro y
+ * no merecía otro botón en el menú. Si el monto o el método cambian, su
+ * ingreso en Ver Registros se corrige solo (ver PATCH en
+ * api/citas-agendadas.js); si no, solo se guarda la nota, como siempre. */
 function abrirEditorNotaAgenda(cita) {
   const content = document.getElementById('action-sheet-content');
+  const anticipoActual = Number(cita.anticipo) || 0;
+  let metodo = anticipoActual > 0 && METODOS_PAGO.some((m) => m.id === cita.anticipo_metodo_pago) ? cita.anticipo_metodo_pago : '';
+
   content.innerHTML = `
     <div class="action-sheet-header">
       <span class="action-sheet-clienta">${escapeHTML(cita.clienta)}</span>
+      <span class="action-sheet-meta">${formatFechaLarga(cita.fecha)} · ${formatHora12(cita.hora)}</span>
     </div>
-    <textarea class="input textarea" id="editor-nota-agenda" rows="4" maxlength="2000"
+    <label class="input-label" for="editor-anticipo-monto">Anticipo</label>
+    <div class="money-input">
+      <input type="text" class="input" id="editor-anticipo-monto" inputmode="decimal"
+        autocomplete="off" maxlength="10" placeholder="0" value="${anticipoActual > 0 ? anticipoActual : ''}">
+    </div>
+    <select class="input ${anticipoActual > 0 ? '' : 'hidden'}" id="editor-anticipo-metodo" aria-label="Cómo pagó el anticipo">
+      <option value="" ${metodo ? '' : 'selected'} disabled>¿Cómo pagó el anticipo?</option>
+      ${METODOS_PAGO.map((m) => `<option value="${m.id}" ${metodo === m.id ? 'selected' : ''}>${m.label}</option>`).join('')}
+    </select>
+    <p class="multi-select-hint anticipo-editor-hint">Si cambias el anticipo, su ingreso en Registros se corrige solo. Sin anticipo, deja $0.</p>
+    <label class="input-label mt-8" for="editor-nota-agenda">Nota</label>
+    <textarea class="input textarea" id="editor-nota-agenda" rows="3" maxlength="2000"
       placeholder="Notas de la cita">${escapeHTML(cita.nota)}</textarea>
     <div class="step-actions mt-16">
       <button class="btn btn-outline" id="editor-nota-cancelar">Cancelar</button>
@@ -759,20 +794,64 @@ function abrirEditorNotaAgenda(cita) {
     </div>
   `;
 
-  document.getElementById('editor-nota-agenda').focus();
-  document.getElementById('editor-nota-cancelar').addEventListener('click', closeActionSheet);
+  const montoInput = document.getElementById('editor-anticipo-monto');
+  const metodoSelect = document.getElementById('editor-anticipo-metodo');
+  const leerMonto = () => {
+    const texto = montoInput.value.trim();
+    return texto === '' ? 0 : Number(texto);
+  };
+
+  montoInput.addEventListener('input', () => {
+    // Solo dígitos y un punto con hasta 2 decimales
+    const limpio = montoInput.value.replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1').replace(/(\.\d{2})\d+$/, '$1');
+    if (limpio !== montoInput.value) montoInput.value = limpio;
+    metodoSelect.classList.toggle('hidden', !(leerMonto() > 0));
+  });
+
+  metodoSelect.addEventListener('change', () => {
+    metodo = metodoSelect.value;
+  });
+
+  document.getElementById('editor-nota-cancelar').addEventListener('click', () => openActionSheet(cita));
   document.getElementById('editor-nota-guardar').addEventListener('click', async () => {
     const nota = document.getElementById('editor-nota-agenda').value.trim();
+    const anticipo = Math.round(leerMonto() * 100) / 100;
+    if (!Number.isFinite(anticipo) || anticipo < 0 || anticipo > 10_000_000) {
+      showToast('Revisa el monto del anticipo', 'error');
+      montoInput.focus();
+      return;
+    }
+    if (anticipo > 0 && !metodo) {
+      showToast('Elige cómo pagó el anticipo', 'error');
+      return;
+    }
+
+    const metodoFinal = anticipo > 0 ? metodo : '';
+    const cambioAnticipo = anticipo !== anticipoActual
+      || (anticipo > 0 && metodoFinal !== (cita.anticipo_metodo_pago || ''));
+
     try {
       showLoader();
-      await updateCitaAgendada(session.sheet_id, { id: cita.id, nota });
+      if (cambioAnticipo) {
+        await updateAnticipoAgendada(session.sheet_id, {
+          id: cita.id,
+          anticipo,
+          anticipo_metodo_pago: metodoFinal || undefined,
+          timestamp: nowTimestamp(),
+          nota,
+        });
+      } else {
+        await updateCitaAgendada(session.sheet_id, { id: cita.id, nota });
+      }
       hideLoader();
       closeActionSheet();
-      showToast('Nota guardada', 'success');
+      showToast(cambioAnticipo
+        ? (anticipo > 0 ? `Anticipo actualizado: ${formatMXN(anticipo)}` : 'Anticipo quitado')
+        : 'Nota guardada', 'success');
       load();
     } catch (error) {
       hideLoader();
-      showToast('No se pudo guardar la nota', 'error');
+      showToast(error.message || 'No se pudo guardar', 'error');
     }
   });
 }

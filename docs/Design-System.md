@@ -1,6 +1,6 @@
 # Design System · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-09-26 · **Fuente de verdad:** `public/css/styles.css` (Design System v4)
+**Última revisión:** 2026-10-05 · **Fuente de verdad:** `public/css/styles.css` (Design System v4)
 
 La identidad sale del brand board de Martha Rdz Hair Artist: **Negro
 Elegancia** `#111111`, **Verde Menta** `#88D8C0`, **Blanco Humo** `#F4F4F4`
@@ -149,8 +149,12 @@ evita el zoom por doble tap al teclear el PIN.
 | Resumen | `.summary`, `.summary-row`, `--total`, `.summary-section-title` | Paso "Confirmar" de cada wizard |
 | Tarjeta de acción | `.home-action-card` (`--sm`), `.home-action-icon--*` | Inicio |
 | Registro | `.record-item`, `.record-amount--income/--expense` | Registros del día |
+| Monto que se corrige | `.record-amount-btn` + `.record-amount-edit` (✎ gris) | El monto de un cobro es el botón para corregirlo: sin botón extra en la tarjeta |
+| Registro resaltado | `.record-item--foco` | Anillo menta 2.5 s en el cobro al que llevó la Agenda |
+| Campo de dinero | `.money-input` > `.input` | "$" fijo adelante. Solo en editores de corrección dentro de una hoja (ver 8) |
+| Línea de cuenta | `.cobro-linea` (`--anticipo`, `--total`), `.cobro-total-value` | Anticipo aplicado y total en vivo del editor de cobro |
 | Badge de estado | `.agenda-estado-badge--{estado}` | Ver colores en 2.3 |
-| Modal / hoja de acciones | `.delete-modal`, `.action-sheet-content` | Fondo difuminado. Confirmación con botón rojo |
+| Modal / hoja de acciones | `.delete-modal`, `.action-sheet-content` | Fondo difuminado. Confirmación con botón rojo. Alto máximo de la pantalla con scroll interno; "Cancelar"/"Guardar" con relleno lateral de 12 px para caber en 320 px |
 | Botón de acción principal en hoja | `.action-sheet-btn--cobrar` | Menta claro con texto menta profundo. "Registrar cobro" |
 | Nota en hoja de acciones | `.multi-select-hint.action-sheet-nota` | Explica por qué falta una acción (ej. cita ya cobrada) |
 | Fila con fecha | `.agenda-row-fecha` | Fecha corta bajo el nombre, en "Sin cerrar" |
@@ -165,6 +169,9 @@ evita el zoom por doble tap al teclear el PIN.
 
 **Captura**
 - Montos con el teclado numérico propio, no con el teclado del sistema. Máximo 7 dígitos.
+  **Excepción:** corregir un monto ya capturado (anticipo en la Agenda, precios de un cobro) usa `.money-input` con el teclado decimal del sistema, porque son varios campos a la vez dentro de una hoja. Solo acepta dígitos y hasta 2 decimales.
+- En una hoja de acciones, el método de pago es un `<select class="input">`: tres pestañas con "Transferencia" no caben en un celular de 375 px.
+- No agregar un botón a un menú si la acción cabe en uno que ya existe (ej. "Editar anticipo y nota").
 - Si elegir una opción ya decide el paso (método de pago), avanza solo.
 - Pasos opcionales con botón "Sin …" (sin servicios, sin notas, sin comisiones).
 - Fechas y horas se muestran en lenguaje natural ("Viernes, 9 de octubre", "4:30 PM"). Se guardan en ISO y 24 h.

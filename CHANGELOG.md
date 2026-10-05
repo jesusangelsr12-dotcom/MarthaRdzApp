@@ -13,6 +13,22 @@ Secciones: **Agregado** · **Cambiado** · **Corregido** · **Seguridad** · **B
 
 ## [Sin publicar]
 
+## v50 · 2026-10-05
+
+### Agregado
+- **Corregir el anticipo desde la Agenda.** El botón "Editar nota" ahora es **"Editar anticipo y nota"**: un solo editor con el monto, cómo se pagó y la nota (sin botones nuevos en el menú). Su ingreso en Registros se corrige solo, en el día en que se recibió; si no había anticipo, entra hoy; en $0 se quita. No aplica a una cita ya cobrada.
+- **Corregir el cobro de una cita ya registrada.** En Ver Registros, tocar el monto (✎) abre un editor con el precio de cada servicio/producto y el método de pago. El total se ve al momento, descontando el anticipo si vino de la Agenda, y sus comisiones se recalculan con el mismo %.
+- **"Ver cobro en Registros"** en el menú de una cita ya cobrada: abre Registros en ese día con su cobro resaltado, y "← Atrás" regresa a la Agenda. Antes solo decía "corrígelo en Ver Registros".
+- El menú de una cita muestra su anticipo y cómo se pagó.
+
+### Cambiado
+- `PATCH /api/citas-agendadas` acepta `anticipo` (+ método y `timestamp`). `PATCH /api/citas` acepta `items` + `metodo_pago` para corregir un cobro. `GET /api/citas` agrega `agenda_id` y `anticipo_agenda`.
+- Los menús y hojas de acciones tienen alto máximo con scroll, y "Cancelar"/"Guardar" ya caben en un celular de 320 px.
+
+### Docs
+- PRD, API Guide, Database (reglas 5 y 6), Design System, Security, Error Handling, Testing (48 pruebas), AppFlow (F5, F8, mapa del dinero; .md y tablero) y README.
+- Nuevo cabo suelto **C15** (abierto): borrar en Registros el cobro de una cita agendada la deja "Completada" sin cobro.
+
 ## v49 · 2026-09-26
 
 ### Agregado

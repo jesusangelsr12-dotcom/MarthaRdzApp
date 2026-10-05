@@ -1,6 +1,6 @@
 # Pruebas · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-09-26 · **Estado actual:** 43 pruebas, 43 en verde (`npm test`)
+**Última revisión:** 2026-10-05 · **Estado actual:** 48 pruebas, 48 en verde (`npm test`)
 
 ## 1. Cómo correrlas
 
@@ -21,7 +21,7 @@ El ayudante vive en `test/helpers/db.js`.
 | `test/auth.test.js` | Crear y verificar tokens, rol de trabajadora, tokens legacy sin `role`, firma alterada, token de otro salón, expiración, entradas basura, hash de PIN con pepper | Un error aquí abre el acceso a todos los salones |
 | `test/validate.test.js` | Fechas, números con rango, strings, métodos de pago, horas, estados de agenda, PIN, teléfono | Es la única barrera contra datos con forma inválida |
 | `test/normalize-parity.test.js` | Que `normalizeNombre` dé lo mismo en frontend y backend | Si difieren, una misma clienta se parte en dos |
-| `test/api.test.js` | Handlers contra Postgres real: cobro atómico y sin duplicar, cita cobrada que no se borra, anticipo con fecha de México, pendientes pasadas, PIN repetido, Face ID revocado, limpieza del cron, login por rol, permisos de trabajadora (incluido el de teléfonos: sin permiso, con permiso sin tocar la nota fija, apagarlo al momento, validación y que guardar el catálogo lo conserve) | Aquí vive el dinero y los permisos. Cubre los cabos sueltos C1 a C14 que son de backend |
+| `test/api.test.js` | Handlers contra Postgres real: cobro atómico y sin duplicar, cita cobrada que no se borra, anticipo con fecha de México, pendientes pasadas, PIN repetido, Face ID revocado, limpieza del cron, login por rol, permisos de trabajadora (incluido el de teléfonos: sin permiso, con permiso sin tocar la nota fija, apagarlo al momento, validación y que guardar el catálogo lo conserve), corregir el anticipo desde la Agenda (misma fila en su día, nuevo hoy, quitarlo sin que "Deshacer" lo reviva, bloqueado en completada y para trabajadora) y corregir un cobro (total, anticipo aplicado y comisiones recalculados; solo precios de los mismos items; nunca una fila de anticipo) | Aquí vive el dinero y los permisos. Cubre los cabos sueltos C1 a C14 que son de backend |
 
 ## 3. Qué NO se prueba todavía
 
@@ -76,6 +76,9 @@ Correr antes de un cambio grande o de tocar dinero, permisos o el Service Worker
 ### Agenda
 10. Cancelar una cita con anticipo → el anticipo sigue en ingresos. "Volver a pendiente" funciona.
 11. Eliminar una cita pendiente con anticipo → el anticipo desaparece de ingresos. "Deshacer" lo regresa.
+11a. "Editar anticipo y nota" de $200 a $350 → Registros del día en que se recibió muestra $350, no una fila nueva. Ponerlo en $0 → desaparece de ingresos.
+11b. En una cita ya cobrada, "Ver cobro en Registros" → abre ese día con el cobro resaltado; "← Atrás" regresa a la Agenda.
+11c. Tocar el monto de ese cobro, subir un precio → el total se ajusta descontando el anticipo, y su comisión cambia en Comisiones.
 12. Confirmar por WhatsApp → abre el chat con el primer nombre de la clienta.
 13. Marcar vacaciones de una trabajadora → se ven en la lista y en el calendario del mes.
 

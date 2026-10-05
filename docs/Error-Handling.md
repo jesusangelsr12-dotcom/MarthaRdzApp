@@ -1,6 +1,6 @@
 # Manejo de errores · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-09-26
+**Última revisión:** 2026-10-05
 
 ## 1. Principios
 
@@ -111,10 +111,14 @@ Si falla la carga principal, reemplaza el contenido por el mensaje y un botón "
 | Push | Permiso negado | Toast con instrucción de ir a ajustes del dispositivo |
 | Compartir | Usuaria cierra la hoja | No es error, no se muestra nada |
 | Recibo en desktop sin teléfono | No hay cómo compartir | Toast: agrega el teléfono en Clientas |
+| Registros · corregir cobro | Tocar el monto de una fila de anticipo | No abre editor. Toast: "El anticipo se corrige desde la Agenda…" |
+| Registros desde la Agenda | El cobro no está en ese día | Toast "No se encontró el cobro de esa cita en este día"; la pantalla queda en ese día |
+| Editar anticipo / corregir cobro | Monto vacío, en cero o sin método | Toast antes de llamar al servidor; el editor sigue abierto con lo escrito |
 
 ### Validación en el cliente
 Se valida antes de llamar al servidor para dar respuesta inmediata
-(nombre vacío, teléfono incompleto, costo en cero, rango de fechas invertido).
+(nombre vacío, teléfono incompleto, costo en cero, rango de fechas invertido,
+anticipo con monto pero sin método de pago).
 **El servidor valida de nuevo.** El cliente nunca es la única barrera.
 
 ## 5. Registro (logging)

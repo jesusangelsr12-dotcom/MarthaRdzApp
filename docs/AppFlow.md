@@ -1,12 +1,13 @@
 # AppFlow · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-09-26 · **Versión de la app:** v49 · **Tablero interactivo:** [AppFlow.html](AppFlow.html) (arrastra, acerca y aleja como en Miro)
+**Última revisión:** 2026-10-05 · **Versión de la app:** v50 · **Tablero interactivo:** [AppFlow.html](AppFlow.html) (arrastra, acerca y aleja como en Miro)
 
 Este documento sigue cada acción desde que la persona toca algo hasta donde
 termina: qué pantalla la recibe, qué endpoint llama, qué tablas toca, qué ve
 al final y por qué caminos se puede desviar. Sirve para encontrar lo que
 está suelto o sin resolver. Esos hallazgos viven al final, en
-[Cabos sueltos](#cabos-sueltos). Los 14 primeros se resolvieron en la v46.
+[Cabos sueltos](#cabos-sueltos). Los 14 primeros se resolvieron en la v46;
+C15 sigue abierto.
 
 **Cómo leer los diagramas:** los rectángulos son pantallas o pasos, los
 rombos son decisiones y los cilindros son tablas. En los textos,
@@ -192,13 +193,13 @@ stateDiagram-v2
   pendiente --> no_asistio: No asistió 👑 (confirma)
   cancelada --> pendiente: Volver a pendiente / Deshacer
   no_asistio --> pendiente: Volver a pendiente / Deshacer
-  pendiente --> pendiente: Reagendar · editar nota · teléfono
+  pendiente --> pendiente: Reagendar · editar anticipo y nota · teléfono
   pendiente --> borrada: Eliminar 👑
   cancelada --> borrada: Eliminar 👑
   no_asistio --> borrada: Eliminar 👑
   note right of completada
     No se elimina aquí.
-    Su cobro se corrige en Ver Registros.
+    "Ver cobro en Registros" lleva a su cobro (F8).
   end note
   note right of borrada
     Deshacer la restaura
@@ -210,6 +211,8 @@ stateDiagram-v2
 |---|---|---|
 | Cancelar / No asistió | `PATCH {id, estado}` | El anticipo **se queda** como ingreso |
 | Registrar cobro | Abre `#cita?fecha=` | El cobro de F3. Solo si está pendiente y su fecha ya llegó |
+| Editar anticipo y nota | `PATCH {id, anticipo, anticipo_metodo_pago, timestamp, nota}` | Su fila de anticipo se corrige **en su mismo día**; si no había, entra hoy; en $0 se quita. No aplica a una completada |
+| Ver cobro en Registros | Abre `#registros?fecha=&agenda=` | Ninguno. Solo en una completada: lleva a su cobro resaltado ([C15](#c15)) |
 | Eliminar | `DELETE {id}` | Borra solo la fila del **anticipo**. Una completada responde 400 |
 | Deshacer eliminar | `PATCH {id, restore}` | Restaura la cita agendada y su anticipo |
 | Confirmar por WhatsApp | Ninguno (abre `wa.me`) | Ninguno. Solo si hay teléfono y está pendiente |
@@ -217,6 +220,7 @@ stateDiagram-v2
 - **Trabajadora:** ve la información de la cita y un botón "Cerrar". Nada más.
 - **Sin cerrar (👑):** la vista Agenda muestra arriba las citas de días pasados que siguen pendientes, para cobrarlas, marcarlas como no asistió o cancelarlas.
 - **Resueltos:** [C1](#c1) (una completada ya no se elimina desde la Agenda), [C14](#c14) (sección "Sin cerrar").
+- **Abierto:** [C15](#c15) (borrar su cobro la deja completada sin cobro).
 
 ## F6 · Vacaciones y días libres
 
@@ -246,8 +250,14 @@ flowchart LR
 ```mermaid
 flowchart TD
   A[Más → Ver Registros] --> B[GET citas + GET gastos de la fecha]
+  A2[Agenda → Ver cobro en Registros] -- "#registros?fecha=&agenda=" --> B
   B --> C[Totales + tarjetas]
+  B -. si vino de la Agenda .-> C0[Resalta el cobro · Atrás regresa a la Agenda]
   C --> D[✎ Nota] --> D1[PATCH /api/citas nota]
+  C --> G[Tocar el monto] --> G1{¿Fila de anticipo?}
+  G1 -- Sí --> G2[Toast: se corrige en la Agenda]
+  G1 -- No --> G3[Precios + método · total en vivo] --> G4[PATCH /api/citas items + metodo_pago]
+  G4 --> G5[(citas + comisiones en una sentencia)] --> G6[Toast: Cobro corregido]
   C --> E[Compartir recibo] --> E1{¿navigator.share?}
   E1 -- Sí --> E2[Hoja nativa]
   E1 -- No --> E3{¿Hay teléfono?}
@@ -257,6 +267,9 @@ flowchart TD
   F2 --> F3[(deleted_at en citas + comisiones)]
   F3 --> F4[Toast con Deshacer 5 s] --> F5[PATCH restore]
 ```
+
+- **Corregir cobro:** solo precios de sus mismos items y método de pago. El servidor recalcula el total, vuelve a aplicar el anticipo de la cita agendada (`min(anticipo, suma)`) y recalcula sus comisiones con el mismo %.
+- **Abierto:** [C15](#c15) (borrar el cobro de una cita agendada no la regresa a pendiente).
 
 ## F9 · Clientas
 
@@ -365,6 +378,8 @@ Dónde entra y dónde sale cada peso, y cómo se refleja en cada pantalla.
 | Cancelar / No asistió | Sin cambio | | El anticipo sigue | ✅ | | |
 | Eliminar cita agendada (no completada) | Borra solo su anticipo | | | | | Sin cambio (no tiene) |
 | Eliminar cita agendada completada | No se permite (400) | | | | | |
+| Corregir anticipo (Agenda) | Corrige su fila; si no había, 1 nueva; en $0 la quita | La del anticipo (nueva: hoy) | ✅ | ✅ | ❌ | ❌ |
+| Corregir cobro (Registros) | Misma fila: precios, total y método | Sin cambio | ✅ | ✅ | ✅ | Mismo %, precio nuevo |
 | Eliminar cita en Registros | Borra la fila | | | | | Se borran |
 | Gasto | `gastos` | Hoy del dispositivo | ✅ | Gastos | | |
 
@@ -373,9 +388,9 @@ Dónde entra y dónde sale cada peso, y cómo se refleja en cada pantalla.
 ## Cabos sueltos
 
 Lo que al recorrer los flujos quedó abierto, ambiguo o inconsistente.
-**Los 14 se resolvieron en la v46** (2026-09-26). Cada uno tiene su prueba
+**Los 14 primeros se resolvieron en la v46** (2026-09-26). Cada uno tiene su prueba
 automática o su recorrido en navegador (ver [Testing.md](Testing.md)). Si
-aparece uno nuevo, agrégalo como C15 con estado "Abierto".
+aparece uno nuevo, agrégalo como el siguiente número (C16…) con estado "Abierto".
 
 | # | Prioridad | Flujo | Estado |
 |---|---|---|---|
@@ -393,6 +408,7 @@ aparece uno nuevo, agrégalo como C15 con estado "Abierto".
 | [C11](#c11) | 🟡 Baja | F6 | ✅ Resuelto (v46) |
 | [C12](#c12) | 🟡 Baja | F1 | ✅ Resuelto (v46) |
 | [C13](#c13) | 🟡 Baja | Base de datos | ✅ Resuelto (v46) |
+| [C15](#c15) | 🟡 Baja | F8, F5 | ⬜ Abierto (visto en v50) |
 
 ### C1
 
@@ -534,3 +550,14 @@ ni cierre automático, y el anticipo queda sin conciliar.
 pasadas, para marcarlas como cobradas, no asistió o canceladas.
 
 **Resuelto en v46.** La vista Agenda (dueña) muestra arriba "Sin cerrar (N)" con las pendientes de días pasados. Su menú agrega "Registrar cobro", que abre Registrar Cita en ese día con su recuadro listo. Probado en navegador.
+
+### C15
+
+**Borrar el cobro de una cita agendada la deja "Completada" sin cobro.**
+`DELETE /api/citas` no toca `citas_agendadas`: la cita sigue `completada`,
+ya no se puede volver a cobrar ni eliminar desde la Agenda, y "Ver cobro en
+Registros" avisa que no encuentra el cobro. Antes de la v50 corregir un
+monto obligaba a borrar y volver a registrar; desde la v50 el cobro se
+corrige sin borrarlo, así que pasa mucho menos.
+**Propuesta:** al borrar un cobro con `agenda_id`, regresar su cita agendada
+a `pendiente` en la misma sentencia (y a `completada` con "Deshacer").

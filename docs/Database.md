@@ -1,6 +1,6 @@
 # Base de datos · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-09-26 · **Motor:** PostgreSQL en Neon · **Acceso:** solo desde las serverless functions
+**Última revisión:** 2026-10-05 · **Motor:** PostgreSQL en Neon · **Acceso:** solo desde las serverless functions
 
 ## 1. Modelo
 
@@ -188,10 +188,11 @@ Se borra sola cuando el push service responde 404 o 410.
    - Borrar cita agendada → borra **solo su fila de anticipo** en `citas` (la de `agenda_id` con item `anticipo`). Una cita agendada `completada` no se puede borrar: su cobro se corrige en Registros.
    - Cancelar / "No asistió" **no** borra el anticipo: el dinero sí se recibió.
 4. **Candado de cobro:** `update citas_agendadas set estado='completada' where estado='pendiente'`. Si no toca filas, se rechaza el cobro. Va en la **misma sentencia** que el insert de la cita y de sus comisiones: todo o nada.
-5. **Anticipo atómico:** agendar con anticipo inserta la cita agendada, la fila de dinero y el enlace en **una sola sentencia** con CTEs.
-6. **Dinero:** `numeric`, sin centavos flotantes. El cliente manda números; el servidor valida rangos.
-7. **Fechas:** `date` en ISO (`YYYY-MM-DD`). Horas de agenda en `HH:MM` 24 h. `timestamp` de citas y gastos es texto libre de la hora local. Lo que fecha el servidor usa `fechaMexico()` (`lib/fecha.js`), nunca la fecha UTC.
-8. **Consultas siempre parametrizadas** con el tagged template de `neon` (`sql\`… ${valor}\``). Nunca concatenar.
+5. **Anticipo atómico:** agendar con anticipo inserta la cita agendada, la fila de dinero y el enlace en **una sola sentencia** con CTEs. Corregirlo desde la Agenda también: la cita agendada y su fila de anticipo cambian juntas (se corrige la fila en su mismo día, se crea hoy si no había, o se borra y se suelta con `agenda_id = null` si pasa a $0). Una cita `completada` ya no cambia su anticipo.
+6. **Corregir un cobro:** solo cambian los precios de sus mismos items y el método de pago. El servidor recalcula `total`, `anticipo_aplicado` (`min(anticipo de la cita agendada, suma)`) y, en la misma sentencia, `costo`/`comision` de sus comisiones con el mismo `pct`. Las filas de solo-anticipo no se corrigen por aquí.
+7. **Dinero:** `numeric`, sin centavos flotantes. El cliente manda números; el servidor valida rangos.
+8. **Fechas:** `date` en ISO (`YYYY-MM-DD`). Horas de agenda en `HH:MM` 24 h. `timestamp` de citas y gastos es texto libre de la hora local. Lo que fecha el servidor usa `fechaMexico()` (`lib/fecha.js`), nunca la fecha UTC.
+9. **Consultas siempre parametrizadas** con el tagged template de `neon` (`sql\`… ${valor}\``). Nunca concatenar.
 
 ## 5. Consultas que conviene conocer
 
