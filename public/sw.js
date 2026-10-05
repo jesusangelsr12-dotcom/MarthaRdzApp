@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jr-salones-v49';
+const CACHE_NAME = 'jr-salones-v50';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -13,7 +13,6 @@ const STATIC_ASSETS = [
   '/js/whatsapp.js',
   '/js/push-client.js',
   '/js/webauthn-client.js',
-  '/js/hora-picker.js',
   '/js/app-version.js',
   '/js/views/login.js',
   '/js/views/home.js',
@@ -24,8 +23,6 @@ const STATIC_ASSETS = [
   '/js/views/historial.js',
   '/js/views/config.js',
   '/js/views/dashboard.js',
-  '/js/views/agenda.js',
-  '/js/views/agendar.js',
   '/manifest.json',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
@@ -115,8 +112,8 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// Notificaciones push: recordatorio de citas de mañana, aviso de cita nueva
-// registrada por una trabajadora (ver lib/push.js).
+// Notificaciones push: aviso de cita nueva registrada por una trabajadora
+// (ver lib/push.js).
 self.addEventListener('push', (event) => {
   let data = {};
   try {
@@ -137,8 +134,8 @@ self.addEventListener('push', (event) => {
 });
 
 // Tocar la notificación enfoca la app si ya está abierta, o la abre en la
-// pantalla correspondiente (Agenda para el recordatorio, Registros para el
-// aviso de cita nueva) en vez de siempre mandar al Home.
+// pantalla correspondiente (Registros para el aviso de cita nueva) en vez
+// de siempre mandar al Home.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const url = event.notification.data?.url || '/';

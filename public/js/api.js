@@ -92,6 +92,12 @@ export function getCitas(sheetId, fecha) {
   return fetchAPI(`citas?sheet_id=${encodeURIComponent(sheetId)}&fecha=${fecha}`);
 }
 
+/** Anticipos que la Agenda vieja dejó registrados y que todavía no se
+ * aplican a una cita: [{ id, clienta, fecha, monto }] */
+export function getAnticiposPendientes(sheetId) {
+  return fetchAPI(`citas?sheet_id=${encodeURIComponent(sheetId)}&anticipos=pendientes`);
+}
+
 /** Registrar nueva cita */
 export function createCita(sheetId, cita) {
   return fetchAPI('citas', {
@@ -189,75 +195,6 @@ export function getDashboard(sheetId, desde, hasta) {
   );
 }
 
-/**
- * Obtener citas agendadas. `opts` es { fecha } o { desde, hasta }, y
- * opcionalmente `estado` (pendiente/completada/no_asistio/cancelada).
- */
-export function getCitasAgendadas(sheetId, opts = {}) {
-  const params = new URLSearchParams({ sheet_id: sheetId });
-  if (opts.fecha) params.set('fecha', opts.fecha);
-  if (opts.desde) params.set('desde', opts.desde);
-  if (opts.hasta) params.set('hasta', opts.hasta);
-  if (opts.estado) params.set('estado', opts.estado);
-  return fetchAPI(`citas-agendadas?${params.toString()}`);
-}
-
-/** Agendar una cita nueva (con o sin anticipo) */
-export function createCitaAgendada(sheetId, data) {
-  return fetchAPI('citas-agendadas', {
-    method: 'POST',
-    body: { sheet_id: sheetId, ...data },
-  });
-}
-
-/** Editar una cita agendada (estado, nota, fecha u hora) */
-export function updateCitaAgendada(sheetId, { id, estado, nota, fecha, hora }) {
-  return fetchAPI('citas-agendadas', {
-    method: 'PATCH',
-    body: { sheet_id: sheetId, id, estado, nota, fecha, hora },
-  });
-}
-
-/** Eliminar una cita agendada (borrado lógico) */
-export function deleteCitaAgendada(sheetId, id) {
-  return fetchAPI('citas-agendadas', {
-    method: 'DELETE',
-    body: { sheet_id: sheetId, id },
-  });
-}
-
-/** Deshacer la eliminación de una cita agendada */
-export function restoreCitaAgendada(sheetId, id) {
-  return fetchAPI('citas-agendadas', {
-    method: 'PATCH',
-    body: { sheet_id: sheetId, id, restore: true },
-  });
-}
-
-/** Marcar días libres/vacaciones (de la dueña si `trabajadora` viene vacío). */
-export function createAusencia(sheetId, { trabajadora, desde, hasta, nota }) {
-  return fetchAPI('citas-agendadas', {
-    method: 'POST',
-    body: { sheet_id: sheetId, recurso: 'ausencia', trabajadora, desde, hasta, nota },
-  });
-}
-
-/** Eliminar una ausencia (borrado lógico) */
-export function deleteAusencia(sheetId, id) {
-  return fetchAPI('citas-agendadas', {
-    method: 'DELETE',
-    body: { sheet_id: sheetId, recurso: 'ausencia', id },
-  });
-}
-
-/** Deshacer la eliminación de una ausencia */
-export function restoreAusencia(sheetId, id) {
-  return fetchAPI('citas-agendadas', {
-    method: 'PATCH',
-    body: { sheet_id: sheetId, recurso: 'ausencia', id, restore: true },
-  });
-}
-
 /** Asignar/cambiar el PIN de acceso de una trabajadora (o quitárselo con remove: true) */
 export function setTrabajadorPin(sheetId, { nombre, pin, remove }) {
   return fetchAPI('trabajador-pin', {
@@ -266,7 +203,7 @@ export function setTrabajadorPin(sheetId, { nombre, pin, remove }) {
   });
 }
 
-/** Prende o apaga un permiso de una trabajadora (ej. { telefonos: true }).
+/** Prende o apaga un permiso de una trabajadora (ej. { <permiso>: true }).
  * Solo la dueña. Responde { success, permisos } con todos sus permisos. */
 export function setPermisosTrabajadora(sheetId, nombre, permisos) {
   return fetchAPI('trabajador-pin', {

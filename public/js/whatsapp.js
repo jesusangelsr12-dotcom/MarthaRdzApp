@@ -1,6 +1,5 @@
 /**
- * Links de WhatsApp (click-to-chat, wa.me) — para confirmar citas y
- * compartir recibos.
+ * Links de WhatsApp (click-to-chat, wa.me) — para compartir recibos.
  *
  * OJO — límite real de la plataforma, no de esta app: un link de wa.me solo
  * abre WhatsApp con el mensaje ya escrito; quien lo abre tiene que tocar

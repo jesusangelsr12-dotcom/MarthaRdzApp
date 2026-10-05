@@ -13,6 +13,32 @@ Secciones: **Agregado** · **Cambiado** · **Corregido** · **Seguridad** · **B
 
 ## [Sin publicar]
 
+## v50 · 2026-10-05
+
+### Agregado
+- **Paso "¿Dejó anticipo?" al registrar una cita**, entre Notas y Método de pago. Se teclea el monto o se toca **Sin anticipo**. Lo ven la dueña y la trabajadora.
+- **El anticipo va dentro del total.** Una cita de $2,500 con $500 de anticipo se guarda con total $2,500: los $2,500 cuentan en ingresos el día de la cita y las comisiones salen sobre $2,500. El resumen muestra Total, Anticipo y "Resta por cobrar". El anticipo no puede ser mayor que el total.
+- Ver Registros muestra "Incluye anticipo de $X" en la cita, y el recibo compartido agrega Anticipo y "Resto pagado".
+- **Anticipos que dejó la Agenda.** Al escribir el nombre de una clienta que tiene un anticipo registrado por la Agenda, la app avisa "Ya tiene anticipo" y en el paso de anticipo lo ofrece en una tarjeta. Al tocarlo y registrar la cita, ese anticipo se mueve al día de la cita (se oculta su registro viejo, no se borra) para no contarlo dos veces. Si después se elimina la cita, el anticipo regresa a su día original como pendiente; "Deshacer" lo vuelve a aplicar.
+
+### Cambiado
+- **Se retiró la Agenda.** Ya no existen las pantallas Agenda y Agendar Cita, ni las vacaciones/días libres. Las citas se registran solo a mano, desde Registrar Cita.
+- Se retiró el recordatorio diario de "citas de mañana". El cron diario se queda solo para limpiar intentos de login viejos (`/api/cron/limpieza`, antes `/api/cron/reminder-citas`).
+- Se retiró el permiso de trabajadora **Teléfonos de clientas**: solo servía en Agenda y Agendar. La trabajadora ya no ve ni guarda teléfonos. Configuración ya no muestra "Puede usar".
+- El inicio de la trabajadora queda solo con Registrar Cita, y el de la dueña con Registrar Cita, Registrar Gasto y Clientas.
+- Un enlace viejo a una pantalla que ya no existe (ej. `#agenda` en una notificación de antes) lleva al inicio en vez de dejar la pantalla en blanco.
+
+### Base de datos
+- Migración `008_anticipo_en_cita.sql` (aditiva): `citas.anticipo` (default 0, con candado `0 ≤ anticipo ≤ total`) y `citas.anticipo_origen_id` (de qué anticipo de la Agenda vino).
+- No se borró nada: `citas_agendadas`, `ausencias`, `anticipo_aplicado` y el permiso `telefonos` guardado en `salones.trabajadoras` se quedan como estaban. Solo dejan de usarse.
+
+### Seguridad
+- `POST /api/citas` aplica un anticipo de la Agenda en una sola sentencia con candado: solo si sigue vivo, es del mismo salón y el monto coincide. Si ya se aplicó en otro dispositivo responde 409 y no registra nada.
+- Sin el permiso de teléfonos, `GET /api/clientas` nunca le manda teléfonos a una trabajadora y `POST` le responde 403. Un permiso `telefonos` que haya quedado guardado ya no vale.
+
+### Docs
+- CLAUDE.md, README, PRD, Architecture, API Guide, Database, Security, Testing (41 pruebas), Deployment, Design System, Code Style, Error Handling y AppFlow (.md y tablero).
+
 ## v49 · 2026-09-26
 
 ### Agregado

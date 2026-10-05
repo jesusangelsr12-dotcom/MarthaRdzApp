@@ -130,7 +130,7 @@ async function load() {
     trabajadoras = (data.trabajadoras || []).map((t) => ({
       nombre: t.nombre,
       tiene_acceso: !!t.tiene_acceso,
-      permisos: { telefonos: !!t.permisos?.telefonos },
+      permisos: normalizarPermisos(t.permisos),
     }));
 
     configLoaded = true;
@@ -194,14 +194,16 @@ function handleContentChange(e) {
   cambiarPermiso(parseInt(input.dataset.index, 10), input.dataset.permiso, input.checked, input);
 }
 
-const PERMISOS = {
-  telefonos: {
-    titulo: 'Teléfonos de clientas',
-    detalle: 'Agregar teléfonos en la Agenda y confirmar citas por WhatsApp.',
-    si: (n) => `${n} ya puede usar los teléfonos de las clientas`,
-    no: (n) => `${n} ya no ve los teléfonos de las clientas`,
-  },
-};
+// Permisos extra que se le pueden dar a una trabajadora (mismas claves que
+// PERMISOS_TRABAJADORA en lib/auth.js). Hoy no hay ninguno: "Teléfonos de
+// clientas" se retiró junto con la Agenda (v50). Cada uno lleva
+// { titulo, detalle, si(nombre), no(nombre) }.
+const PERMISOS = {};
+
+/** Solo los permisos que existen, como booleanos. */
+function normalizarPermisos(permisos) {
+  return Object.fromEntries(Object.keys(PERMISOS).map((clave) => [clave, permisos?.[clave] === true]));
+}
 
 async function cambiarPermiso(index, permiso, activo, input) {
   const t = trabajadoras[index];
@@ -211,7 +213,7 @@ async function cambiarPermiso(index, permiso, activo, input) {
     // Si se acaba de agregar, su guardado puede seguir en camino.
     await colaGuardado;
     const res = await setPermisosTrabajadora(session.sheet_id, t.nombre, { [permiso]: activo });
-    t.permisos = { telefonos: !!res.permisos?.telefonos };
+    t.permisos = normalizarPermisos(res.permisos);
     showToast(activo ? PERMISOS[permiso].si(t.nombre) : PERMISOS[permiso].no(t.nombre), 'success', 2500);
   } catch (error) {
     input.checked = !activo;
@@ -222,6 +224,7 @@ async function cambiarPermiso(index, permiso, activo, input) {
 }
 
 function renderPermisos(t, i) {
+  if (Object.keys(PERMISOS).length === 0) return '';
   return `
     <div class="config-permisos">
       <span class="config-permisos-titulo">Puede usar</span>
@@ -250,8 +253,8 @@ function isStandalone() {
     window.matchMedia('(display-mode: standalone)').matches;
 }
 
-/** Recordatorio de citas de mañana + aviso cuando una trabajadora registra
- * una cita — ver api/cron/reminder-citas.js y el hook en api/citas.js. */
+/** Aviso cuando una trabajadora registra una cita — ver el hook en
+ * api/citas.js. */
 function renderNotifSection() {
   if (notifStatus === 'loading') {
     return `
@@ -284,7 +287,7 @@ function renderNotifSection() {
           ${activo ? 'Activadas' : 'Desactivadas'}
         </span>
       </div>
-      <p class="multi-select-hint">Recordatorio de citas de mañana y aviso cuando una trabajadora registre una cita.</p>
+      <p class="multi-select-hint">Aviso cuando una trabajadora registre una cita.</p>
       <div class="config-worker-actions">
         <button class="btn-link" data-action="notif-toggle">${activo ? 'Desactivar' : 'Activar'}</button>
       </div>
@@ -465,7 +468,7 @@ function renderConfig() {
 
       <!-- Sección Trabajadoras -->
       <label class="input-label mt-32">Trabajadoras con comisión</label>
-      <p class="multi-select-hint">El porcentaje se asigna al registrar cada cita. Dale acceso a la app para que pueda ver la agenda y registrar sus propias citas.</p>
+      <p class="multi-select-hint">El porcentaje se asigna al registrar cada cita. Dale acceso a la app para que pueda registrar sus propias citas.</p>
       <div id="trabajadoras-list" class="gap-12">
         ${trabajadoras.length === 0 ? `
           <p class="text-center" style="color: var(--color-gray-400); padding: 16px 0; font-size: 0.9rem">
@@ -546,7 +549,7 @@ function renderConfig() {
     const name = inputWorker.value.trim();
     if (!name) { showToast('Ingresa el nombre', 'error'); return; }
     if (trabajadoras.some((t) => t.nombre === name)) { showToast('Esa trabajadora ya existe', 'error'); return; }
-    trabajadoras.push({ nombre: name, tiene_acceso: false, permisos: { telefonos: false } });
+    trabajadoras.push({ nombre: name, tiene_acceso: false, permisos: normalizarPermisos() });
     renderConfig();
     guardarCatalogo(`Se agregó a ${name}`);
   };

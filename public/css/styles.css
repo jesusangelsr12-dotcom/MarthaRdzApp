@@ -2127,33 +2127,6 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
   border-color: var(--color-accent);
 }
 
-/* --- Selector de hora simplificado (hora 1-12 + AM/PM + minutos de 10 en
-   10) — reemplaza el <input type="time"> nativo al agendar/reagendar --- */
-.hora-picker {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.hora-picker-select {
-  width: auto;
-  min-height: 52px;
-  padding: 12px 10px;
-  text-align: center;
-  text-align-last: center;
-  flex: 1;
-}
-
-.hora-picker-colon {
-  font-weight: 700;
-  font-size: 1.05rem;
-  color: var(--color-gray-400);
-}
-
-.hora-picker-ampm {
-  flex: 1.3;
-}
-
 /* --- Client Autocomplete (Cita Step 1) --- */
 .clienta-input-wrapper {
   position: relative;
@@ -2320,14 +2293,6 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
   text-align: right;
   font-size: 0.72rem;
   color: var(--color-gray-400);
-}
-
-/* Día de la semana junto al campo de fecha — el input nativo no lo dice */
-.fecha-dia-semana {
-  margin: 6px 2px 0;
-  font-size: 0.82rem;
-  font-weight: 500;
-  color: var(--color-accent);
 }
 
 /* --- Banner de nota fija de la clienta --- */
@@ -2855,8 +2820,7 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 }
 
 /* ============================================
-   Home: acción "Agenda" (también la usa "Comisiones" en Más — nunca
-   se muestran juntas, así que comparten el mismo tono de acento)
+   Home: icono de "Comisiones" en Más
    ============================================ */
 
 .home-action-icon--slate {
@@ -2865,27 +2829,49 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
 }
 
 /* ============================================
-   Cita: recuadros de "cita agendada" de hoy
+   Cita: anticipo (paso "anticipo" y aviso en el paso "clienta")
    ============================================ */
 
-.agenda-hoy-container:not(:empty) {
+/* Aviso bajo el nombre: esa clienta ya tiene un anticipo registrado */
+.anticipo-previo-aviso {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
   margin-top: 16px;
+  background: var(--color-slate-light);
+  border-left: 3px solid var(--color-slate);
+  border-radius: var(--radius-sm);
 }
 
-.agenda-hoy-label {
+.anticipo-previo-aviso-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-slate);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.anticipo-previo-aviso-text {
+  font-size: 0.9rem;
+  color: var(--color-ink);
+  line-height: 1.45;
+}
+
+.anticipo-previo-label {
   font-size: 0.78rem;
   font-weight: 600;
   color: var(--color-gray-500);
   margin-bottom: 8px;
 }
 
-.agenda-hoy-list {
+.anticipo-previo-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.agenda-hoy-card {
+.anticipo-previo-card {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -2900,446 +2886,40 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
   text-align: left;
 }
 
-.agenda-hoy-card:active {
+.anticipo-previo-card:active {
   transform: scale(0.98);
 }
 
-.agenda-hoy-card-hora {
-  font-weight: 700;
-  font-size: 0.85rem;
-  color: var(--color-slate);
-  white-space: nowrap;
+.anticipo-previo-card.selected {
+  border-color: var(--color-accent);
+  background: var(--color-accent-bg);
 }
 
-.agenda-hoy-card-clienta {
+.anticipo-previo-card-fecha {
   flex: 1;
   font-weight: 600;
   font-size: 0.9rem;
   color: var(--color-ink);
 }
 
-.agenda-hoy-card-anticipo {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--color-slate);
-  white-space: nowrap;
-}
-
-/* ============================================
-   Agenda screen: header action, toggle de vista
-   ============================================ */
-
-.screen-header-spacer {
-  flex: 1;
-}
-
-.header-action-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-full);
-  border: none;
-  background: var(--color-accent-bg);
-  color: var(--color-accent);
-  font-size: 1.3rem;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-family: var(--font-family);
-}
-
-.header-action-btn:active {
-  transform: scale(0.95);
-}
-
-.view-toggle {
-  display: flex;
-  gap: 6px;
-  background: var(--color-gray-200);
-  border-radius: var(--radius-full);
-  padding: 4px;
-  margin-bottom: 20px;
-}
-
-.view-toggle-btn {
-  flex: 1;
-  border: none;
-  background: none;
-  padding: 9px 12px;
-  border-radius: var(--radius-full);
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--color-gray-500);
-  font-family: var(--font-family);
-  cursor: pointer;
-  transition: all var(--transition), transform var(--bounce);
-}
-
-.view-toggle-btn.active {
-  background: var(--color-surface);
-  color: var(--color-ink);
-  box-shadow: var(--shadow-sm);
-}
-
-/* --- Vista "Agenda": fila de una cita agendada --- */
-.agenda-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  background: var(--color-surface);
-  border: none;
-  border-radius: var(--radius-md);
-  padding: 14px 16px;
-  margin-bottom: 10px;
-  box-shadow: var(--shadow-sm);
-  cursor: pointer;
-  font-family: var(--font-family);
-  text-align: left;
-}
-
-.agenda-row:active {
-  transform: scale(0.99);
-}
-
-.agenda-row-hora {
-  min-width: 64px; /* "10:30 PM": que la columna de nombres quede alineada */
+.anticipo-previo-card-monto {
   font-weight: 700;
-  font-size: 0.85rem;
-  color: var(--color-ink);
-  white-space: nowrap;
-}
-
-.agenda-row-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.agenda-row-clienta {
-  font-weight: 600;
-  font-size: 0.92rem;
-  color: var(--color-ink);
-}
-
-.agenda-row-anticipo {
-  font-size: 0.75rem;
-  color: var(--color-slate);
-  font-weight: 500;
-}
-
-/* Fecha en las filas de "Sin cerrar" (citas de días pasados) */
-.agenda-row-fecha {
-  font-size: 0.75rem;
-  color: var(--color-gray-500);
-  font-weight: 500;
-}
-
-.sin-cerrar .multi-select-hint {
-  margin-bottom: 8px;
-}
-
-.agenda-estado-badge {
-  flex-shrink: 0;
-  font-size: 0.68rem;
-  font-weight: 700;
-  padding: 4px 10px;
-  border-radius: var(--radius-full);
-  white-space: nowrap;
-}
-
-.agenda-estado-badge--pendiente {
-  background: var(--color-accent-bg);
-  color: var(--color-accent);
-}
-
-.agenda-estado-badge--completada {
-  background: var(--color-green-light);
-  color: var(--color-green);
-}
-
-.agenda-estado-badge--no_asistio {
-  background: var(--color-error-light);
-  color: var(--color-error);
-}
-
-.agenda-estado-badge--cancelada {
-  background: var(--color-gray-200);
-  color: var(--color-gray-500);
-}
-
-/* --- Vacaciones/días libres: banner que va antes que las citas --- */
-.ausencias-banner {
-  margin-bottom: 16px;
-}
-
-.ausencia-card {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  background: var(--color-slate-light);
-  border-radius: var(--radius-md);
-  padding: 12px 14px;
-  margin-bottom: 8px;
-}
-
-.ausencia-card-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.ausencia-card-quien {
-  font-weight: 700;
-  font-size: 0.88rem;
-  color: var(--color-ink);
-}
-
-.ausencia-card-rango {
-  font-size: 0.78rem;
-  color: var(--color-slate);
-  font-weight: 500;
-}
-
-.ausencia-card-nota {
-  font-size: 0.76rem;
-  color: var(--color-gray-500);
-  margin-top: 2px;
-}
-
-.ausencia-card-eliminar {
-  flex-shrink: 0;
-  width: 26px;
-  height: 26px;
-  border: none;
-  border-radius: var(--radius-full);
-  background: transparent;
-  color: var(--color-gray-500);
-  font-size: 1.1rem;
-  line-height: 1;
-  cursor: pointer;
-  font-family: var(--font-family);
-}
-
-.ausencia-card-eliminar:active {
-  background: var(--color-surface);
-}
-
-/* --- Vista "Mes": layout de dos columnas en iPad (cuadrícula + detalle del
-   día lado a lado; en celular se quedan apiladas, calendario primero) --- */
-.mes-grid {
-  display: flex;
-  flex-direction: column;
-}
-
-@media (min-width: 700px) {
-  .mes-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 28px;
-    align-items: start;
-  }
-}
-
-.mes-dia-hint {
-  color: var(--color-gray-400);
-  font-style: italic;
-}
-
-.mes-detalle-section {
-  margin-top: 24px; /* separación del calendario apilado en celular */
-}
-
-@media (min-width: 700px) {
-  .mes-detalle-section {
-    margin-top: 0; /* lado a lado con el calendario: alineados arriba */
-  }
-}
-
-/* --- Vista "Mes": cuadrícula tipo calendario --- */
-.month-nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.month-nav-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-full);
-  border: none;
-  background: var(--color-surface);
-  box-shadow: var(--shadow-sm);
-  color: var(--color-accent);
-  font-size: 1rem;
-  cursor: pointer;
-  font-family: var(--font-family);
-}
-
-.month-nav-label {
-  font-weight: 700;
-  font-size: 0.98rem;
-  color: var(--color-ink);
-}
-
-.month-grid-labels {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  margin-bottom: 6px;
-}
-
-.month-grid-labels span {
-  text-align: center;
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--color-gray-400);
-  text-transform: uppercase;
-}
-
-.month-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
-}
-
-.month-day-cell {
-  position: relative;
-  aspect-ratio: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: var(--color-surface);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-family: var(--font-family);
-}
-
-.month-day-cell--vacia {
-  background: none;
-  box-shadow: none;
-  cursor: default;
-}
-
-/* Día dentro de un rango de vacaciones/día libre — el fondo va antes que
-   --hoy/--selected en el CSS para que esos dos sigan ganando si coinciden
-   con un día marcado. */
-.month-day-cell--ausencia {
-  background: var(--color-slate-light);
-}
-
-.month-day-number {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--color-ink);
-}
-
-.month-day-cell--hoy .month-day-number {
-  color: var(--color-accent);
-}
-
-.month-day-cell--selected {
-  background: var(--color-accent);
-}
-
-.month-day-cell--selected .month-day-number {
-  color: var(--color-surface);
-}
-
-.month-day-dot {
-  position: absolute;
-  bottom: 5px;
-  width: 5px;
-  height: 5px;
-  border-radius: var(--radius-full);
-  background: var(--color-slate);
-}
-
-.month-day-cell--selected .month-day-dot {
-  background: var(--color-surface);
-}
-
-/* ============================================
-   Menú de acciones de una cita agendada
-   (reutiliza .delete-modal / .delete-modal-content)
-   ============================================ */
-
-.action-sheet-content {
-  text-align: left;
-  max-width: 360px;
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.action-sheet-confirm {
-  text-align: center;
-  padding-top: 8px;
-}
-
-.action-sheet-confirm .delete-modal-text {
-  margin-bottom: 16px;
-}
-
-.action-sheet-header {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-bottom: 8px;
-}
-
-.action-sheet-clienta {
-  font-weight: 700;
-  font-size: 1.05rem;
-  color: var(--color-ink);
-}
-
-.action-sheet-meta {
-  font-size: 0.8rem;
-  color: var(--color-gray-500);
-}
-
-.action-sheet-btn {
-  width: 100%;
-  text-align: left;
-  padding: 13px 14px;
-  border: none;
-  border-radius: var(--radius-md);
-  background: var(--color-gray-100);
-  color: var(--color-ink);
   font-size: 0.9rem;
+  color: var(--color-slate);
+  white-space: nowrap;
+}
+
+/* En el resumen: de qué día es el anticipo que se aplicó */
+.summary-anticipo-origen {
+  display: inline-block;
+  font-size: 0.62rem;
   font-weight: 600;
-  font-family: var(--font-family);
-  cursor: pointer;
-}
-
-.action-sheet-btn:active {
-  background: var(--color-gray-200);
-}
-
-.action-sheet-btn--danger {
-  color: var(--color-error);
-}
-
-.action-sheet-btn--whatsapp {
-  background: var(--color-green-light);
-  color: var(--color-green);
-}
-
-.action-sheet-btn--cobrar {
-  background: var(--color-accent-bg);
-  color: var(--color-accent);
-  font-weight: 700;
-}
-
-.action-sheet-nota {
-  margin: 0 0 12px;
+  color: var(--color-slate);
+  background: var(--color-slate-light);
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  margin-left: 4px;
+  vertical-align: middle;
 }
 
 .home-footer .app-version {

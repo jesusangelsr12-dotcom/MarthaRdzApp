@@ -16,16 +16,13 @@
  *
  * Una trabajadora solo puede usar el modo lista (nombres, para el
  * autocomplete al registrar una cita) y nunca recibe `notas_fijas` — ahí
- * viven alergias/preferencias. El teléfono tampoco, salvo que la dueña le
- * haya dado el permiso "telefonos" (Configuración): entonces recibe
- * `telefonos` y puede guardar el teléfono de una clienta con el POST, sin
- * tocar su nota fija. El permiso se lee de la base en cada llamada.
- * `permiso_telefonos` en la respuesta le dice al frontend qué mostrar.
- * El modo historial es solo de la dueña.
+ * viven alergias/preferencias. El teléfono tampoco (el permiso
+ * "Teléfonos de clientas" se retiró con la Agenda en la v50). El modo
+ * historial y el POST (nota fija y teléfono) son solo de la dueña.
  */
 
 const { getSql } = require('../lib/db');
-const { requireSession, getSessionRole, permisosDeTrabajadora } = require('../lib/auth');
+const { requireSession, getSessionRole } = require('../lib/auth');
 const { isNonEmptyString, isTelefonoStr } = require('../lib/validate');
 const { fechaMexico } = require('../lib/fecha');
 
@@ -47,11 +44,10 @@ function normalizeNombre(nombre) {
 module.exports = async function handler(req, res) {
   const salonId = requireSession(req, res);
   if (!salonId) return;
-  const { role, worker } = getSessionRole(req);
+  const { role } = getSessionRole(req);
 
   try {
     const sql = getSql();
-    const permisoTelefonos = role !== 'trabajadora' || (await permisosDeTrabajadora(sql, salonId, worker)).telefonos;
 
     if (req.method === 'GET') {
       const { historial } = req.query;
@@ -61,7 +57,7 @@ module.exports = async function handler(req, res) {
       }
 
       const [citasRows, clientasRows] = await Promise.all([
-        // Se excluyen las filas de solo-anticipo (ver api/citas-agendadas.js):
+        // Se excluyen las filas de solo-anticipo (de la Agenda vieja, ver api/citas.js):
         // no son una visita real, y contarlas aquí infla el historial de la
         // clienta con una "cita" que en realidad fue solo un depósito.
         sql`
@@ -178,17 +174,16 @@ module.exports = async function handler(req, res) {
 
       return res.status(200).json({
         clientas: [...names].sort(),
-        // Alergias/preferencias son "detalle de clientas" — fuera del
-        // alcance de una trabajadora, aunque el nombre sí lo necesite. El
-        // teléfono solo si la dueña le dio ese permiso.
+        // Alergias/preferencias y teléfono son "detalle de clientas" —
+        // fuera del alcance de una trabajadora, aunque el nombre sí lo
+        // necesite.
         notas_fijas: role === 'trabajadora' ? {} : notas_fijas,
-        telefonos: permisoTelefonos ? telefonos : {},
-        permiso_telefonos: permisoTelefonos,
+        telefonos: role === 'trabajadora' ? {} : telefonos,
       });
     }
 
     if (req.method === 'POST') {
-      if (!permisoTelefonos) {
+      if (role === 'trabajadora') {
         return res.status(403).json({ error: 'Esta cuenta no tiene acceso a esto' });
       }
 
@@ -198,22 +193,6 @@ module.exports = async function handler(req, res) {
         return res.status(400).json({ error: 'Faltan datos requeridos' });
       }
 
-      // Trabajadora con permiso de teléfonos: guarda SOLO el teléfono. La
-      // nota fija (alergias) no la ve, así que tampoco la puede cambiar ni
-      // borrar; el nombre de la clienta se queda como lo dejó la dueña.
-      if (role === 'trabajadora') {
-        if (!isTelefonoStr(telefono) || telefono === '') {
-          return res.status(400).json({ error: 'Teléfono inválido — deben ser 10 dígitos' });
-        }
-        const nombre = String(clienta).trim();
-        await sql`
-          insert into clientas (salon_id, clienta, clienta_normalizada, nota_fija, telefono, actualizado)
-          values (${salonId}, ${nombre}, ${normalizeNombre(nombre)}, '', ${telefono}, ${fechaMexico()})
-          on conflict (salon_id, clienta_normalizada)
-          do update set telefono = excluded.telefono, actualizado = excluded.actualizado
-        `;
-        return res.status(200).json({ success: true });
-      }
       // Vaciar la nota es válido
       if (typeof nota_fija !== 'string' || nota_fija.length > 2000) {
         return res.status(400).json({ error: 'Nota inválida' });

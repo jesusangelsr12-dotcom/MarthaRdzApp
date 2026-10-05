@@ -2,7 +2,7 @@
  * Pantalla Home
  * Header con saludo + nombre del salón + una tarjeta de resumen (semana en
  * curso: ingresos/citas/gastos como mini-estadísticas, comisiones por
- * trabajadora) + acciones principales (las 4 que más se usan) + "Más"
+ * trabajadora) + acciones principales (las 3 que más se usan) + "Más"
  * (las que se usan poco, colapsado hasta que se toca) + cerrar sesión.
  */
 
@@ -17,7 +17,7 @@ let session = null;
 
 /**
  * Home reducido para una trabajadora: sin dinero agregado ni "Más" — solo
- * lo que le toca hacer (ver la agenda, registrar/cobrar una cita) y salir.
+ * lo que le toca hacer (registrar una cita) y salir.
  * Lleva aquí "Actualizar app" porque ella no entra a Configuración.
  */
 function renderTrabajadora() {
@@ -31,18 +31,6 @@ function renderTrabajadora() {
       ${shouldShowInstallBanner() ? installBannerHTML() : ''}
 
       <div class="home-actions">
-        <button class="home-action-card" id="btn-agenda">
-          <div class="home-action-icon home-action-icon--slate">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-            </svg>
-          </div>
-          <div class="home-action-text">
-            <span class="home-action-label">Agenda</span>
-            <span class="home-action-desc">Citas futuras y anticipos</span>
-          </div>
-        </button>
-
         <button class="home-action-card" id="btn-cita">
           <div class="home-action-icon home-action-icon--primary">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -52,7 +40,7 @@ function renderTrabajadora() {
           </div>
           <div class="home-action-text">
             <span class="home-action-label">Registrar Cita</span>
-            <span class="home-action-desc">Nueva o cobrar agendada</span>
+            <span class="home-action-desc">Servicios, productos y anticipo</span>
           </div>
         </button>
       </div>
@@ -72,7 +60,6 @@ function initTrabajadora() {
   pintarVersionApp();
   document.querySelector('[data-action="actualizar-app"]').addEventListener('click', actualizarApp);
   document.getElementById('btn-cita').addEventListener('click', () => navigateTo('cita'));
-  document.getElementById('btn-agenda').addEventListener('click', () => navigateTo('agenda'));
   document.getElementById('btn-logout').addEventListener('click', () => {
     logout();
     navigateTo('login');
@@ -129,18 +116,6 @@ export function render(s) {
           </div>
 
           <div class="home-actions">
-            <button class="home-action-card" id="btn-agenda">
-              <div class="home-action-icon home-action-icon--slate">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-                </svg>
-              </div>
-              <div class="home-action-text">
-                <span class="home-action-label">Agenda</span>
-                <span class="home-action-desc">Citas futuras y anticipos</span>
-              </div>
-            </button>
-
             <button class="home-action-card" id="btn-cita">
               <div class="home-action-icon home-action-icon--primary">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -150,7 +125,7 @@ export function render(s) {
               </div>
               <div class="home-action-text">
                 <span class="home-action-label">Registrar Cita</span>
-                <span class="home-action-desc">Servicios y productos</span>
+                <span class="home-action-desc">Servicios, productos y anticipo</span>
               </div>
             </button>
 
@@ -237,7 +212,6 @@ export function init(s) {
   initInstallBanner();
 
   document.getElementById('btn-cita').addEventListener('click', () => navigateTo('cita'));
-  document.getElementById('btn-agenda').addEventListener('click', () => navigateTo('agenda'));
   document.getElementById('btn-historial').addEventListener('click', () => navigateTo('historial'));
   document.getElementById('btn-gasto').addEventListener('click', () => navigateTo('gasto'));
   document.getElementById('btn-registros').addEventListener('click', () => navigateTo('registros'));

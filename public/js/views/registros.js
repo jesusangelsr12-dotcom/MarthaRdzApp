@@ -160,7 +160,8 @@ async function undoDelete(type, data) {
     loadRegistros();
   } catch (error) {
     hideLoader();
-    showToast('No se pudo deshacer', 'error');
+    // Ej. "Su anticipo ya se aplicó a otra cita" — el servidor dice por qué.
+    showToast(error.message || 'No se pudo deshacer', 'error');
   }
 }
 
@@ -216,7 +217,8 @@ function badgeLetra(tipo) {
 
 /** Genera el desglose de items como HTML. Una cita con un solo servicio/
  * producto no necesita desglose (el título ya lo dice todo), pero una fila
- * de solo-anticipo sí: sin esto se vería como un registro vacío. */
+ * de solo-anticipo (de la Agenda vieja) sí: sin esto se vería como un
+ * registro vacío. */
 function buildItemsBreakdown(items) {
   if (!items || items.length === 0) return '';
   const esSoloAnticipo = items.length === 1 && items[0].tipo === 'anticipo';
@@ -252,16 +254,25 @@ function buildMensajeRecibo(c) {
   let texto = `Recibo — ${salon}\nCliente: ${c.clienta}\nFecha: ${formatDateDisplay(c.fecha)}, ${c.timestamp}`;
   if (items) texto += `\n${items}`;
   if (c.anticipo_aplicado) texto += `\nAnticipo aplicado: −${formatMXN(c.anticipo_aplicado)}`;
-  texto += `\nTotal: ${formatMXN(c.total)}\nMétodo de pago: ${c.metodo_pago}\n\n¡Gracias por tu visita!`;
+  texto += `\nTotal: ${formatMXN(c.total)}`;
+  if (c.anticipo > 0) texto += `\nAnticipo: ${formatMXN(c.anticipo)}\nResto pagado: ${formatMXN(c.total - c.anticipo)}`;
+  texto += `\nMétodo de pago: ${c.metodo_pago}\n\n¡Gracias por tu visita!`;
   return texto;
 }
 
-/** Línea de "anticipo aplicado" cuando la cita viene de una cita agendada:
- * el total ya se registró neto de ese anticipo, y sin esta línea no se ve
- * de dónde sale la diferencia. */
-function buildAnticipoAplicadoRow(c) {
-  if (!c.anticipo_aplicado) return '';
-  return `<div class="record-anticipo-aplicado">Anticipo aplicado: −${formatMXN(c.anticipo_aplicado)}</div>`;
+/** Línea del anticipo de una cita.
+ * - `anticipo` (v50 en adelante): va DENTRO del total; solo se informa.
+ * - `anticipo_aplicado` (citas cobradas desde la Agenda vieja): ese total
+ *   se registró neto del anticipo, y sin esta línea no se ve de dónde sale
+ *   la diferencia. */
+function buildAnticipoRow(c) {
+  if (c.anticipo > 0) {
+    return `<div class="record-anticipo-aplicado">Incluye anticipo de ${formatMXN(c.anticipo)}</div>`;
+  }
+  if (c.anticipo_aplicado) {
+    return `<div class="record-anticipo-aplicado">Anticipo aplicado: −${formatMXN(c.anticipo_aplicado)}</div>`;
+  }
+  return '';
 }
 
 /** Fila de fórmula / nota dentro de la tarjeta de una cita, editable. */
@@ -353,7 +364,7 @@ function renderRegistros(citas, gastos) {
               <button class="record-delete-btn" data-type="cita" data-index="${i}" title="Eliminar" aria-label="Eliminar cita de ${escapeHTML(c.clienta)}">\u00d7</button>
             </div>
             ${buildItemsBreakdown(c.items)}
-            ${buildAnticipoAplicadoRow(c)}
+            ${buildAnticipoRow(c)}
             ${buildNotaRow(c, i)}
           </div>
         `).join('')}

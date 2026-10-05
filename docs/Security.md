@@ -1,6 +1,6 @@
 # Seguridad · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-09-26
+**Última revisión:** 2026-10-05
 
 ## 1. Qué protegemos
 
@@ -50,12 +50,11 @@ El `sheet_id` que manda el frontend se ignora.
 | `getSessionRole(req)` | Ramificar el comportamiento dentro de un endpoint |
 
 Restricciones de trabajadora aplicadas **en el servidor**:
-- `GET /api/clientas` le devuelve nombres sin nota fija. El teléfono solo si tiene el permiso `telefonos`; si no, `telefonos` viene vacío. El historial le da 403.
-- `POST /api/clientas`: 403 sin el permiso `telefonos`. Con él, guarda **solo** el teléfono (10 dígitos, no puede borrarlo) y nunca toca la nota fija ni el nombre.
-- Los permisos se leen de la base en cada llamada (`permisosDeTrabajadora()`), no del token: si la dueña los apaga, dejan de valer al momento.
-- Solo la dueña cambia permisos (`POST /api/trabajador-pin` con `permisos`), y solo se aceptan los de `PERMISOS_TRABAJADORA` con valor booleano.
-- `POST /api/citas`: solo comisiones a su nombre.
-- `citas-agendadas`: puede leer y agendar; editar, borrar y todo lo de ausencias es 403.
+- `GET /api/clientas` le devuelve solo nombres: `notas_fijas` y `telefonos` siempre vacíos. El historial le da 403.
+- `POST /api/clientas`: 403. (El permiso `telefonos` que lo permitía se retiró en v50; uno que haya quedado guardado en la base ya no vale.)
+- Permisos extra: hoy `PERMISOS_TRABAJADORA` está vacío. Si se agrega uno, se lee de la base en cada llamada (`permisosDeTrabajadora()`), no del token, y solo la dueña lo cambia (`POST /api/trabajador-pin` con `permisos`, solo llaves conocidas con valor booleano).
+- `POST /api/citas`: solo comisiones a su nombre. Puede aplicar un anticipo de la Agenda (`anticipo_origen_id`) y leer la lista de anticipos pendientes (`GET /api/citas?anticipos=pendientes`: id, clienta, fecha y monto de cada uno), porque la necesita para registrar bien la cita. No es dinero agregado del salón.
+- `GET /api/citas?fecha=`, `PATCH` y `DELETE` de citas: 403.
 - Gastos, comisiones, dashboard, config, PINs y push: 403.
 
 El frontend además esconde esas pantallas (`RUTAS_TRABAJADORA`) y botones. Es
@@ -94,7 +93,7 @@ Consecuencia del CSP: **no se pueden cargar scripts de CDNs.** Todo JS vive en e
 | `SESSION_SECRET` | Cualquiera firma sesiones de cualquier salón | Nuevo valor + redeploy. Todos vuelven a entrar con PIN. Los challenges de WebAuthn en curso fallan |
 | `PIN_PEPPER` | Permite fuerza bruta offline de los hashes | Nuevo valor + **reasignar todos los PINs** (los hashes viejos dejan de servir) |
 | `VAPID_PRIVATE_KEY` | Mandar push a los dispositivos suscritos | Nuevas llaves + todos reactivan notificaciones |
-| `CRON_SECRET` | Disparar recordatorios a mano | Nuevo valor en Vercel |
+| `CRON_SECRET` | Disparar la limpieza diaria a mano (solo borra intentos de login de más de 30 días) | Nuevo valor en Vercel |
 
 **Reglas:**
 - Nunca en el repo. `.env` está en `.gitignore`. `.env.example` solo lleva nombres vacíos.

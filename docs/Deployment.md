@@ -1,6 +1,6 @@
 # Deployment · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-09-26 · **Plataforma:** Vercel (Hobby) + Neon
+**Última revisión:** 2026-10-05 · **Plataforma:** Vercel (Hobby) + Neon
 
 ## 1. Ambientes
 
@@ -28,7 +28,7 @@ Se configuran en Vercel → Project → Settings → Environment Variables, por 
 | `VAPID_PUBLIC_KEY` | Para push | `npx web-push generate-vapid-keys` | Suscripción en el navegador |
 | `VAPID_PRIVATE_KEY` | Para push | (mismo comando) | Firmar los push |
 | `VAPID_SUBJECT` | Para push | `mailto:<correo de contacto>` | Lo exige el estándar Web Push: Apple y Google lo usan solo si necesitan avisar de un problema con las notificaciones. Nadie más lo ve y no se envían correos |
-| `CRON_SECRET` | Recomendada | `openssl rand -hex 32` | Vercel la manda al cron; sin ella, cualquiera puede disparar el recordatorio |
+| `CRON_SECRET` | Recomendada | `openssl rand -hex 32` | Vercel la manda al cron; sin ella, cualquiera puede disparar la limpieza diaria |
 
 Ver [Security.md §6](Security.md#6-secretos) para qué pasa si se filtra o se rota cada una.
 
@@ -77,7 +77,7 @@ Merge a `main` → Vercel construye y publica solo. No hay paso de build
 | `headers` | CSP, HSTS, etc. | Ver [Security.md §5](Security.md#5-encabezados-http-verceljson) |
 | `Cache-Control` en `/css` y `/js` | `max-age=0, must-revalidate` | Que siempre revaliden. El cache `immutable` causó errores con código viejo (commit `a2707e4`) |
 | `Cache-Control` en `/icons` | 1 año, `immutable` | Cambian muy poco. Se versionan con `?v=N` en el HTML |
-| `crons` | `/api/cron/reminder-citas` a las `0 0 * * *` | 00:00 UTC = 18:00 en Ciudad de México |
+| `crons` | `/api/cron/limpieza` a las `0 0 * * *` | 00:00 UTC = 18:00 en Ciudad de México. Borra intentos de login de más de 30 días |
 | `outputDirectory` | `public` | Solo `public/` se sirve como estático |
 
 ## 6. Operaciones frecuentes
@@ -97,8 +97,9 @@ Para levantarla desde cero:
 5. Da de alta el salón con `crear-salon` (abajo) usando el mismo `PIN_PEPPER` que cargaste en Vercel.
 6. Entra con el PIN desde el celular, carga servicios, productos y trabajadoras en Configuración, e instala la app en el inicio.
 
-**Estado de la base de producción (2026-09-26):** el proyecto de Neon
-"Martha Rdz App" ya tiene el esquema completo (000 a 007) y el salón
+**Estado de la base de producción (2026-10-05):** el proyecto de Neon
+"Martha Rdz App" ya tiene el esquema completo (000 a 008; la 008 se aplicó
+el 2026-10-05, antes de publicar la v50) y el salón
 `salon_002` "Martha Rodriguez Hair Artist" con su catálogo e historial, así
 que los pasos 2 y 5 ya no hacen falta. La dueña entra con su PIN de siempre:
 su hash es del formato anterior (sin pepper) y en el primer login se guarda
@@ -145,7 +146,7 @@ Desde la app: Configuración → la trabajadora → "Cambiar PIN" o "Quitar acce
 
 | Límite | Valor | Estado |
 |---|---|---|
-| Serverless functions por deploy (Hobby) | 12 | **12 usadas** |
-| Frecuencia de cron (Hobby) | Máximo una vez al día | El recordatorio corre 1 vez al día |
+| Serverless functions por deploy (Hobby) | 12 | **11 usadas** |
+| Frecuencia de cron (Hobby) | Máximo una vez al día | La limpieza corre 1 vez al día |
 | Push en iOS | Solo PWA instalada, iOS 16.4+ | |
 | Face ID | Solo HTTPS y en el dominio donde se registró | |

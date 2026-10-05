@@ -1,6 +1,6 @@
 # Design System · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-09-26 · **Fuente de verdad:** `public/css/styles.css` (Design System v4)
+**Última revisión:** 2026-10-05 · **Fuente de verdad:** `public/css/styles.css` (Design System v4)
 
 La identidad sale del brand board de Martha Rdz Hair Artist: **Negro
 Elegancia** `#111111`, **Verde Menta** `#88D8C0`, **Blanco Humo** `#F4F4F4`
@@ -11,7 +11,7 @@ que usa la app.
 ## 1. Principios
 
 1. **Minimalista.** Una acción principal por pantalla. Lo que se usa poco se esconde (bloque "Más", secciones colapsables).
-2. **Un pulgar.** Botones de 56 px, teclado numérico propio, avanzar solo al elegir (método de pago, tarjeta de cita agendada).
+2. **Un pulgar.** Botones de 56 px, teclado numérico propio, avanzar solo al elegir (método de pago, tarjeta de anticipo ya registrado).
 3. **Nada se pierde.** Todo borrado pide confirmación o da "Deshacer" (idealmente ambos).
 4. **Pequeños momentos de logro.** Check animado en el toast de éxito, rebote corto al tocar.
 5. **Hecho para iPhone instalado.** Respeta notch, Dynamic Island y barra de gestos.
@@ -31,18 +31,18 @@ que usa la app.
 | `--color-accent-vivid-active` | `#6BC9AC` | Botón primario presionado |
 | `--color-accent` | `#13705F` | Menta profundo para **texto, íconos y bordes** (5.4:1 sobre el fondo) |
 | `--color-accent-active` | `#0D5A4C` | Acento presionado |
-| `--color-accent-bg` | `#E2F4EE` | Fondo de elemento seleccionado, badge "pendiente" |
-| `--color-slate` | `#4F6660` | Segundo tono de marca (ícono de Agenda, servicios, comisiones, avatares) |
+| `--color-accent-bg` | `#E2F4EE` | Fondo de elemento seleccionado |
+| `--color-slate` | `#4F6660` | Segundo tono de marca (anticipos, servicios, comisiones, avatares) |
 | `--color-slate-light` | `#E7EDEB` | Fondo del tono slate |
 | `--color-gray-100` … `500` | `#F7F7F7` `#E2E2E2` `#D4D4D4` `#A8A8A8` `#636363` | Neutros. El 200 es Gris Plata (bordes y detalles) |
-| `--color-green` / `-light` | `#2B7330` / `#E5F1E3` | Ingresos, éxito, "completada". Verde clásico, lejos del menta |
-| `--color-error` / `-light` | `#BE3A3A` / `#FCE5E3` | Gastos, errores, borrar, "no asistió" |
+| `--color-green` / `-light` | `#2B7330` / `#E5F1E3` | Ingresos, éxito. Verde clásico, lejos del menta |
+| `--color-error` / `-light` | `#BE3A3A` / `#FCE5E3` | Gastos, errores, borrar |
 
 ### 2.2 Reglas de color
 
 - **El Verde Menta nunca va como texto sobre fondo claro** (1.6:1, no se lee). Para texto usa `--color-accent`.
 - **Sobre el botón menta, el texto va en negro** (`--color-ink`, 11.4:1). Blanco no pasa.
-- **El verde de dinero no es el menta.** `--color-green` (matiz 124°) está lejos del menta (162°) para que "Completada" no se confunda con "Pendiente".
+- **El verde de dinero no es el menta.** `--color-green` (matiz 124°) está lejos del menta (162°) para que un monto no se confunda con un elemento seleccionado.
 - Verde y rojo son funcionales, no de marca: dinero que entra y dinero que sale.
 - Nunca escribas un hex directo en un componente. Si falta un color, créalo como token con su nota de contraste.
 
@@ -53,11 +53,7 @@ que usa la app.
 | Ingreso, monto a favor | `--color-green` |
 | Gasto, monto en contra | `--color-error` (con signo `-`) |
 | Comisión | `--color-ink` (neutral) |
-| Cita pendiente | accent-bg / accent |
-| Cita completada | green-light / green |
-| No asistió | error-light / error |
-| Cancelada | gray-200 / gray-500 |
-| Día con ausencia (calendario) | `--color-slate-light` de fondo |
+| Anticipo (aviso, tarjeta, etiqueta en el resumen) | slate-light / slate |
 
 ## 3. Tipografía
 
@@ -124,8 +120,8 @@ Animaciones con nombre: `spin` (loaders), `shake` (PIN incorrecto), `toast-check
 |---|---|
 | Celular (default) | 430 px |
 | ≥ 700 px, pantallas normales | 640 px |
-| ≥ 700 px, wizards (`app--angosta`: login, cita, gasto, agendar) | 430 px |
-| ≥ 700 px, dos columnas (`app--dos-columnas`: home de la dueña, agenda) | 920 px |
+| ≥ 700 px, wizards (`app--angosta`: login, cita, gasto) | 430 px |
+| ≥ 700 px, dos columnas (`app--dos-columnas`: home de la dueña) | 920 px |
 
 `.screen` usa `max(24px, safe-area)` arriba y abajo y `max(20px, safe-area)`
 a los lados. Altura mínima `100dvh`. `touch-action: manipulation` en `html`
@@ -145,34 +141,31 @@ evita el zoom por doble tap al teclear el PIN.
 | Teclado numérico | `.keypad` + `.keypad-key` (`--delete`, `--confirm`, `--empty`) | 3×4, teclas de 58 px |
 | Puntos de PIN | `.pin-dots` / `.pin-dot.filled` / `.error` | 6 puntos, sacuden en error |
 | Indicador de pasos | `.step-indicator` / `.step-dot.active` | El paso activo se alarga a 24 px |
-| Tarjeta seleccionable | `.service-card`, `.payment-card` (`.selected`) | Borde menta profundo y fondo menta claro al elegir |
+| Tarjeta seleccionable | `.service-card`, `.payment-card`, `.anticipo-previo-card` (`.selected`) | Borde menta profundo y fondo menta claro al elegir. La de anticipo es slate claro y avanza al tocarla |
 | Resumen | `.summary`, `.summary-row`, `--total`, `.summary-section-title` | Paso "Confirmar" de cada wizard |
 | Tarjeta de acción | `.home-action-card` (`--sm`), `.home-action-icon--*` | Inicio |
 | Registro | `.record-item`, `.record-amount--income/--expense` | Registros del día |
-| Badge de estado | `.agenda-estado-badge--{estado}` | Ver colores en 2.3 |
-| Modal / hoja de acciones | `.delete-modal`, `.action-sheet-content` | Fondo difuminado. Confirmación con botón rojo |
-| Botón de acción principal en hoja | `.action-sheet-btn--cobrar` | Menta claro con texto menta profundo. "Registrar cobro" |
-| Nota en hoja de acciones | `.multi-select-hint.action-sheet-nota` | Explica por qué falta una acción (ej. cita ya cobrada) |
-| Fila con fecha | `.agenda-row-fecha` | Fecha corta bajo el nombre, en "Sin cerrar" |
+| Modal de confirmación | `.delete-modal` | Fondo difuminado. Confirmación con botón rojo |
+| Etiqueta en el resumen | `.summary-comision-tag`, `.summary-anticipo-origen` | Píldora chica slate junto a la etiqueta ("Aly 10%", "registrado el 27 de septiembre") |
 | Toast | `#toast`, `.toast-success`, `.toast-error`, `.toast-action` | Abajo al centro, del ancho de su texto (`max-content`, tope de pantalla − 40 px). 3 s (5 s si trae "Deshacer"). `z-index` 1002: encima de modales y menús |
-| Interruptor | `.config-permiso` + `input.config-permiso-input` (`role="switch"`) | Permisos de una trabajadora. Apagado: Gris Plata con borde gris 500 (3:1). Encendido: `--color-accent`. Se guarda al tocarlo |
+| Interruptor | `.config-permiso` + `input.config-permiso-input` (`role="switch"`) | Permisos de una trabajadora. Apagado: Gris Plata con borde gris 500 (3:1). Encendido: `--color-accent`. Se guarda al tocarlo. Hoy no se muestra: no hay permisos (v50) |
 | Loader global | `#loader` | Bloquea la pantalla mientras hay una llamada |
 | Carga en línea | `loadingHTML(texto)` | Spinner chico + texto, no bloquea |
-| Estado vacío | `.empty-state` + emoji + texto | Siempre con salida si aplica ("Agendar cita") |
+| Estado vacío | `.empty-state` + emoji + texto | Siempre con salida si aplica ("Ir a Configuración") |
 | Banner de nota fija | `.nota-fija-banner` | Alergias y preferencias. Siempre visible antes de escribir la fórmula |
+| Aviso de anticipo | `.anticipo-previo-aviso` | Misma forma que el de nota fija, en slate. Bajo el nombre cuando la clienta ya tiene un anticipo registrado |
 
 ## 8. Reglas de UX
 
 **Captura**
 - Montos con el teclado numérico propio, no con el teclado del sistema. Máximo 7 dígitos.
 - Si elegir una opción ya decide el paso (método de pago), avanza solo.
-- Pasos opcionales con botón "Sin …" (sin servicios, sin notas, sin comisiones).
-- Fechas y horas se muestran en lenguaje natural ("Viernes, 9 de octubre", "4:30 PM"). Se guardan en ISO y 24 h.
+- Pasos opcionales con botón "Sin …" (sin servicios, sin notas, sin comisiones, sin anticipo).
+- Fechas se muestran en lenguaje natural ("27 de septiembre de 2026"). Se guardan en ISO.
 
 **Confirmación y deshacer**
 - Todo wizard termina en un resumen antes de guardar.
 - Borrar pide confirmación **y** ofrece "Deshacer" en el toast (5 s).
-- Cancelar o "No asistió" también piden confirmación y se pueden revertir.
 
 **Feedback**
 - Botón de confirmar se desactiva al tocarlo (evita el doble registro).
@@ -206,6 +199,6 @@ evita el zoom por doble tap al teclear el PIN.
 |---|---|---|
 | Rojo presionado directo `#A23131` | `.delete-modal-btn--confirm:active` | Token `--color-error-active` |
 | `.btn-gold` ya no es dorado | Botones "Agregar" | Renombrar a `.btn-dark` |
-| Estilos en línea en varias vistas (`style="color: …"`) | login, config, agenda | Mover a clases |
+| Estilos en línea en varias vistas (`style="color: …"`) | login, config, cita | Mover a clases |
 | Sin `:focus-visible` en botones | Todo el CSS | Anillo de foco para teclado |
 | Sin `prefers-reduced-motion` | Animaciones | Desactivar rebote y shake |

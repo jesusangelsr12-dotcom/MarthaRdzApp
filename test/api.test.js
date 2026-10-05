@@ -1,8 +1,8 @@
 /**
  * Pruebas de integración de api/: cada handler corre contra un Postgres
  * real (PGlite, ver test/helpers/db.js) con todas las migraciones aplicadas.
- * Cubren los cabos sueltos C1, C2, C3, C5/C6, C8 y C12 de docs/AppFlow.md
- * para que no vuelvan a aparecer.
+ * Cubren los cabos sueltos C2, C3, C5/C6, C8 y C12 de docs/AppFlow.md
+ * para que no vuelvan a aparecer, y el anticipo dentro de la cita (v50).
  */
 
 const test = require('node:test');
@@ -32,15 +32,6 @@ const citaBase = (extra = {}) => ({
   ...extra,
 });
 
-async function agendarConAnticipo(t, token, anticipo = 200) {
-  const r = await t.llamar('citas-agendadas', {
-    method: 'POST', token,
-    body: { clienta: 'María López', fecha: '2026-10-02', hora: '16:30', anticipo, anticipo_metodo_pago: anticipo > 0 ? 'Efectivo' : undefined, timestamp: '10:00:00' },
-  });
-  assert.equal(r.statusCode, 201, JSON.stringify(r.body));
-  return r.body.id;
-}
-
 test('C2 · fechaMexico usa la fecha de Ciudad de México, no la de UTC', () => {
   // 26 sep 01:00 UTC = 25 sep 19:00 en México
   const ahora = new Date('2026-09-26T01:00:00Z');
@@ -52,72 +43,7 @@ test('C2 · fechaMexico usa la fecha de Ciudad de México, no la de UTC', () => 
   assert.equal(fechaMexico(1, new Date('2027-01-01T05:00:00Z')), '2027-01-01');
 });
 
-test('C2 · el anticipo se registra con la fecha de hoy en México', async () => {
-  const t = await crearEntorno();
-  const salonId = await salonDePrueba(t.sql);
-  const token = createSessionToken(salonId);
-  const agendaId = await agendarConAnticipo(t, token);
-  const [fila] = await t.sql`select fecha::text as fecha from citas where agenda_id = ${agendaId}`;
-  assert.equal(fila.fecha, fechaMexico());
-  await t.cerrar();
-});
-
-test('C3 · cobrar una cita agendada: completada + cita + comisiones, y no se cobra dos veces', async () => {
-  const t = await crearEntorno();
-  const salonId = await salonDePrueba(t.sql, { trabajadoras: [{ nombre: 'Aly' }] });
-  const token = createSessionToken(salonId);
-  const agendaId = await agendarConAnticipo(t, token, 200);
-
-  const cobro = citaBase({
-    total: 600, agenda_id: agendaId, anticipo_aplicado: 200,
-    comisiones: [{ trabajadora: 'Aly', item: 'Tinte', tipo: 'servicio', costo: 800, pct: 40, comision: 320 }],
-  });
-  const r1 = await t.llamar('citas', { method: 'POST', token, body: cobro });
-  assert.equal(r1.statusCode, 201, JSON.stringify(r1.body));
-
-  const [agenda] = await t.sql`select estado from citas_agendadas where id = ${agendaId}`;
-  assert.equal(agenda.estado, 'completada');
-  const citas = await t.sql`select total, anticipo_aplicado from citas where agenda_id = ${agendaId} and not (items @> '[{"tipo":"anticipo"}]'::jsonb)`;
-  assert.equal(citas.length, 1);
-  assert.equal(Number(citas[0].total), 600);
-  const coms = await t.sql`select comision, fecha::text as fecha from comisiones`;
-  assert.equal(coms.length, 1);
-  assert.equal(Number(coms[0].comision), 320);
-  assert.equal(coms[0].fecha, '2026-09-26');
-
-  const r2 = await t.llamar('citas', { method: 'POST', token, body: { ...cobro, timestamp: '14:31:00' } });
-  assert.equal(r2.statusCode, 400);
-  const [{ n }] = await t.sql`select count(*)::int as n from citas`;
-  assert.equal(n, 2, 'solo el anticipo y un cobro');
-  const [{ c }] = await t.sql`select count(*)::int as c from comisiones`;
-  assert.equal(c, 1, 'el segundo intento no deja comisiones sueltas');
-  await t.cerrar();
-});
-
-test('C3 · si falla un paso del cobro, no queda nada a medias', async () => {
-  const t = await crearEntorno();
-  const salonId = await salonDePrueba(t.sql, { trabajadoras: [{ nombre: 'Aly' }] });
-  const token = createSessionToken(salonId);
-  const agendaId = await agendarConAnticipo(t, token, 0);
-  // Fuerza que el insert de comisiones truene después de los otros dos pasos.
-  await t.sql`alter table comisiones add constraint prueba_falla check (pct < 50)`;
-
-  const r = await t.llamar('citas', {
-    method: 'POST', token,
-    body: citaBase({
-      agenda_id: agendaId, anticipo_aplicado: 0,
-      comisiones: [{ trabajadora: 'Aly', item: 'Tinte', tipo: 'servicio', costo: 800, pct: 60, comision: 480 }],
-    }),
-  });
-  assert.equal(r.statusCode, 500);
-  const [agenda] = await t.sql`select estado from citas_agendadas where id = ${agendaId}`;
-  assert.equal(agenda.estado, 'pendiente', 'la cita agendada sigue pendiente para reintentar');
-  const [{ n }] = await t.sql`select count(*)::int as n from citas`;
-  assert.equal(n, 0);
-  await t.cerrar();
-});
-
-test('C3 · una cita normal (sin agenda) se registra con sus comisiones; agenda_id mal formado es 400', async () => {
+test('C3 · una cita normal se registra con sus comisiones', async () => {
   const t = await crearEntorno();
   const salonId = await salonDePrueba(t.sql, { trabajadoras: [{ nombre: 'Aly' }] });
   const token = createSessionToken(salonId);
@@ -128,9 +54,10 @@ test('C3 · una cita normal (sin agenda) se registra con sus comisiones; agenda_
   assert.equal(r.statusCode, 201, JSON.stringify(r.body));
   const [{ c }] = await t.sql`select count(*)::int as c from comisiones`;
   assert.equal(c, 1);
-
-  const malo = await t.llamar('citas', { method: 'POST', token, body: citaBase({ agenda_id: 'no-es-uuid', anticipo_aplicado: 0 }) });
-  assert.equal(malo.statusCode, 400);
+  const [cita] = await t.sql`select total, anticipo, anticipo_origen_id from citas`;
+  assert.equal(Number(cita.total), 800);
+  assert.equal(Number(cita.anticipo), 0, 'sin anticipo, queda en 0');
+  assert.equal(cita.anticipo_origen_id, null);
   await t.cerrar();
 });
 
@@ -143,65 +70,6 @@ test('C3 · una trabajadora solo puede asignarse comisión a sí misma', async (
     body: citaBase({ comisiones: [{ trabajadora: 'Bety', item: 'Tinte', tipo: 'servicio', costo: 800, pct: 30, comision: 240 }] }),
   });
   assert.equal(r.statusCode, 400);
-  await t.cerrar();
-});
-
-test('C1 · una cita agendada ya cobrada no se puede eliminar y su cobro sigue intacto', async () => {
-  const t = await crearEntorno();
-  const salonId = await salonDePrueba(t.sql);
-  const token = createSessionToken(salonId);
-  const agendaId = await agendarConAnticipo(t, token, 200);
-  await t.llamar('citas', { method: 'POST', token, body: citaBase({ total: 600, agenda_id: agendaId, anticipo_aplicado: 200 }) });
-
-  const r = await t.llamar('citas-agendadas', { method: 'DELETE', token, body: { id: agendaId } });
-  assert.equal(r.statusCode, 400);
-  assert.match(r.body.error, /Ver Registros/);
-  const vivas = await t.sql`select id from citas where agenda_id = ${agendaId} and deleted_at is null`;
-  assert.equal(vivas.length, 2, 'anticipo y cobro siguen vivos');
-  await t.cerrar();
-});
-
-test('C1 · eliminar una pendiente borra solo su anticipo, y Deshacer lo regresa', async () => {
-  const t = await crearEntorno();
-  const salonId = await salonDePrueba(t.sql);
-  const token = createSessionToken(salonId);
-  const agendaId = await agendarConAnticipo(t, token, 200);
-
-  const del = await t.llamar('citas-agendadas', { method: 'DELETE', token, body: { id: agendaId } });
-  assert.equal(del.statusCode, 200);
-  const [borrada] = await t.sql`select deleted_at from citas where agenda_id = ${agendaId}`;
-  assert.ok(borrada.deleted_at, 'el anticipo se borra con la cita agendada');
-
-  const restore = await t.llamar('citas-agendadas', { method: 'PATCH', token, body: { id: agendaId, restore: true } });
-  assert.equal(restore.statusCode, 200);
-  const [viva] = await t.sql`select deleted_at from citas where agenda_id = ${agendaId}`;
-  assert.equal(viva.deleted_at, null);
-  await t.cerrar();
-});
-
-test('C1 · una trabajadora no puede eliminar citas agendadas', async () => {
-  const t = await crearEntorno();
-  const salonId = await salonDePrueba(t.sql);
-  const agendaId = await agendarConAnticipo(t, createSessionToken(salonId), 0);
-  const token = createSessionToken(salonId, { role: 'trabajadora', worker: 'Aly' });
-  const r = await t.llamar('citas-agendadas', { method: 'DELETE', token, body: { id: agendaId } });
-  assert.equal(r.statusCode, 403);
-  await t.cerrar();
-});
-
-test('C14 · la Agenda puede pedir las pendientes de días pasados', async () => {
-  const t = await crearEntorno();
-  const salonId = await salonDePrueba(t.sql);
-  const token = createSessionToken(salonId);
-  await t.sql`
-    insert into citas_agendadas (salon_id, clienta, fecha, hora, estado) values
-      (${salonId}, 'Vieja pendiente', '2026-09-01', '10:00', 'pendiente'),
-      (${salonId}, 'Vieja cancelada', '2026-09-02', '10:00', 'cancelada'),
-      (${salonId}, 'Futura', '2099-01-01', '10:00', 'pendiente')
-  `;
-  const r = await t.llamar('citas-agendadas', { token, query: { hasta: '2026-09-25', estado: 'pendiente' } });
-  assert.equal(r.statusCode, 200);
-  assert.deepEqual(r.body.citas_agendadas.map((c) => c.clienta), ['Vieja pendiente']);
   await t.cerrar();
 });
 
@@ -267,7 +135,7 @@ test('C8 · borrar a una trabajadora en Configuración borra su Face ID (y conse
   await t.cerrar();
 });
 
-test('C12 · el cron diario borra intentos de login de más de 30 días', async () => {
+test('C12 · la limpieza diaria borra intentos de login de más de 30 días', async () => {
   const t = await crearEntorno();
   delete process.env.CRON_SECRET;
   await t.sql`
@@ -276,7 +144,7 @@ test('C12 · el cron diario borra intentos de login de más de 30 días', async 
       ('1.1.1.1', false, now() - interval '31 days'),
       ('1.1.1.1', false, now() - interval '2 days')
   `;
-  const r = await t.llamar('cron/reminder-citas', { method: 'GET' });
+  const r = await t.llamar('cron/limpieza', { method: 'GET' });
   assert.equal(r.statusCode, 200, JSON.stringify(r.body));
   assert.equal(r.body.intentos_borrados, 2);
   const [{ n }] = await t.sql`select count(*)::int as n from login_attempts`;
@@ -299,10 +167,12 @@ test('Login con PIN de dueña y de trabajadora (humo)', async () => {
   await t.cerrar();
 });
 
-// --- Permiso "Teléfonos de clientas" de una trabajadora (v49) ---
+// --- Trabajadora: teléfonos y permisos (el permiso "Teléfonos de clientas"
+// de la v49 se retiró con la Agenda en la v50) ---
 
-async function salonConClienta(t) {
-  const salonId = await salonDePrueba(t.sql, { trabajadoras: [{ nombre: 'Aly', pin_hash: pepperedPinHash('222222') }] });
+async function salonConClienta(t, { permisos } = {}) {
+  const aly = { nombre: 'Aly', pin_hash: pepperedPinHash('222222'), ...(permisos ? { permisos } : {}) };
+  const salonId = await salonDePrueba(t.sql, { trabajadoras: [aly] });
   await t.sql`
     insert into clientas (salon_id, clienta, clienta_normalizada, nota_fija, telefono)
     values (${salonId}, 'María López', 'maria lopez', 'Alergia al amoniaco', '8110000000')
@@ -314,79 +184,54 @@ async function salonConClienta(t) {
   };
 }
 
-test('Permisos · sin permiso, la trabajadora no ve teléfonos ni puede guardarlos', async () => {
+test('Trabajadora · no ve teléfonos ni notas fijas, ni puede guardarlos', async () => {
   const t = await crearEntorno();
   const { aly } = await salonConClienta(t);
   const g = await t.llamar('clientas', { token: aly });
   assert.equal(g.statusCode, 200);
+  assert.deepEqual(g.body.clientas, ['María López'], 'el nombre sí, para el autocomplete');
   assert.deepEqual(g.body.telefonos, {});
   assert.deepEqual(g.body.notas_fijas, {});
-  assert.equal(g.body.permiso_telefonos, false);
   const p = await t.llamar('clientas', { method: 'POST', token: aly, body: { clienta: 'María López', nota_fija: '', telefono: '8119999999' } });
   assert.equal(p.statusCode, 403);
-  await t.cerrar();
-});
-
-test('Permisos · con permiso ve y guarda teléfonos, pero nunca la nota fija', async () => {
-  const t = await crearEntorno();
-  const { duena, aly } = await salonConClienta(t);
-  const dar = await t.llamar('trabajador-pin', { method: 'POST', token: duena, body: { nombre: 'Aly', permisos: { telefonos: true } } });
-  assert.equal(dar.statusCode, 200, JSON.stringify(dar.body));
-  assert.deepEqual(dar.body.permisos, { telefonos: true });
-
-  const g = await t.llamar('clientas', { token: aly });
-  assert.equal(g.body.permiso_telefonos, true);
-  assert.equal(g.body.telefonos['maria lopez'], '8110000000');
-  assert.deepEqual(g.body.notas_fijas, {}, 'la nota fija sigue oculta');
-
-  // Aunque mande una nota vacía, no borra la de la dueña ni cambia el nombre
-  const p = await t.llamar('clientas', { method: 'POST', token: aly, body: { clienta: 'maria lopez', nota_fija: '', telefono: '8119999999' } });
-  assert.equal(p.statusCode, 200, JSON.stringify(p.body));
-  const [c] = await t.sql`select clienta, nota_fija, telefono from clientas where clienta_normalizada = 'maria lopez'`;
-  assert.deepEqual(c, { clienta: 'María López', nota_fija: 'Alergia al amoniaco', telefono: '8119999999' });
-
-  // Clienta nueva: se crea solo con su teléfono
-  const n = await t.llamar('clientas', { method: 'POST', token: aly, body: { clienta: 'Ana Ruiz', telefono: '8117777777' } });
-  assert.equal(n.statusCode, 200);
-  // Borrar el teléfono no le toca
-  const vacio = await t.llamar('clientas', { method: 'POST', token: aly, body: { clienta: 'Ana Ruiz', telefono: '' } });
-  assert.equal(vacio.statusCode, 400);
-  // El historial sigue siendo solo de la dueña
   const h = await t.llamar('clientas', { token: aly, query: { historial: '1' } });
   assert.equal(h.statusCode, 403);
   await t.cerrar();
 });
 
-test('Permisos · quitarlo corta el acceso al momento, sin cerrar sesión', async () => {
+test('Trabajadora · un permiso "telefonos" que quedó guardado ya no le da acceso (y no se borra)', async () => {
   const t = await crearEntorno();
-  const { duena, aly } = await salonConClienta(t);
-  await t.llamar('trabajador-pin', { method: 'POST', token: duena, body: { nombre: 'Aly', permisos: { telefonos: true } } });
-  await t.llamar('trabajador-pin', { method: 'POST', token: duena, body: { nombre: 'Aly', permisos: { telefonos: false } } });
+  const { salonId, aly, duena } = await salonConClienta(t, { permisos: { telefonos: true } });
   const g = await t.llamar('clientas', { token: aly });
   assert.deepEqual(g.body.telefonos, {});
   const p = await t.llamar('clientas', { method: 'POST', token: aly, body: { clienta: 'María López', telefono: '8119999999' } });
   assert.equal(p.statusCode, 403);
+
+  // Guardar el catálogo conserva lo guardado tal cual, sin exponerlo
+  const r = await t.llamar('config', { method: 'POST', token: duena, body: { servicios: ['Corte'], productos: [], trabajadoras: [{ nombre: 'Aly' }] } });
+  assert.equal(r.statusCode, 200);
+  const [s] = await t.sql`select trabajadoras from salones where id = ${salonId}`;
+  assert.deepEqual(s.trabajadoras[0].permisos, { telefonos: true });
+  const c = await t.llamar('config', { token: duena });
+  assert.deepEqual(c.body.trabajadoras, [{ nombre: 'Aly', tiene_acceso: true, permisos: {} }]);
   await t.cerrar();
 });
 
-test('Permisos · solo la dueña los cambia y solo acepta permisos conocidos', async () => {
+test('Permisos · solo la dueña los cambia y no acepta permisos que no existen', async () => {
   const t = await crearEntorno();
   const { duena, aly } = await salonConClienta(t);
-  const w = await t.llamar('trabajador-pin', { method: 'POST', token: aly, body: { nombre: 'Aly', permisos: { telefonos: true } } });
+  const w = await t.llamar('trabajador-pin', { method: 'POST', token: aly, body: { nombre: 'Aly', permisos: {} } });
   assert.equal(w.statusCode, 403);
-  for (const permisos of [{ telefonos: 'si' }, { dinero: true }, [], null]) {
+  for (const permisos of [{ telefonos: true }, { dinero: true }, [], null]) {
     const r = await t.llamar('trabajador-pin', { method: 'POST', token: duena, body: { nombre: 'Aly', permisos } });
     assert.equal(r.statusCode, 400, JSON.stringify(permisos));
   }
-  const x = await t.llamar('trabajador-pin', { method: 'POST', token: duena, body: { nombre: 'Nadie', permisos: { telefonos: true } } });
-  assert.equal(x.statusCode, 404);
   await t.cerrar();
 });
 
-test('Permisos · guardar el catálogo conserva PIN y permisos, y no acepta un pin_hash del cliente', async () => {
+test('Config · guardar el catálogo conserva el PIN y no acepta un pin_hash del cliente', async () => {
   const t = await crearEntorno();
   const { salonId, duena } = await salonConClienta(t);
-  await t.llamar('trabajador-pin', { method: 'POST', token: duena, body: { nombre: 'Aly', permisos: { telefonos: true } } });
   const r = await t.llamar('config', {
     method: 'POST', token: duena,
     body: { servicios: ['Corte'], productos: [], trabajadoras: [{ nombre: 'Aly' }, { nombre: 'Bea', pin_hash: 'inyectado', permisos: { telefonos: true } }] },
@@ -394,13 +239,211 @@ test('Permisos · guardar el catálogo conserva PIN y permisos, y no acepta un p
   assert.equal(r.statusCode, 200);
   const [s] = await t.sql`select trabajadoras from salones where id = ${salonId}`;
   assert.deepEqual(s.trabajadoras, [
-    { nombre: 'Aly', pin_hash: pepperedPinHash('222222'), permisos: { telefonos: true } },
+    { nombre: 'Aly', pin_hash: pepperedPinHash('222222') },
     { nombre: 'Bea' },
   ]);
-  const g = await t.llamar('config', { token: duena });
-  assert.deepEqual(g.body.trabajadoras, [
-    { nombre: 'Aly', tiene_acceso: true, permisos: { telefonos: true } },
-    { nombre: 'Bea', tiene_acceso: false, permisos: { telefonos: false } },
-  ]);
+  await t.cerrar();
+});
+
+// --- Anticipo dentro de la cita (v50) ---
+
+/** Fila de solo-anticipo como las que dejó la Agenda vieja. */
+async function anticipoViejo(sql, salonId, { clienta = 'María López', monto = 250, fecha = '2026-09-27' } = {}) {
+  const items = JSON.stringify([{ tipo: 'anticipo', nombre: `Anticipo — ${clienta}`, costo: monto }]);
+  const [fila] = await sql`
+    insert into citas (salon_id, fecha, timestamp, clienta, items, total, metodo_pago, nota)
+    values (${salonId}, ${fecha}, '23:15:59', ${clienta}, ${items}::jsonb, ${monto}, 'Transferencia', 'Anticipo de cita agendada')
+    returning id
+  `;
+  return fila.id;
+}
+
+async function ingresos(t, token, desde, hasta) {
+  const r = await t.llamar('dashboard', { token, query: { desde, hasta } });
+  assert.equal(r.statusCode, 200, JSON.stringify(r.body));
+  return r.body.resumen;
+}
+
+test('Anticipo · va dentro del total: 2500 con 500 de anticipo cuenta 2500 y la comisión sale de 2500', async () => {
+  const t = await crearEntorno();
+  const salonId = await salonDePrueba(t.sql, { trabajadoras: [{ nombre: 'Aly' }] });
+  const token = createSessionToken(salonId);
+  const r = await t.llamar('citas', {
+    method: 'POST', token,
+    body: citaBase({
+      items: [{ tipo: 'servicio', nombre: 'Tinte', costo: 2500 }], total: 2500, anticipo: 500,
+      comisiones: [{ trabajadora: 'Aly', item: 'Tinte', tipo: 'servicio', costo: 2500, pct: 10, comision: 250 }],
+    }),
+  });
+  assert.equal(r.statusCode, 201, JSON.stringify(r.body));
+
+  const resumen = await ingresos(t, token, '2026-09-26', '2026-09-26');
+  assert.equal(resumen.ingresos, 2500);
+  assert.equal(resumen.comisiones, 250);
+  assert.equal(resumen.num_citas, 1);
+
+  const g = await t.llamar('citas', { token, query: { fecha: '2026-09-26' } });
+  assert.equal(g.body.citas[0].total, 2500);
+  assert.equal(g.body.citas[0].anticipo, 500);
+  await t.cerrar();
+});
+
+test('Anticipo · no puede ser mayor que el total ni negativo', async () => {
+  const t = await crearEntorno();
+  const salonId = await salonDePrueba(t.sql);
+  const token = createSessionToken(salonId);
+  for (const anticipo of [801, -1, 'mucho']) {
+    const r = await t.llamar('citas', { method: 'POST', token, body: citaBase({ anticipo }) });
+    assert.equal(r.statusCode, 400, String(anticipo));
+  }
+  const igual = await t.llamar('citas', { method: 'POST', token, body: citaBase({ anticipo: 800 }) });
+  assert.equal(igual.statusCode, 201, 'pagado completo por adelantado sí se vale');
+  // La base también lo cuida, aunque alguien se brinque la API
+  await assert.rejects(t.sql`update citas set anticipo = 900`);
+  await t.cerrar();
+});
+
+test('Anticipo viejo · la trabajadora ve los pendientes y al aplicarlo se mueve al día de la cita sin contarse doble', async () => {
+  const t = await crearEntorno();
+  const salonId = await salonDePrueba(t.sql, { trabajadoras: [{ nombre: 'Aly' }] });
+  const duena = createSessionToken(salonId);
+  const aly = createSessionToken(salonId, { role: 'trabajadora', worker: 'Aly' });
+  const origenId = await anticipoViejo(t.sql, salonId);
+
+  const lista = await t.llamar('citas', { token: aly, query: { anticipos: 'pendientes' } });
+  assert.equal(lista.statusCode, 200);
+  assert.deepEqual(lista.body.anticipos, [{ id: origenId, clienta: 'María López', fecha: '2026-09-27', monto: 250 }]);
+
+  const antes = await ingresos(t, duena, '2026-09-01', '2026-10-31');
+  assert.equal(antes.ingresos, 250);
+
+  const r = await t.llamar('citas', {
+    method: 'POST', token: aly,
+    body: citaBase({ fecha: '2026-10-02', total: 800, anticipo: 250, anticipo_origen_id: origenId }),
+  });
+  assert.equal(r.statusCode, 201, JSON.stringify(r.body));
+
+  const despues = await ingresos(t, duena, '2026-09-01', '2026-10-31');
+  assert.equal(despues.ingresos, 800, '250 del anticipo + 550 del resto, una sola vez');
+  assert.equal((await ingresos(t, duena, '2026-09-27', '2026-09-27')).ingresos, 0, 'el 27-sep ya no lo cuenta');
+  assert.equal((await ingresos(t, duena, '2026-10-02', '2026-10-02')).ingresos, 800);
+
+  const [origen] = await t.sql`select deleted_at from citas where id = ${origenId}`;
+  assert.ok(origen.deleted_at, 'la fila vieja se oculta, no se borra');
+  const vacia = await t.llamar('citas', { token: aly, query: { anticipos: 'pendientes' } });
+  assert.deepEqual(vacia.body.anticipos, []);
+
+  // El mismo anticipo no se puede aplicar dos veces
+  const otra = await t.llamar('citas', {
+    method: 'POST', token: duena,
+    body: citaBase({ fecha: '2026-10-03', timestamp: '11:00:00', total: 800, anticipo: 250, anticipo_origen_id: origenId }),
+  });
+  assert.equal(otra.statusCode, 409);
+  const [{ n }] = await t.sql`select count(*)::int as n from citas where deleted_at is null`;
+  assert.equal(n, 1);
+  await t.cerrar();
+});
+
+test('Anticipo viejo · el monto debe coincidir y debe ser una fila de anticipo de este salón', async () => {
+  const t = await crearEntorno();
+  const salonId = await salonDePrueba(t.sql);
+  const otroSalon = await salonDePrueba(t.sql, { salonId: 'salon_002' });
+  const token = createSessionToken(salonId);
+  const origenId = await anticipoViejo(t.sql, salonId);
+  const ajeno = await anticipoViejo(t.sql, otroSalon);
+
+  const monto = await t.llamar('citas', { method: 'POST', token, body: citaBase({ anticipo: 300, anticipo_origen_id: origenId }) });
+  assert.equal(monto.statusCode, 409, 'monto distinto');
+  const otro = await t.llamar('citas', { method: 'POST', token, body: citaBase({ anticipo: 250, anticipo_origen_id: ajeno }) });
+  assert.equal(otro.statusCode, 409, 'anticipo de otro salón');
+  const sinMonto = await t.llamar('citas', { method: 'POST', token, body: citaBase({ anticipo_origen_id: origenId }) });
+  assert.equal(sinMonto.statusCode, 400);
+  const malo = await t.llamar('citas', { method: 'POST', token, body: citaBase({ anticipo: 250, anticipo_origen_id: 'no-es-uuid' }) });
+  assert.equal(malo.statusCode, 400);
+
+  // Una cita normal tampoco sirve de "anticipo de origen"
+  await t.llamar('citas', { method: 'POST', token, body: citaBase({ timestamp: '09:00:00', total: 250, items: [{ tipo: 'servicio', nombre: 'Corte', costo: 250 }] }) });
+  const [normal] = await t.sql`select id from citas where timestamp = '09:00:00'`;
+  const noAnticipo = await t.llamar('citas', { method: 'POST', token, body: citaBase({ anticipo: 250, anticipo_origen_id: normal.id }) });
+  assert.equal(noAnticipo.statusCode, 409);
+
+  const [{ vivas }] = await t.sql`select count(*)::int as vivas from citas where id in (${origenId}, ${ajeno}) and deleted_at is null`;
+  assert.equal(vivas, 2, 'ningún anticipo se tocó');
+  await t.cerrar();
+});
+
+test('Anticipo viejo · si falla un paso del registro, el anticipo sigue pendiente y no queda nada a medias', async () => {
+  const t = await crearEntorno();
+  const salonId = await salonDePrueba(t.sql, { trabajadoras: [{ nombre: 'Aly' }] });
+  const token = createSessionToken(salonId);
+  const origenId = await anticipoViejo(t.sql, salonId);
+  // Fuerza que el insert de comisiones truene después de los otros dos pasos.
+  await t.sql`alter table comisiones add constraint prueba_falla check (pct < 50)`;
+
+  const r = await t.llamar('citas', {
+    method: 'POST', token,
+    body: citaBase({
+      anticipo: 250, anticipo_origen_id: origenId,
+      comisiones: [{ trabajadora: 'Aly', item: 'Tinte', tipo: 'servicio', costo: 800, pct: 60, comision: 480 }],
+    }),
+  });
+  assert.equal(r.statusCode, 500);
+  const [origen] = await t.sql`select deleted_at from citas where id = ${origenId}`;
+  assert.equal(origen.deleted_at, null, 'el anticipo sigue pendiente para reintentar');
+  const [{ n }] = await t.sql`select count(*)::int as n from citas`;
+  assert.equal(n, 1, 'solo el anticipo viejo');
+  await t.cerrar();
+});
+
+test('Anticipo viejo · eliminar la cita lo regresa a pendiente y Deshacer lo vuelve a aplicar', async () => {
+  const t = await crearEntorno();
+  const salonId = await salonDePrueba(t.sql);
+  const token = createSessionToken(salonId);
+  const origenId = await anticipoViejo(t.sql, salonId);
+  const cita = citaBase({ fecha: '2026-10-02', total: 800, anticipo: 250, anticipo_origen_id: origenId });
+  await t.llamar('citas', { method: 'POST', token, body: cita });
+  const id = { fecha: cita.fecha, timestamp: cita.timestamp, clienta: cita.clienta };
+
+  const del = await t.llamar('citas', { method: 'DELETE', token, body: id });
+  assert.equal(del.statusCode, 200);
+  assert.equal((await ingresos(t, token, '2026-09-01', '2026-10-31')).ingresos, 250, 'el anticipo sigue contando en su día');
+  const pend = await t.llamar('citas', { token, query: { anticipos: 'pendientes' } });
+  assert.equal(pend.body.anticipos.length, 1);
+
+  const restore = await t.llamar('citas', { method: 'PATCH', token, body: { ...id, restore: true } });
+  assert.equal(restore.statusCode, 200, JSON.stringify(restore.body));
+  assert.equal((await ingresos(t, token, '2026-09-01', '2026-10-31')).ingresos, 800);
+  const pend2 = await t.llamar('citas', { token, query: { anticipos: 'pendientes' } });
+  assert.equal(pend2.body.anticipos.length, 0);
+  await t.cerrar();
+});
+
+test('Anticipo viejo · Deshacer no lo cuenta doble si ya se aplicó a otra cita', async () => {
+  const t = await crearEntorno();
+  const salonId = await salonDePrueba(t.sql);
+  const token = createSessionToken(salonId);
+  const origenId = await anticipoViejo(t.sql, salonId);
+  const primera = citaBase({ fecha: '2026-10-02', total: 800, anticipo: 250, anticipo_origen_id: origenId });
+  await t.llamar('citas', { method: 'POST', token, body: primera });
+  const id = { fecha: primera.fecha, timestamp: primera.timestamp, clienta: primera.clienta };
+  await t.llamar('citas', { method: 'DELETE', token, body: id });
+
+  const segunda = await t.llamar('citas', {
+    method: 'POST', token,
+    body: citaBase({ fecha: '2026-10-03', timestamp: '12:00:00', total: 800, anticipo: 250, anticipo_origen_id: origenId }),
+  });
+  assert.equal(segunda.statusCode, 201);
+
+  const restore = await t.llamar('citas', { method: 'PATCH', token, body: { ...id, restore: true } });
+  assert.equal(restore.statusCode, 409);
+  assert.equal((await ingresos(t, token, '2026-09-01', '2026-10-31')).ingresos, 800, 'solo la segunda cuenta');
+  await t.cerrar();
+});
+
+test('Anticipo · consulta de anticipos con un valor desconocido es 400', async () => {
+  const t = await crearEntorno();
+  const salonId = await salonDePrueba(t.sql);
+  const r = await t.llamar('citas', { token: createSessionToken(salonId), query: { anticipos: 'todos' } });
+  assert.equal(r.statusCode, 400);
   await t.cerrar();
 });

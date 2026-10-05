@@ -1,6 +1,6 @@
 # Base de datos · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-09-26 · **Motor:** PostgreSQL en Neon · **Acceso:** solo desde las serverless functions
+**Última revisión:** 2026-10-05 · **Motor:** PostgreSQL en Neon · **Acceso:** solo desde las serverless functions
 
 ## 1. Modelo
 
@@ -15,14 +15,14 @@
           ┌──────────────┬─────────────┼──────────────┬───────────────┬──────────────────┐
           ▼              ▼             ▼              ▼               ▼                  ▼
    ┌────────────┐ ┌────────────┐ ┌──────────┐ ┌────────────────┐ ┌──────────┐ ┌──────────────────────┐
-   │ citas      │ │ comisiones │ │ gastos   │ │ citas_agendadas│ │ clientas │ │ ausencias            │
-   │ (dinero)   │ │            │ │          │ │ (futuras)      │ │          │ │ push_subscriptions   │
+   │ citas      │ │ comisiones │ │ gastos   │ │ citas_agendadas│ │ clientas │ │ ausencias (sin uso)  │
+   │ (dinero)   │ │            │ │          │ │ (sin uso, v50) │ │          │ │ push_subscriptions   │
    └─────┬──────┘ └─────▲──────┘ └──────────┘ └───────┬────────┘ └──────────┘ │ webauthn_credentials │
          │              │ (salon, fecha,              │                       └──────────────────────┘
          │              │  timestamp, clienta)        │
          └──────────────┘  vínculo lógico, sin FK     │
-         citas.agenda_id ─────────────────────────────►│ id
-         citas_agendadas.deposito_cita_id ──► citas.id  (fila del anticipo)
+         citas.agenda_id ─────────────────────────────►│ id   (histórico, hasta v49)
+         citas.anticipo_origen_id ──► citas.id  (fila de anticipo de la Agenda aplicada a esta cita, v50)
 
   login_attempts: independiente (rate limit por IP)
 ```
@@ -35,9 +35,9 @@ salón porque todas filtran por el `salon_id` que viene del token verificado.
 | Parte | De dónde sale |
 |---|---|
 | `salones`, `citas`, `clientas`, `comisiones`, `gastos` | `scripts/migrations/000_base.sql`, exportado de la base real (Neon) tal como estaba antes de la 001 |
-| Todo lo demás | `scripts/migrations/001` a `007`, en orden |
+| Todo lo demás | `scripts/migrations/001` a `008`, en orden |
 
-Con `000` a `007` se levanta una base completa desde cero. Las pruebas de
+Con `000` a `008` se levanta una base completa desde cero. Las pruebas de
 integración lo hacen en cada corrida (ver [Testing.md](Testing.md)).
 
 ## 3. Tablas
@@ -54,7 +54,7 @@ integración lo hacen en cada corrida (ver [Testing.md](Testing.md)).
 | `pin_hash_v2` | text | HMAC-SHA256(PIN, `PIN_PEPPER`). Se llena solo en el primer login (mig. 001) |
 | `servicios` | jsonb | `["Corte", "Tinte", …]` |
 | `productos` | jsonb | `["Shampoo", …]` |
-| `trabajadoras` | jsonb | `[{"nombre":"Ana","pin_hash":"…","permisos":{"telefonos":true}}]`. `pin_hash` solo si tiene acceso; **nunca sale al cliente**. `permisos` es opcional: lo que falta cuenta como apagado (ver `PERMISOS_TRABAJADORA` en `lib/auth.js`). No necesita migración |
+| `trabajadoras` | jsonb | `[{"nombre":"Ana","pin_hash":"…","permisos":{…}}]`. `pin_hash` solo si tiene acceso; **nunca sale al cliente**. `permisos` es opcional: solo valen los de `PERMISOS_TRABAJADORA` en `lib/auth.js` (hoy ninguno). Un `{"telefonos":true}` guardado antes de v50 se conserva pero ya no vale. No necesita migración |
 
 ### `citas` (dinero cobrado)
 
@@ -62,21 +62,26 @@ integración lo hacen en cada corrida (ver [Testing.md](Testing.md)).
 |---|---|---|
 | `id` | uuid PK | No se expone al frontend |
 | `salon_id` | uuid FK | |
-| `fecha` | date | Día del cobro |
+| `fecha` | date | Día de la cita (ahí cuenta todo su `total`) |
 | `timestamp` | text | Hora local del dispositivo, `HH:MM:SS` |
 | `clienta` | text | Tal como se escribió |
 | `items` | jsonb | `[{tipo, nombre, costo}]`. `tipo`: `servicio`, `producto` o `anticipo` |
-| `total` | numeric | Lo que se cobró ese día (ya descontado el anticipo) |
+| `total` | numeric | Precio completo de la cita, **anticipo incluido** (v50). En citas cobradas desde la Agenda (hasta v49) es lo cobrado ese día, ya descontado `anticipo_aplicado` |
 | `metodo_pago` | text | `Efectivo` · `Tarjeta` · `Transferencia` |
 | `nota` | text | Fórmula o notas de la visita |
-| `agenda_id` | uuid FK → `citas_agendadas.id` | Si vino de una cita agendada (mig. 002) |
-| `anticipo_aplicado` | numeric | Solo para mostrar el desglose (mig. 002) |
+| `anticipo` | numeric, default 0 | Parte de `total` que ya estaba pagada (mig. 008). Check `0 ≤ anticipo ≤ total` |
+| `anticipo_origen_id` | uuid FK → `citas.id` | Fila de anticipo de la Agenda que se aplicó a esta cita (mig. 008) |
+| `agenda_id` | uuid FK → `citas_agendadas.id` | Histórico: si vino de una cita agendada (mig. 002). Ya no se escribe |
+| `anticipo_aplicado` | numeric | Histórico: desglose de citas cobradas desde la Agenda (mig. 002). Ya no se escribe |
 | `deleted_at` | timestamptz | Borrado lógico (mig. 001) |
 
 **Identidad lógica:** `(salon_id, fecha, timestamp, clienta)`. PATCH y DELETE la usan.
 
-**Fila de anticipo:** un solo item `{"tipo":"anticipo","nombre":"Anticipo — <clienta>","costo":N}`,
-con `agenda_id` apuntando a la cita agendada. Cuenta como ingreso, no como visita.
+**Fila de anticipo (de la Agenda, hasta v49):** un solo item `{"tipo":"anticipo","nombre":"Anticipo — <clienta>","costo":N}`,
+con `agenda_id` apuntando a la cita agendada. Cuenta como ingreso en su día, no como visita.
+Mientras siga viva es un **anticipo pendiente** (`GET /api/citas?anticipos=pendientes`).
+Al aplicarla a una cita se oculta con `deleted_at` y la cita guarda su id en
+`anticipo_origen_id`. Ya no se crean filas nuevas así.
 
 ### `comisiones`
 
@@ -120,7 +125,11 @@ con `agenda_id` apuntando a la cita agendada. Cuenta como ingreso, no como visit
 Una clienta **existe** si tiene al menos una cita o una fila aquí. El
 historial agrupa citas con esta tabla por `clienta_normalizada`.
 
-### `citas_agendadas` (mig. 002)
+### `citas_agendadas` (mig. 002) — sin uso desde v50
+
+La Agenda se retiró en v50. La tabla y sus filas se quedan como estaban
+(nada se borró); ningún endpoint la lee ni la escribe. El `estado` de sus
+filas ya no se actualiza.
 
 | Columna | Tipo | Notas |
 |---|---|---|
@@ -138,7 +147,10 @@ historial agrupa citas con esta tabla por `clienta_normalizada`.
 
 Índice: `(salon_id, fecha) where deleted_at is null`.
 
-### `ausencias` (mig. 007)
+### `ausencias` (mig. 007) — sin uso desde v50
+
+Las vacaciones/días libres vivían en la Agenda. La tabla se queda; ningún
+endpoint la usa.
 
 | Columna | Tipo | Notas |
 |---|---|---|
@@ -177,7 +189,7 @@ Se borra sola cuando el push service responde 404 o 410.
 
 ### `login_attempts` (mig. 001)
 
-`(id, ip, success, attempted_at)` con índice `(ip, attempted_at)`. El cron diario borra las filas de más de 30 días.
+`(id, ip, success, attempted_at)` con índice `(ip, attempted_at)`. El cron diario (`/api/cron/limpieza`) borra las filas de más de 30 días.
 
 ## 4. Reglas de datos
 
@@ -185,20 +197,25 @@ Se borra sola cuando el push service responde 404 o 410.
 2. **Restaurar** = `deleted_at = null`. Solo desde el botón "Deshacer" (no hay papelera en la UI).
 3. **En cascada lógica:**
    - Borrar cita → borra sus comisiones (mismo salón, fecha, timestamp y clienta).
-   - Borrar cita agendada → borra **solo su fila de anticipo** en `citas` (la de `agenda_id` con item `anticipo`). Una cita agendada `completada` no se puede borrar: su cobro se corrige en Registros.
-   - Cancelar / "No asistió" **no** borra el anticipo: el dinero sí se recibió.
-4. **Candado de cobro:** `update citas_agendadas set estado='completada' where estado='pendiente'`. Si no toca filas, se rechaza el cobro. Va en la **misma sentencia** que el insert de la cita y de sus comisiones: todo o nada.
-5. **Anticipo atómico:** agendar con anticipo inserta la cita agendada, la fila de dinero y el enlace en **una sola sentencia** con CTEs.
+   - Borrar una cita con `anticipo_origen_id` → su fila de anticipo de la Agenda vuelve a quedar viva (pendiente, en su día original). Restaurar la cita la vuelve a ocultar; si mientras tanto se aplicó a otra cita, el restore se rechaza (409).
+4. **El anticipo va dentro del total.** `total` es el precio completo; `anticipo` solo dice cuánto ya estaba pagado. Ingresos = `sum(total)`. Las comisiones salen del precio completo de cada item.
+5. **Candado del anticipo de la Agenda:** `update citas set deleted_at = now() where id = <origen> and deleted_at is null and total = <anticipo> and items @> '[{"tipo":"anticipo"}]'`. Si no toca filas, se rechaza la cita (409). Va en la **misma sentencia** que el insert de la cita y de sus comisiones: todo o nada.
 6. **Dinero:** `numeric`, sin centavos flotantes. El cliente manda números; el servidor valida rangos.
-7. **Fechas:** `date` en ISO (`YYYY-MM-DD`). Horas de agenda en `HH:MM` 24 h. `timestamp` de citas y gastos es texto libre de la hora local. Lo que fecha el servidor usa `fechaMexico()` (`lib/fecha.js`), nunca la fecha UTC.
+7. **Fechas:** `date` en ISO (`YYYY-MM-DD`). `timestamp` de citas y gastos es texto libre de la hora local. Lo que fecha el servidor usa `fechaMexico()` (`lib/fecha.js`), nunca la fecha UTC.
 8. **Consultas siempre parametrizadas** con el tagged template de `neon` (`sql\`… ${valor}\``). Nunca concatenar.
 
 ## 5. Consultas que conviene conocer
 
 ```sql
--- Ingresos reales del día (incluye anticipos recibidos hoy)
+-- Ingresos del día (el anticipo de cada cita ya va dentro de su total;
+-- también suman los anticipos de la Agenda que siguen pendientes en ese día)
 select sum(total) from citas
 where salon_id = $1 and fecha = $2 and deleted_at is null;
+
+-- Anticipos de la Agenda que todavía no se aplican a una cita
+select id, fecha, clienta, total from citas
+where salon_id = $1 and deleted_at is null
+  and items @> '[{"tipo":"anticipo"}]'::jsonb;
 
 -- Visitas (excluye filas de solo anticipo)
 select count(*) from citas
@@ -222,6 +239,7 @@ where salon_id = $1 and fecha = $2 and clienta = $3 and deleted_at is not null;
 | 005 | `005_push_subscriptions.sql` | `push_subscriptions` |
 | 006 | `006_webauthn.sql` | `webauthn_credentials` |
 | 007 | `007_ausencias.sql` | `ausencias` |
+| 008 | `008_anticipo_en_cita.sql` | `citas.anticipo` (check `0 ≤ anticipo ≤ total`), `citas.anticipo_origen_id` y su índice |
 
 **Reglas para una migración nueva:**
 - Nombre `NNN_descripcion.sql`, número siguiente.

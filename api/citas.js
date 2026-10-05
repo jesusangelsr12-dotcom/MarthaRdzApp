@@ -1,9 +1,10 @@
 /**
  * GET/POST/PATCH/DELETE /api/citas
  * Lee citas de un día, registra, edita la nota o elimina (soft-delete) una cita.
- * GET    ?fecha=2026-02-24 → { citas: [...] }
+ * GET    ?fecha=2026-02-24        → { citas: [...] }
+ * GET    ?anticipos=pendientes    → { anticipos: [{ id, clienta, fecha, monto }] }
  * POST   { fecha, timestamp, clienta, items, total, metodo_pago, nota?, comisiones?,
- *          agenda_id?, anticipo_aplicado? } → { success }
+ *          anticipo?, anticipo_origen_id? } → { success }
  * PATCH  { fecha, timestamp, clienta, nota } → { success }
  * DELETE { fecha, timestamp, clienta } → { success }
  *
@@ -14,14 +15,21 @@
  *
  * items es un JSON array: [{"tipo":"servicio","nombre":"Corte","costo":200}, ...]
  *
- * agenda_id/anticipo_aplicado: cuando la cita viene de un recuadro de "cita
- * agendada" (ver api/citas-agendadas.js), `total` ya trae el anticipo restado
- * (lo que de verdad se cobra hoy); `anticipo_aplicado` es solo para mostrar el
- * desglose en Ver Registros. Antes de insertar, se marca la cita agendada
- * como `completada` con un candado atómico (WHERE estado='pendiente') para
- * que no se pueda registrar la misma cita agendada dos veces. Marcarla,
- * insertar la cita e insertar sus comisiones es UNA sola sentencia (CTEs):
- * si algo falla, no queda una cita agendada completada sin su cobro.
+ * anticipo: la parte del total que la clienta ya había pagado antes. Va
+ * DENTRO del total (cita de 2500 con 500 de anticipo → total 2500, anticipo
+ * 500): los 2500 cuentan como ingreso el día de la cita y las comisiones
+ * salen sobre el precio completo. Nunca puede ser mayor que el total.
+ *
+ * anticipos=pendientes / anticipo_origen_id: la Agenda (ya retirada) guardaba
+ * cada anticipo como una fila propia de `citas` (un solo item tipo
+ * 'anticipo') el día que se pagaba. Las que siguen vivas son anticipos
+ * pendientes de aplicar. Al registrar la cita de esa clienta con
+ * `anticipo_origen_id`, esa fila se oculta (deleted_at) en la MISMA sentencia
+ * que inserta la cita — así el dinero se mueve al día de la cita sin
+ * contarse dos veces, y no se puede aplicar el mismo anticipo dos veces
+ * (candado: solo se oculta si sigue viva). El monto debe coincidir con el
+ * de esa fila. Si después se elimina la cita, la fila del anticipo vuelve a
+ * quedar pendiente; el "Deshacer" la vuelve a ocultar.
  *
  * PATCH/DELETE identifican la cita por (fecha, timestamp, clienta) porque
  * el frontend nunca recibe un id de fila — igual que con Sheets.
@@ -32,15 +40,19 @@
  * que no sigan contando en Comisiones/Dashboard; el restore (PATCH) las
  * recupera junto con la cita.
  *
- * Una trabajadora solo puede usar POST (registrar/cobrar una cita) y, si
- * manda comisiones, únicamente puede asignárselas a sí misma — Ver Registros
- * (GET) y editar/eliminar (PATCH/DELETE) son solo de la dueña.
+ * Una trabajadora solo puede usar POST (registrar/cobrar una cita) y la
+ * lista de anticipos pendientes (la necesita para registrar bien la cita);
+ * si manda comisiones, únicamente puede asignárselas a sí misma. Ver
+ * Registros (GET ?fecha) y editar/eliminar (PATCH/DELETE) son solo de la dueña.
  */
 
 const { getSql } = require('../lib/db');
 const { requireSession, getSessionRole } = require('../lib/auth');
 const { isDateStr, isFiniteNumber, isNonEmptyString, isMetodoPago, isUuid } = require('../lib/validate');
 const { enviarPushSalon } = require('../lib/push');
+
+// Filas de `citas` que son solo el depósito de un anticipo de la Agenda vieja.
+const SOLO_ANTICIPO = '[{"tipo":"anticipo"}]';
 
 function validarItems(items) {
   if (!Array.isArray(items) || items.length === 0) return false;
@@ -72,6 +84,29 @@ module.exports = async function handler(req, res) {
   try {
     const sql = getSql();
 
+    if (req.method === 'GET' && req.query.anticipos !== undefined) {
+      if (req.query.anticipos !== 'pendientes') {
+        return res.status(400).json({ error: 'Consulta inválida' });
+      }
+
+      const rows = await sql`
+        select id, fecha::text as fecha, clienta, total
+        from citas
+        where salon_id = ${salonId} and deleted_at is null
+          and items @> ${SOLO_ANTICIPO}::jsonb
+        order by fecha, timestamp
+      `;
+
+      const anticipos = rows.map((row) => ({
+        id: row.id,
+        clienta: row.clienta,
+        fecha: row.fecha,
+        monto: Number(row.total),
+      }));
+
+      return res.status(200).json({ anticipos });
+    }
+
     if (req.method === 'GET') {
       if (role === 'trabajadora') {
         return res.status(403).json({ error: 'Esta cuenta no tiene acceso a esto' });
@@ -83,7 +118,7 @@ module.exports = async function handler(req, res) {
       }
 
       const rows = await sql`
-        select fecha::text as fecha, timestamp, clienta, items, total, metodo_pago, nota, anticipo_aplicado
+        select fecha::text as fecha, timestamp, clienta, items, total, metodo_pago, nota, anticipo, anticipo_aplicado
         from citas
         where salon_id = ${salonId} and fecha = ${fecha} and deleted_at is null
         order by timestamp
@@ -97,6 +132,7 @@ module.exports = async function handler(req, res) {
         total: Number(row.total),
         metodo_pago: row.metodo_pago,
         nota: row.nota || '',
+        anticipo: Number(row.anticipo) || 0,
         anticipo_aplicado: row.anticipo_aplicado != null ? Number(row.anticipo_aplicado) : 0,
       }));
 
@@ -104,7 +140,7 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { fecha, timestamp, clienta, items, total, metodo_pago, nota, comisiones, agenda_id, anticipo_aplicado } = req.body || {};
+      const { fecha, timestamp, clienta, items, total, metodo_pago, nota, comisiones, anticipo, anticipo_origen_id } = req.body || {};
 
       if (!isDateStr(fecha) || !isNonEmptyString(timestamp, 20) || !isNonEmptyString(clienta, 200) ||
           !isFiniteNumber(total, { min: 0, max: 10_000_000 }) || !isMetodoPago(metodo_pago)) {
@@ -122,25 +158,30 @@ module.exports = async function handler(req, res) {
       if (nota !== undefined && (typeof nota !== 'string' || nota.length > 2000)) {
         return res.status(400).json({ error: 'Nota inválida' });
       }
-      if (agenda_id !== undefined && !isUuid(agenda_id)) {
-        return res.status(400).json({ error: 'agenda_id inválido' });
+      if (anticipo !== undefined && !isFiniteNumber(anticipo, { min: 0, max: 10_000_000 })) {
+        return res.status(400).json({ error: 'Anticipo inválido' });
       }
-      if ((agenda_id !== undefined) !== (anticipo_aplicado !== undefined)) {
-        return res.status(400).json({ error: 'agenda_id y anticipo_aplicado deben venir juntos' });
+      const montoAnticipo = Number(anticipo || 0);
+      if (montoAnticipo > Number(total)) {
+        return res.status(400).json({ error: 'El anticipo no puede ser mayor que el total' });
       }
-      if (anticipo_aplicado !== undefined && !isFiniteNumber(anticipo_aplicado, { min: 0, max: 10_000_000 })) {
-        return res.status(400).json({ error: 'anticipo_aplicado inválido' });
+      if (anticipo_origen_id !== undefined && !isUuid(anticipo_origen_id)) {
+        return res.status(400).json({ error: 'Anticipo de origen inválido' });
+      }
+      if (anticipo_origen_id !== undefined && montoAnticipo <= 0) {
+        return res.status(400).json({ error: 'Falta el monto del anticipo' });
       }
 
       // Todo en una sola sentencia (atómica):
-      // 1. Si viene de un recuadro de "cita agendada", la marca completada
-      //    con candado: si otro dispositivo ya la completó (o no existe / no
-      //    es de este salón), no encuentra filas...
+      // 1. Si el anticipo ya estaba registrado como fila propia (Agenda
+      //    vieja), esa fila se oculta con candado: solo si sigue viva, es de
+      //    este salón y su monto coincide. Si otro dispositivo ya la aplicó,
+      //    no encuentra filas...
       // 2. ...y entonces tampoco se inserta la cita (se rechaza en vez de
-      //    duplicarla).
+      //    contar el anticipo dos veces).
       // 3. Las comisiones solo se insertan si la cita se insertó.
       // Si cualquier paso truena, Postgres deshace los tres.
-      const agendaId = agenda_id || null;
+      const origenId = anticipo_origen_id || null;
       const comisionesJson = JSON.stringify((comisiones || []).map((c) => ({
         trabajadora: c.trabajadora, item: c.item, tipo: c.tipo,
         costo: Number(c.costo), pct: Number(c.pct), comision: Number(c.comision),
@@ -148,17 +189,18 @@ module.exports = async function handler(req, res) {
       const nombre = clienta.trim();
 
       const [resultado] = await sql`
-        with agenda as (
-          update citas_agendadas set estado = 'completada'
-          where ${agendaId}::uuid is not null
-            and id = ${agendaId}::uuid and salon_id = ${salonId} and estado = 'pendiente' and deleted_at is null
+        with origen as (
+          update citas set deleted_at = now()
+          where ${origenId}::uuid is not null
+            and id = ${origenId}::uuid and salon_id = ${salonId} and deleted_at is null
+            and items @> ${SOLO_ANTICIPO}::jsonb and total = ${montoAnticipo}::numeric
           returning id
         ),
         nueva as (
-          insert into citas (salon_id, fecha, timestamp, clienta, items, total, metodo_pago, nota, agenda_id, anticipo_aplicado)
+          insert into citas (salon_id, fecha, timestamp, clienta, items, total, metodo_pago, nota, anticipo, anticipo_origen_id)
           select ${salonId}, ${fecha}, ${timestamp}, ${nombre}, ${JSON.stringify(items)}::jsonb, ${total}, ${metodo_pago},
-                 ${nota || ''}, ${agendaId}::uuid, ${anticipo_aplicado ?? null}::numeric
-          where ${agendaId}::uuid is null or exists (select 1 from agenda)
+                 ${nota || ''}, ${montoAnticipo}::numeric, ${origenId}::uuid
+          where ${origenId}::uuid is null or exists (select 1 from origen)
           returning id
         ),
         nuevas_comisiones as (
@@ -173,7 +215,7 @@ module.exports = async function handler(req, res) {
       `;
 
       if (!resultado || resultado.citas === 0) {
-        return res.status(400).json({ error: 'Esta cita agendada ya fue registrada o no existe' });
+        return res.status(409).json({ error: 'Ese anticipo ya se aplicó a otra cita o ya no existe' });
       }
 
       // Avisarle a la dueña cuando una trabajadora registra una cita — ella
@@ -185,7 +227,7 @@ module.exports = async function handler(req, res) {
           const montoFmt = `$${Number(total).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
           await enviarPushSalon(sql, salonId, {
             title: 'Nueva cita registrada',
-            body: `${worker} registró una cita de ${clienta.trim()} — ${montoFmt}`,
+            body: `${worker} registró una cita de ${nombre} — ${montoFmt}`,
             url: '/#registros',
           });
         } catch (error) {
@@ -208,15 +250,39 @@ module.exports = async function handler(req, res) {
       }
 
       // restore: deshacer un DELETE reciente (el botón "Deshacer" del toast).
+      // Si la cita traía un anticipo de la Agenda vieja, esa fila vuelve a
+      // ocultarse con ella. Si mientras tanto ese anticipo ya se aplicó a
+      // otra cita, no se restaura (se contaría dos veces).
       if (restore === true) {
-        const rows = await sql`
-          update citas set deleted_at = null
-          where salon_id = ${salonId} and fecha = ${fecha} and timestamp = ${timestamp} and clienta = ${clienta}
-            and deleted_at is not null
-          returning id
+        const [r] = await sql`
+          with objetivo as (
+            select id, anticipo_origen_id from citas
+            where salon_id = ${salonId} and fecha = ${fecha} and timestamp = ${timestamp} and clienta = ${clienta}
+              and deleted_at is not null
+          ),
+          ocupado as (
+            select 1 from objetivo o join citas a on a.id = o.anticipo_origen_id
+            where a.deleted_at is not null
+          ),
+          origen as (
+            update citas set deleted_at = now()
+            where id in (select anticipo_origen_id from objetivo) and salon_id = ${salonId}
+              and deleted_at is null and not exists (select 1 from ocupado)
+            returning id
+          ),
+          restaurada as (
+            update citas set deleted_at = null
+            where id in (select id from objetivo) and not exists (select 1 from ocupado)
+            returning id
+          )
+          select (select count(*) from objetivo)::int as encontradas,
+                 (select count(*) from restaurada)::int as restauradas
         `;
-        if (rows.length === 0) {
+        if (!r || r.encontradas === 0) {
           return res.status(404).json({ error: 'Cita no encontrada o ya no se puede restaurar' });
+        }
+        if (r.restauradas === 0) {
+          return res.status(409).json({ error: 'Su anticipo ya se aplicó a otra cita; no se puede restaurar' });
         }
 
         // Las comisiones de esta cita se restauran junto con ella (ver DELETE).
@@ -259,14 +325,26 @@ module.exports = async function handler(req, res) {
         return res.status(400).json({ error: 'Faltan datos para identificar la cita' });
       }
 
-      const rows = await sql`
-        update citas set deleted_at = now()
-        where salon_id = ${salonId} and fecha = ${fecha} and timestamp = ${timestamp} and clienta = ${clienta}
-          and deleted_at is null
-        returning id
+      // Si la cita traía un anticipo de la Agenda vieja, esa fila vuelve a
+      // quedar viva (pendiente de aplicar) en la misma sentencia: el dinero
+      // sí se recibió, solo la cita fue un error.
+      const [r] = await sql`
+        with borrada as (
+          update citas set deleted_at = now()
+          where salon_id = ${salonId} and fecha = ${fecha} and timestamp = ${timestamp} and clienta = ${clienta}
+            and deleted_at is null
+          returning id, anticipo_origen_id
+        ),
+        origen as (
+          update citas set deleted_at = null
+          where id in (select anticipo_origen_id from borrada) and salon_id = ${salonId}
+            and deleted_at is not null
+          returning id
+        )
+        select (select count(*) from borrada)::int as borradas
       `;
 
-      if (rows.length === 0) {
+      if (!r || r.borradas === 0) {
         return res.status(404).json({ error: 'Cita no encontrada' });
       }
 

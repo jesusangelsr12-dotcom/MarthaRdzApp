@@ -1,6 +1,6 @@
 # Pruebas · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-09-26 · **Estado actual:** 43 pruebas, 43 en verde (`npm test`)
+**Última revisión:** 2026-10-05 · **Estado actual:** 41 pruebas, 41 en verde (`npm test`)
 
 ## 1. Cómo correrlas
 
@@ -11,7 +11,7 @@ npm test          # node --test: corre todo lo que está en test/
 No necesita base de datos ni variables de entorno. Las pruebas de
 integración levantan Postgres dentro del proceso con
 [PGlite](https://pglite.dev) (dependencia de desarrollo), le aplican todas
-las migraciones (`000` a `007`) y corren los handlers de `api/` de verdad.
+las migraciones (`000` a `008`) y corren los handlers de `api/` de verdad.
 El ayudante vive en `test/helpers/db.js`.
 
 ## 2. Qué se prueba hoy
@@ -19,16 +19,16 @@ El ayudante vive en `test/helpers/db.js`.
 | Archivo | Cubre | Por qué es crítico |
 |---|---|---|
 | `test/auth.test.js` | Crear y verificar tokens, rol de trabajadora, tokens legacy sin `role`, firma alterada, token de otro salón, expiración, entradas basura, hash de PIN con pepper | Un error aquí abre el acceso a todos los salones |
-| `test/validate.test.js` | Fechas, números con rango, strings, métodos de pago, horas, estados de agenda, PIN, teléfono | Es la única barrera contra datos con forma inválida |
+| `test/validate.test.js` | Fechas, números con rango, strings, métodos de pago, PIN, teléfono, uuid | Es la única barrera contra datos con forma inválida |
 | `test/normalize-parity.test.js` | Que `normalizeNombre` dé lo mismo en frontend y backend | Si difieren, una misma clienta se parte en dos |
-| `test/api.test.js` | Handlers contra Postgres real: cobro atómico y sin duplicar, cita cobrada que no se borra, anticipo con fecha de México, pendientes pasadas, PIN repetido, Face ID revocado, limpieza del cron, login por rol, permisos de trabajadora (incluido el de teléfonos: sin permiso, con permiso sin tocar la nota fija, apagarlo al momento, validación y que guardar el catálogo lo conserve) | Aquí vive el dinero y los permisos. Cubre los cabos sueltos C1 a C14 que son de backend |
+| `test/api.test.js` | Handlers contra Postgres real: cita con comisiones, comisión solo a sí misma, PIN repetido, Face ID revocado, limpieza del cron, login por rol, trabajadora sin teléfonos ni notas fijas (aunque tenga guardado el permiso viejo), permisos desconocidos, catálogo que conserva el PIN. **Anticipo (v50):** va dentro del total (2500 con 500 cuenta 2500 en el Dashboard y la comisión sale de 2500), nunca mayor que el total (API y base), aplicar un anticipo de la Agenda lo mueve al día de la cita sin contarlo doble, no se aplica dos veces, monto/salón/tipo deben coincidir, todo o nada si algo falla, eliminar la cita lo regresa a pendiente y "Deshacer" no lo cuenta doble | Aquí vive el dinero y los permisos. Cubre los cabos sueltos de backend que siguen vigentes |
 
 ## 3. Qué NO se prueba todavía
 
 | Área | Riesgo | Cómo probarla |
 |---|---|---|
-| Handlers sin prueba todavía | `dashboard`, `comisiones`, `gastos`, `clientas`, `push-subscribe` | Agregarlas a `test/api.test.js` con el mismo ayudante |
-| Reglas de dinero | Anticipo aplicado, comisión sobre precio completo, ganancia neta | Extraer los cálculos de `cita.js` y `dashboard.js` a funciones puras y probarlas |
+| Handlers sin prueba todavía | `comisiones`, `gastos`, `push-subscribe` (`dashboard` y `clientas` solo en lo que toca a anticipos y permisos) | Agregarlas a `test/api.test.js` con el mismo ayudante |
+| Reglas de dinero del frontend | Cálculo de la comisión y "Resta por cobrar" en `cita.js` | Extraer los cálculos de `cita.js` a funciones puras y probarlas |
 | Frontend | Wizards, router, guardas de rol | Hoy se prueba a mano o con un navegador automatizado contra la app local. Falta dejarlo como suite en el repo |
 | Service Worker | Actualización sin perder captura | Prueba manual (ver §5) |
 | WebAuthn y push | Dependen del dispositivo real | Prueba manual en iPhone |
@@ -62,29 +62,24 @@ Correr antes de un cambio grande o de tocar dinero, permisos o el Service Worker
 
 ### Acceso
 1. PIN de dueña → inicio completo con resumen semanal.
-2. PIN de trabajadora → inicio con 2 tarjetas. Escribir `#registros` en la URL → regresa a inicio.
+2. PIN de trabajadora → inicio con 1 tarjeta (Registrar Cita). Escribir `#registros` en la URL → regresa a inicio. Escribir `#agenda` → regresa a inicio (con cualquier rol).
 3. PIN incorrecto 5 veces → sexto intento dice "Demasiados intentos".
 4. Activar Face ID en Configuración → cerrar sesión → entrar con Face ID.
 
 ### Dinero
-5. Agendar cita con anticipo de $200 → aparece como ingreso de hoy en Registros.
-6. Cobrar esa cita desde el recuadro de Registrar Cita con servicio de $800 → "A cobrar hoy $600". Registros muestra "Anticipo aplicado".
-7. Intentar cobrarla otra vez desde otro dispositivo → error "ya fue registrada".
-8. Borrar la cita cobrada en Registros → sus comisiones desaparecen de Comisiones. "Deshacer" las regresa.
-9. Dashboard del mes: ganancia neta = ingresos − gastos − comisiones.
-
-### Agenda
-10. Cancelar una cita con anticipo → el anticipo sigue en ingresos. "Volver a pendiente" funciona.
-11. Eliminar una cita pendiente con anticipo → el anticipo desaparece de ingresos. "Deshacer" lo regresa.
-12. Confirmar por WhatsApp → abre el chat con el primer nombre de la clienta.
-13. Marcar vacaciones de una trabajadora → se ven en la lista y en el calendario del mes.
+5. Registrar cita de $2,500 con anticipo de $500 y 10 % de comisión → el resumen dice Total $2,500, Anticipo $500, Resta por cobrar $2,000. Registros: $2,500 con "Incluye anticipo de $500". Comisión $250.
+6. Anticipo mayor que el total → "El anticipo no puede ser mayor que el total". "Sin anticipo" → el resumen dice "Sin anticipo".
+7. Clienta con anticipo de la Agenda → al escribir su nombre aparece "Ya tiene anticipo"; en el paso de anticipo, tocar su tarjeta y registrar → el anticipo desaparece del día en que se pagó y la cita cuenta el total completo.
+8. Intentar aplicar ese mismo anticipo otra vez desde otro dispositivo → "Ese anticipo ya se aplicó a otra cita".
+9. Borrar esa cita en Registros → el anticipo regresa a su día y sus comisiones desaparecen. "Deshacer" lo vuelve a aplicar.
+10. Dashboard del mes: ganancia neta = ingresos − gastos − comisiones.
 
 ### Trabajadora
-14. Registrar cita con comisión → solo se puede elegir a sí misma. A la dueña le llega el push.
-15. En Agenda no ve teléfono ni botones de editar. En Agendar no ve el campo de teléfono.
+11. Registrar cita con comisión y anticipo → solo se puede elegir a sí misma; ve el paso de anticipo igual que la dueña. A la dueña le llega el push.
+12. Configuración de la dueña ya no muestra "Puede usar" en las trabajadoras.
 
 ### Actualización
-16. Con la app abierta a media captura, publicar un deploy → la app no se recarga hasta cambiar de pantalla.
+13. Con la app abierta a media captura, publicar un deploy → la app no se recarga hasta cambiar de pantalla.
 
 ## 6. Datos de prueba
 

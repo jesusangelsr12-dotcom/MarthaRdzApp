@@ -1,8 +1,8 @@
 # Martha Rdz Hair Artist
 
-PWA para administrar un salón de belleza desde el celular: agenda de citas,
-cobro de servicios y productos, comisiones de trabajadoras, gastos, historial
-de clientas y un dashboard del negocio.
+PWA para administrar un salón de belleza desde el celular: registro de citas
+(servicios, productos y anticipo), comisiones de trabajadoras, gastos,
+historial de clientas y un dashboard del negocio.
 
 Es la app de Martha Rdz Hair Artist. Soporta varios salones en la
 misma base de datos (una base de Neon propia, separada de cualquier otra app). Cada salón entra con su propio PIN.
@@ -13,8 +13,7 @@ misma base de datos (una base de Neon propia, separada de cualquier otra app). C
 
 | Para la dueña | Para una trabajadora (acceso limitado) |
 |---|---|
-| Registrar citas (servicios, productos, precios, comisiones, fórmula, pago) | Registrar citas y asignarse su propia comisión |
-| Agendar citas futuras con anticipo y confirmarlas por WhatsApp | Ver la agenda completa y agendar citas |
+| Registrar citas (servicios, productos, precios, comisiones, fórmula, anticipo, pago) | Registrar citas (con anticipo) y asignarse su propia comisión |
 | Registrar gastos | |
 | Ver registros del día, borrar con "Deshacer" y compartir recibos | |
 | Historial de clientas con fórmulas, nota fija y teléfono | |
@@ -56,7 +55,7 @@ Variables mínimas para entrar a la app:
 | `PIN_PEPPER` | Se combina con el PIN para calcular su hash |
 
 Opcionales: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (push) y
-`CRON_SECRET` (protege el recordatorio diario). La lista completa y cómo
+`CRON_SECRET` (protege la limpieza diaria). La lista completa y cómo
 generarlas está en [docs/Deployment.md](docs/Deployment.md).
 
 > Face ID / Touch ID y las notificaciones push necesitan HTTPS. En
@@ -106,7 +105,7 @@ base de datos ni variables de entorno. Qué cubre y qué no, en
 
 ```
 api/                  Serverless functions (una por archivo, máximo 12 en Vercel Hobby)
-  cron/               Tareas programadas (recordatorio diario)
+  cron/               Tareas programadas (limpieza diaria)
 lib/                  Código compartido del backend (auth, db, validación, push, webauthn)
 public/               Todo lo que se sirve al navegador
   js/views/           Una pantalla por archivo (render + init)

@@ -6,7 +6,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { isDateStr, isFiniteNumber, isNonEmptyString, isMetodoPago, isTimeStr, isEstadoAgenda, isPinStr, isTelefonoStr, isUuid } = require('../lib/validate');
+const { isDateStr, isFiniteNumber, isNonEmptyString, isMetodoPago, isPinStr, isTelefonoStr, isUuid } = require('../lib/validate');
 
 test('isDateStr acepta YYYY-MM-DD y rechaza el resto', () => {
   assert.equal(isDateStr('2026-09-13'), true);
@@ -40,27 +40,6 @@ test('isMetodoPago solo acepta los tres métodos soportados', () => {
   assert.equal(isMetodoPago('Transferencia'), true);
   assert.equal(isMetodoPago('Bitcoin'), false);
   assert.equal(isMetodoPago(''), false);
-});
-
-test('isTimeStr acepta HH:MM en 24h y rechaza el resto', () => {
-  assert.equal(isTimeStr('00:00'), true);
-  assert.equal(isTimeStr('23:59'), true);
-  assert.equal(isTimeStr('09:05'), true);
-  assert.equal(isTimeStr('24:00'), false);
-  assert.equal(isTimeStr('9:05'), false);
-  assert.equal(isTimeStr('12:60'), false);
-  assert.equal(isTimeStr('12:00:00'), false);
-  assert.equal(isTimeStr(''), false);
-  assert.equal(isTimeStr(null), false);
-});
-
-test('isEstadoAgenda solo acepta los cuatro estados soportados', () => {
-  assert.equal(isEstadoAgenda('pendiente'), true);
-  assert.equal(isEstadoAgenda('completada'), true);
-  assert.equal(isEstadoAgenda('no_asistio'), true);
-  assert.equal(isEstadoAgenda('cancelada'), true);
-  assert.equal(isEstadoAgenda('en_proceso'), false);
-  assert.equal(isEstadoAgenda(''), false);
 });
 
 test('isPinStr solo acepta exactamente 6 dígitos', () => {

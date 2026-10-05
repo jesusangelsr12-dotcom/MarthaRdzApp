@@ -1,13 +1,13 @@
 # Manejo de errores · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-09-26
+**Última revisión:** 2026-10-05
 
 ## 1. Principios
 
 1. **La usuaria nunca ve un error técnico.** Ve una frase corta en español y, si aplica, qué hacer ("Reintentar", "usa tu PIN").
 2. **El detalle técnico va al log del servidor**, no a la pantalla.
-3. **Un efecto secundario no tumba la operación principal.** Si falla el push o guardar el teléfono, la cita igual queda registrada.
-4. **Lo que no es esencial falla en silencio.** Autocompletado, teléfonos y estado de push: si no cargan, la pantalla funciona igual.
+3. **Un efecto secundario no tumba la operación principal.** Si falla el push, la cita igual queda registrada.
+4. **Lo que no es esencial falla en silencio.** Autocompletado, teléfonos, anticipos pendientes y estado de push: si no cargan, la pantalla funciona igual (sin la lista de anticipos, el anticipo se teclea a mano).
 5. **Nada se pierde por un error.** Doble tap bloqueado, candados en el servidor y borrado lógico.
 
 ## 2. Recorrido de un error
@@ -111,10 +111,13 @@ Si falla la carga principal, reemplaza el contenido por el mensaje y un botón "
 | Push | Permiso negado | Toast con instrucción de ir a ajustes del dispositivo |
 | Compartir | Usuaria cierra la hoja | No es error, no se muestra nada |
 | Recibo en desktop sin teléfono | No hay cómo compartir | Toast: agrega el teléfono en Clientas |
+| Registrar Cita | Anticipo mayor que el total | Toast "El anticipo no puede ser mayor que el total de $X" y se queda en el paso (o regresa a él si se cambiaron precios después) |
+| Registrar Cita | 409 "Ese anticipo ya se aplicó a otra cita o ya no existe" | Toast con el mensaje, recarga la lista de anticipos y regresa al paso de anticipo sin él |
+| Registros | 409 al "Deshacer" una cita cuyo anticipo ya se aplicó a otra | Toast con el mensaje del servidor; la cita se queda eliminada |
 
 ### Validación en el cliente
 Se valida antes de llamar al servidor para dar respuesta inmediata
-(nombre vacío, teléfono incompleto, costo en cero, rango de fechas invertido).
+(nombre vacío, teléfono incompleto, costo en cero, anticipo mayor que el total, rango de fechas invertido).
 **El servidor valida de nuevo.** El cliente nunca es la única barrera.
 
 ## 5. Registro (logging)
@@ -136,7 +139,7 @@ llega al servidor hoy solo lo ve la usuaria.
 |---|---|---|
 | E1 | `fetchAPI` no trataba el 401 y guardar Configuración alargaba la sesión local | ✅ Resuelto en v46 (C4): 401 → Login con aviso; la expiración local sale del token |
 | E2 | `fetchAPI` asumía que toda respuesta era JSON | ✅ Resuelto en v46 (C9) |
-| E3 | El cobro de una cita agendada no era atómico | ✅ Resuelto en v46 (C3): una sola sentencia |
+| E3 | El cobro de una cita agendada no era atómico | ✅ Resuelto en v46 (C3): una sola sentencia. Desde v50 la Agenda no existe; aplicar un anticipo de la Agenda sigue el mismo patrón (una sola sentencia) |
 | E4 | Sin monitoreo de errores de frontend | Abierto. Errores de JavaScript en el celular pasan desapercibidos |
 
 ## 7. Cómo diagnosticar un reporte

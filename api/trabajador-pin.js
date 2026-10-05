@@ -6,9 +6,11 @@
  * Body: { nombre, pin }          → asigna/cambia su PIN de 6 dígitos
  *       { nombre, remove: true } → le quita el acceso (conserva el nombre
  *                                  para comisiones, solo borra `pin_hash`)
- *       { nombre, permisos: { telefonos: true|false } }
+ *       { nombre, permisos: { <permiso>: true|false } }
  *                                → qué más puede hacer en la app (ver
- *                                  PERMISOS_TRABAJADORA en lib/auth.js).
+ *                                  PERMISOS_TRABAJADORA en lib/auth.js;
+ *                                  hoy la lista está vacía, así que
+ *                                  cualquier permiso responde 400).
  *                                  Todos arrancan apagados.
  *
  * El PIN se guarda con el mismo hash con pepper que el de la dueña

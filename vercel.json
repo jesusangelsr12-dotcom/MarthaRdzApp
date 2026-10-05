@@ -38,6 +38,6 @@
   ],
   "outputDirectory": "public",
   "crons": [
-    { "path": "/api/cron/reminder-citas", "schedule": "0 0 * * *" }
+    { "path": "/api/cron/limpieza", "schedule": "0 0 * * *" }
   ]
 }

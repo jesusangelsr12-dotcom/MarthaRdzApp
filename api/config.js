@@ -5,7 +5,7 @@
  * POST { servicios, productos, trabajadoras } → { success }
  *
  * trabajadoras JSON almacenado:
- *   [{"nombre":"Ana","pin_hash":"...","permisos":{"telefonos":true}}, ...]
+ *   [{"nombre":"Ana","pin_hash":"...","permisos":{...}}, ...]
  * (pin_hash y permisos son opcionales y se asignan desde
  * /api/trabajador-pin, NUNCA desde aquí). GET nunca devuelve el hash: cada
  * trabajadora sale como {nombre, tiene_acceso, permisos}.

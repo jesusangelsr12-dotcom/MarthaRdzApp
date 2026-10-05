@@ -11,14 +11,18 @@
  * - precios     Costo de cada item, uno por uno (con sub-navegación interna)
  * - comisiones  Trabajadora + % por item (solo si hay trabajadoras)
  * - notas       Fórmula usada / notas de la visita (opcional)
+ * - anticipo    ¿Dejó anticipo? Monto o "Sin anticipo". Va DENTRO del total:
+ *               una cita de $2,500 con $500 de anticipo se registra con
+ *               total 2500 (eso cuenta en ingresos y las comisiones no
+ *               cambian); el anticipo solo dice cuánto ya estaba pagado.
  * - pago        Método de pago
  * - confirmar   Resumen con desglose, comisiones y total
  *
  * Debe haber al menos un servicio o un producto seleccionado en total.
  */
 
-import { createCita, getClientas, getCitasAgendadas } from '../api.js';
-import { formatMXN, todayISO, nowTimestamp, showToast, showLoader, hideLoader, escapeHTML, normalizeNombre, METODOS_PAGO, formatHora12 } from '../utils.js';
+import { createCita, getClientas, getAnticiposPendientes } from '../api.js';
+import { formatMXN, todayISO, nowTimestamp, showToast, showLoader, hideLoader, escapeHTML, normalizeNombre, METODOS_PAGO } from '../utils.js';
 import { navigateTo } from '../app.js';
 import { isTrabajadora, getWorkerName } from '../auth.js';
 
@@ -26,7 +30,9 @@ let session = null;
 let stepKey = 'clienta';
 let allClientas = [];
 let notasFijas = {};   // { claveNormalizada: nota } para avisar de alergias
-let citasAgendadasHoy = []; // pendientes de hoy, para los recuadros de "cita agendada"
+// Anticipos que la Agenda vieja dejó registrados como ingreso propio y que
+// todavía no se aplican a una cita: [{ id, clienta, fecha, monto }]
+let anticiposPendientes = [];
 
 // Estado de la cita
 let cita = {
@@ -38,40 +44,39 @@ let cita = {
   comisionesMap: {},       // { itemIndex: { trabajadora, pct, comision } }
   nota: '',                // fórmula usada / notas de la visita
   metodo_pago: '',
-  agendaId: null,          // si viene de un recuadro de cita agendada
-  anticipoAgenda: 0,       // anticipo ya cobrado de esa cita agendada
-  agendaClienta: '',       // nombre y fecha de esa cita agendada, para soltarla
-  agendaFecha: '',         // si luego se cambian (ver soltarAgendaSiCambio)
+  anticipo: 0,             // parte del total que ya estaba pagada (0 = sin anticipo)
+  anticipoOrigen: null,    // { id, clienta, fecha, monto } si es uno de anticiposPendientes
 };
 
-/** La Agenda abre "#cita?fecha=2026-09-20" para cobrar una cita de otro día
- * (ej. una pendiente que se quedó sin cerrar). Mismo patrón que agendar.js. */
-function fechaDesdeHash() {
-  const hash = window.location.hash;
-  const qIndex = hash.indexOf('?');
-  if (qIndex === -1) return null;
-  const fecha = new URLSearchParams(hash.slice(qIndex + 1)).get('fecha');
-  return /^\d{4}-\d{2}-\d{2}$/.test(fecha || '') ? fecha : null;
+/** Anticipos pendientes de la clienta escrita (comparando el nombre normalizado). */
+function anticiposDeClienta(nombre) {
+  const clave = normalizeNombre(nombre);
+  if (!clave) return [];
+  return anticiposPendientes.filter((a) => normalizeNombre(a.clienta) === clave);
 }
 
-/** Si ya se eligió un recuadro de cita agendada y después se escribió otra
- * clienta u otra fecha, ese cobro ya no es de esa cita: se suelta el
- * vínculo (y su anticipo). Sin esto, el cobro de otra persona completaba la
- * cita agendada equivocada y le descontaba un anticipo ajeno. */
-function soltarAgendaSiCambio() {
-  if (!cita.agendaId) return;
-  const mismaClienta = normalizeNombre(cita.clienta) === normalizeNombre(cita.agendaClienta);
-  if (mismaClienta && cita.fecha === cita.agendaFecha) return;
-  cita.agendaId = null;
-  cita.anticipoAgenda = 0;
-  cita.agendaClienta = '';
-  cita.agendaFecha = '';
+/** Si se eligió un anticipo ya registrado y después se escribió otra
+ * clienta, ese anticipo ya no es suyo: se suelta. Sin esto, la cita de otra
+ * persona se llevaba un anticipo ajeno. */
+function soltarAnticipoAjeno() {
+  if (!cita.anticipoOrigen) return;
+  if (normalizeNombre(cita.clienta) === normalizeNombre(cita.anticipoOrigen.clienta)) return;
+  cita.anticipo = 0;
+  cita.anticipoOrigen = null;
+}
+
+/** Suma de los precios capturados: es el total de la cita, con o sin anticipo. */
+function totalCita() {
+  return cita.items.reduce((sum, it) => sum + it.costo, 0);
 }
 
 // Para el paso 4: pricing
 let pricingItems = [];
 let pricingIndex = 0;
 let currentCosto = '';
+
+// Para el paso de anticipo: lo que se va tecleando
+let currentAnticipo = '';
 
 /** Muestra una fecha YYYY-MM-DD como "12 de julio de 2026" */
 function formatFechaDisplay(fechaISO) {
@@ -80,8 +85,15 @@ function formatFechaDisplay(fechaISO) {
   return d.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
+/** "27 de septiembre" — para fechas de anticipos, donde el año sobra. */
+function formatFechaCorta(fechaISO) {
+  if (!fechaISO) return '';
+  const d = new Date(fechaISO + 'T12:00:00');
+  return d.toLocaleDateString('es-MX', { day: 'numeric', month: 'long' });
+}
+
 // Secuencia completa de pasos, en orden.
-const STEPS = ['clienta', 'servicios', 'productos', 'precios', 'comisiones', 'notas', 'pago', 'confirmar'];
+const STEPS = ['clienta', 'servicios', 'productos', 'precios', 'comisiones', 'notas', 'anticipo', 'pago', 'confirmar'];
 
 /** Pasos que aplican a este salón, en orden. */
 function activeSteps() {
@@ -106,6 +118,8 @@ function goNext() {
   if (!next) return;
   // Al entrar a precios desde atrás, armar la lista de items a cotizar
   if (next === 'precios') preparePricing();
+  // Al entrar al anticipo, el teclado arranca con lo que ya se había puesto
+  if (next === 'anticipo') currentAnticipo = cita.anticipo > 0 && !cita.anticipoOrigen ? String(cita.anticipo) : '';
   goTo(next);
 }
 
@@ -133,24 +147,23 @@ export function init(s) {
   stepKey = 'clienta';
   cita = {
     clienta: '',
-    fecha: fechaDesdeHash() || todayISO(),
+    fecha: todayISO(),
     selectedServicios: [],
     selectedProductos: [],
     items: [],
     comisionesMap: {},
     nota: '',
     metodo_pago: '',
-    agendaId: null,
-    anticipoAgenda: 0,
-    agendaClienta: '',
-    agendaFecha: '',
+    anticipo: 0,
+    anticipoOrigen: null,
   };
   pricingItems = [];
   pricingIndex = 0;
   currentCosto = '';
+  currentAnticipo = '';
   allClientas = [];
   notasFijas = {};
-  citasAgendadasHoy = [];
+  anticiposPendientes = [];
   enviandoCita = false;
 
   document.getElementById('cita-back').addEventListener('click', goBack);
@@ -175,71 +188,43 @@ export function init(s) {
       })
       .catch(() => { /* silencioso */ });
 
-    // Citas agendadas pendientes de la fecha elegida (non-blocking): permiten
-    // saltar directo a servicios/precios sin volver a teclear nombre/fecha.
-    cargarCitasAgendadasDelDia(cita.fecha || todayISO());
+    // Anticipos ya registrados por la Agenda vieja (non-blocking): al
+    // escribir el nombre de una clienta que tiene uno, se avisa y luego se
+    // ofrece en el paso de anticipo para no contarlo dos veces.
+    cargarAnticiposPendientes();
   }
 }
 
-/** Consulta las citas agendadas pendientes de una fecha y repinta sus
- * recuadros. Se llama al entrar al paso y cada vez que se cambia la fecha,
- * para que el recuadro siga la fecha elegida, no solo la de hoy. */
-async function cargarCitasAgendadasDelDia(fecha) {
-  if (!session?.sheet_id) return;
+async function cargarAnticiposPendientes() {
   try {
-    const res = await getCitasAgendadas(session.sheet_id, { fecha, estado: 'pendiente' });
-    // Si mientras cargaba la usuaria ya cambió la fecha otra vez, esta
-    // respuesta quedó vieja: no pisar lo que se esté mostrando ahora.
-    const fechaInput = document.getElementById('input-fecha-cita');
-    if (fechaInput && fechaInput.value !== fecha) return;
-    citasAgendadasHoy = res.citas_agendadas || [];
-    renderAgendaHoyCards(fecha);
+    const res = await getAnticiposPendientes(session.sheet_id);
+    anticiposPendientes = res.anticipos || [];
+    pintarAvisoAnticipo();
   } catch {
-    /* silencioso */
+    /* silencioso: sin la lista, el paso de anticipo funciona igual */
   }
 }
 
-/** Pinta (o repinta) los recuadros de citas agendadas pendientes de `fecha`,
- * sin tocar el resto del paso — así no se pierde el foco del input mientras
- * se escribe. */
-function renderAgendaHoyCards(fecha) {
-  const container = document.getElementById('agenda-hoy-container');
-  if (!container) return;
-
-  if (citasAgendadasHoy.length === 0) {
-    container.innerHTML = '';
+/** Aviso bajo el nombre (paso "clienta") cuando esa clienta ya tiene un
+ * anticipo registrado. Solo repinta ese hueco, para no perder el foco. */
+function pintarAvisoAnticipo() {
+  const el = document.getElementById('anticipo-previo-aviso');
+  const input = document.getElementById('input-clienta');
+  if (!el || !input) return;
+  const previos = anticiposDeClienta(input.value);
+  if (previos.length === 0) {
+    el.innerHTML = '';
     return;
   }
-
-  container.innerHTML = `
-    <div class="agenda-hoy-label">Citas agendadas para el ${formatFechaDisplay(fecha)}</div>
-    <div class="agenda-hoy-list">
-      ${citasAgendadasHoy.map((c) => `
-        <button class="agenda-hoy-card" type="button" data-agenda-id="${c.id}">
-          <span class="agenda-hoy-card-hora">${formatHora12(c.hora)}</span>
-          <span class="agenda-hoy-card-clienta">${escapeHTML(c.clienta)}</span>
-          ${c.anticipo > 0 ? `<span class="agenda-hoy-card-anticipo">${formatMXN(c.anticipo)}</span>` : ''}
-        </button>
-      `).join('')}
+  const detalle = previos
+    .map((a) => `${formatMXN(a.monto)} del ${formatFechaCorta(a.fecha)}`)
+    .join(' y ');
+  el.innerHTML = `
+    <div class="anticipo-previo-aviso">
+      <span class="anticipo-previo-aviso-label">Ya tiene anticipo</span>
+      <span class="anticipo-previo-aviso-text">${escapeHTML(detalle)}. Lo podrás aplicar en el paso de anticipo.</span>
     </div>
   `;
-
-  container.querySelectorAll('.agenda-hoy-card').forEach((btn) => {
-    btn.addEventListener('click', () => seleccionarCitaAgendada(btn.dataset.agendaId));
-  });
-}
-
-/** Tocar un recuadro llena nombre y fecha, y sigue directo con goNext(). */
-function seleccionarCitaAgendada(agendaId) {
-  const c = citasAgendadasHoy.find((x) => x.id === agendaId);
-  if (!c) return;
-  cita.clienta = c.clienta;
-  cita.fecha = c.fecha;
-  cita.agendaId = c.id;
-  cita.anticipoAgenda = c.anticipo;
-  cita.agendaClienta = c.clienta;
-  cita.agendaFecha = c.fecha;
-  goNext();
 }
 
 function renderSinCatalogo(el) {
@@ -313,6 +298,7 @@ function renderStep() {
     case 'precios': renderStepPrecios(container); break;
     case 'comisiones': renderStepComisiones(container); break;
     case 'notas': renderStepNotas(container); break;
+    case 'anticipo': renderStepAnticipo(container); break;
     case 'pago': renderStepPago(container); break;
     case 'confirmar': renderStepConfirmar(container); break;
   }
@@ -329,7 +315,7 @@ function renderStepClienta(el) {
         <div class="clienta-suggestions hidden" id="clienta-suggestions"></div>
       </div>
 
-      <div id="agenda-hoy-container"></div>
+      <div id="anticipo-previo-aviso"></div>
 
       <label class="input-label mt-24">Fecha de la cita</label>
       <input type="date" class="date-picker-input" id="input-fecha-cita"
@@ -345,10 +331,7 @@ function renderStepClienta(el) {
   const btn = document.getElementById('btn-step1');
 
   fechaInput.addEventListener('change', () => {
-    if (fechaInput.value) {
-      cita.fecha = fechaInput.value;
-      cargarCitasAgendadasDelDia(fechaInput.value);
-    }
+    if (fechaInput.value) cita.fecha = fechaInput.value;
   });
 
   const advance = () => {
@@ -357,7 +340,7 @@ function renderStepClienta(el) {
     if (!fechaInput.value) { showToast('Selecciona la fecha de la cita', 'error'); return; }
     cita.clienta = val;
     cita.fecha = fechaInput.value;
-    soltarAgendaSiCambio();
+    soltarAnticipoAjeno();
     goNext();
   };
 
@@ -366,6 +349,7 @@ function renderStepClienta(el) {
 
   // Autocomplete
   input.addEventListener('input', () => {
+    pintarAvisoAnticipo();
     const query = input.value.trim().toLowerCase();
 
     if (query.length < 2 || allClientas.length === 0) {
@@ -395,6 +379,7 @@ function renderStepClienta(el) {
     input.value = item.textContent;
     cita.clienta = item.textContent;
     suggestionsEl.classList.add('hidden');
+    pintarAvisoAnticipo();
   });
 
   // Hide suggestions on blur (delayed so click fires first)
@@ -403,7 +388,7 @@ function renderStepClienta(el) {
   });
 
   input.focus();
-  renderAgendaHoyCards(cita.fecha || todayISO());
+  pintarAvisoAnticipo();
 }
 
 // Paso "servicios": multi-selección (este paso solo existe si hay catálogo)
@@ -738,6 +723,108 @@ function renderStepNotas(el) {
   });
 }
 
+// Paso "anticipo": cuánto dejó de anticipo, o "Sin anticipo"
+function renderStepAnticipo(el) {
+  const total = totalCita();
+  const previos = anticiposDeClienta(cita.clienta);
+
+  el.innerHTML = `
+    <div class="step-content">
+      <label class="input-label">¿Dejó anticipo?</label>
+      <p class="multi-select-hint">Va dentro del total de ${formatMXN(total)}: el total y las comisiones no cambian.</p>
+
+      ${previos.length > 0 ? `
+        <div class="anticipo-previo-label">Anticipo ya registrado</div>
+        <div class="anticipo-previo-list" id="anticipo-previo-list">
+          ${previos.map((a) => `
+            <button class="anticipo-previo-card ${cita.anticipoOrigen?.id === a.id ? 'selected' : ''}" type="button" data-anticipo-id="${escapeHTML(a.id)}">
+              <span class="anticipo-previo-card-fecha">${escapeHTML(formatFechaDisplay(a.fecha))}</span>
+              <span class="anticipo-previo-card-monto">${formatMXN(a.monto)}</span>
+            </button>
+          `).join('')}
+        </div>
+        <p class="multi-select-hint mt-8">Tócalo para aplicarlo a esta cita, o escribe otro monto.</p>
+      ` : ''}
+
+      <div class="amount-display">
+        <span class="amount-display-currency">$</span>
+        <span class="amount-display-value" id="anticipo-display">${currentAnticipo || '0'}</span>
+      </div>
+      <div class="keypad" id="anticipo-keypad">
+        <button class="keypad-key" data-key="1">1</button>
+        <button class="keypad-key" data-key="2">2</button>
+        <button class="keypad-key" data-key="3">3</button>
+        <button class="keypad-key" data-key="4">4</button>
+        <button class="keypad-key" data-key="5">5</button>
+        <button class="keypad-key" data-key="6">6</button>
+        <button class="keypad-key" data-key="7">7</button>
+        <button class="keypad-key" data-key="8">8</button>
+        <button class="keypad-key" data-key="9">9</button>
+        <button class="keypad-key keypad-key--delete" data-key="delete">\u232b</button>
+        <button class="keypad-key" data-key="0">0</button>
+        <button class="keypad-key keypad-key--confirm" data-key="ok">\u2713</button>
+      </div>
+
+      <button class="btn btn-outline mt-24" id="btn-sin-anticipo">Sin anticipo</button>
+    </div>
+  `;
+
+  const previoList = document.getElementById('anticipo-previo-list');
+  if (previoList) {
+    previoList.addEventListener('click', (e) => {
+      const card = e.target.closest('[data-anticipo-id]');
+      if (!card) return;
+      const previo = previos.find((a) => a.id === card.dataset.anticipoId);
+      if (!previo) return;
+      if (previo.monto > total) {
+        showToast(`Ese anticipo (${formatMXN(previo.monto)}) es mayor que el total de ${formatMXN(total)}`, 'error');
+        return;
+      }
+      cita.anticipo = previo.monto;
+      cita.anticipoOrigen = previo;
+      currentAnticipo = '';
+      goNext();
+    });
+  }
+
+  document.getElementById('anticipo-keypad').addEventListener('click', (e) => {
+    const key = e.target.closest('[data-key]');
+    if (!key) return;
+    const k = key.dataset.key;
+
+    if (k === 'delete') {
+      currentAnticipo = currentAnticipo.slice(0, -1);
+    } else if (k === 'ok') {
+      const monto = parseFloat(currentAnticipo);
+      if (!currentAnticipo || !(monto > 0)) {
+        showToast('Escribe el anticipo o toca "Sin anticipo"', 'error');
+        return;
+      }
+      if (monto > total) {
+        showToast(`El anticipo no puede ser mayor que el total de ${formatMXN(total)}`, 'error');
+        return;
+      }
+      // Un monto escrito a mano es un anticipo nuevo, no uno ya registrado.
+      cita.anticipo = monto;
+      cita.anticipoOrigen = null;
+      goNext();
+      return;
+    } else {
+      if (currentAnticipo === '0') currentAnticipo = '';
+      if (currentAnticipo.length < 7) currentAnticipo += k;
+    }
+
+    document.getElementById('anticipo-display').textContent = currentAnticipo || '0';
+  });
+
+  document.getElementById('btn-sin-anticipo').addEventListener('click', () => {
+    cita.anticipo = 0;
+    cita.anticipoOrigen = null;
+    currentAnticipo = '';
+    goNext();
+  });
+}
+
 // Paso "pago": método de pago
 function renderStepPago(el) {
   const metodos = METODOS_PAGO;
@@ -766,14 +853,13 @@ function renderStepPago(el) {
 
 // Paso "confirmar": resumen con desglose y comisiones
 function renderStepConfirmar(el) {
-  const total = cita.items.reduce((sum, it) => sum + it.costo, 0);
+  const total = totalCita();
   const serviciosItems = cita.items.filter((it) => it.tipo === 'servicio');
   const productosItems = cita.items.filter((it) => it.tipo === 'producto');
   const comisionesList = Object.entries(cita.comisionesMap);
-  // Si viene de un recuadro de "cita agendada", el anticipo ya cobrado se
-  // descuenta de lo que se cobra hoy (nunca más de lo que cuesta el servicio).
-  const anticipoAplicado = cita.agendaId ? Math.min(cita.anticipoAgenda, total) : 0;
-  const aCobrarHoy = total - anticipoAplicado;
+  // El anticipo NO se resta del total: solo se muestra cuánto ya estaba
+  // pagado y cuánto falta por cobrar.
+  const resta = total - cita.anticipo;
 
   el.innerHTML = `
     <div class="step-content">
@@ -824,18 +910,22 @@ function renderStepConfirmar(el) {
         ` : ''}
 
         <div class="summary-row summary-row--total">
-          <span class="summary-label">${cita.agendaId ? 'Precio del servicio' : 'Total'}</span>
+          <span class="summary-label">Total</span>
           <span class="summary-value summary-value--total">${formatMXN(total)}</span>
         </div>
 
-        ${cita.agendaId ? `
+        <div class="summary-row">
+          <span class="summary-label">
+            Anticipo
+            ${cita.anticipoOrigen ? `<span class="summary-anticipo-origen">registrado el ${escapeHTML(formatFechaCorta(cita.anticipoOrigen.fecha))}</span>` : ''}
+          </span>
+          <span class="summary-value">${cita.anticipo > 0 ? formatMXN(cita.anticipo) : 'Sin anticipo'}</span>
+        </div>
+
+        ${cita.anticipo > 0 ? `
           <div class="summary-row">
-            <span class="summary-label">Anticipo ya cobrado</span>
-            <span class="summary-value">−${formatMXN(anticipoAplicado)}</span>
-          </div>
-          <div class="summary-row summary-row--total">
-            <span class="summary-label">A cobrar hoy</span>
-            <span class="summary-value summary-value--total">${formatMXN(aCobrarHoy)}</span>
+            <span class="summary-label">Resta por cobrar</span>
+            <span class="summary-value">${formatMXN(resta)}</span>
           </div>
         ` : ''}
 
@@ -879,13 +969,19 @@ async function submitCita() {
   if (btn) btn.disabled = true;
 
   try {
+    // El total es el precio completo, anticipo incluido: eso cuenta en
+    // ingresos el día de la cita, y las comisiones (abajo) salen del precio
+    // completo de cada item.
+    const total = totalCita();
+    if (cita.anticipo > total) {
+      // Se cambiaron precios después de capturar el anticipo
+      showToast(`El anticipo no puede ser mayor que el total de ${formatMXN(total)}`, 'error');
+      enviandoCita = false;
+      if (btn) btn.disabled = false;
+      goTo('anticipo');
+      return;
+    }
     showLoader();
-    const sumItems = cita.items.reduce((sum, it) => sum + it.costo, 0);
-    // Si viene de una cita agendada, el anticipo ya cobrado se descuenta de
-    // lo que se registra hoy; la comisión (abajo) sigue sobre el precio
-    // completo de cada item, sin verse afectada por este descuento.
-    const anticipoAplicado = cita.agendaId ? Math.min(cita.anticipoAgenda, sumItems) : 0;
-    const total = sumItems - anticipoAplicado;
 
     // Armar array de comisiones para la hoja separada
     const comisiones = Object.entries(cita.comisionesMap).map(([idx, com]) => {
@@ -909,8 +1005,8 @@ async function submitCita() {
       metodo_pago: cita.metodo_pago,
       nota: cita.nota,
       comisiones,
-      agenda_id: cita.agendaId || undefined,
-      anticipo_aplicado: cita.agendaId ? anticipoAplicado : undefined,
+      anticipo: cita.anticipo,
+      anticipo_origen_id: cita.anticipoOrigen?.id,
     });
 
     hideLoader();
@@ -921,5 +1017,15 @@ async function submitCita() {
     showToast(error.message || 'Error al registrar la cita', 'error');
     enviandoCita = false;
     if (btn) btn.disabled = false;
+    // Si el anticipo ya registrado se aplicó desde otro dispositivo, ya no
+    // está disponible: se refresca la lista y se regresa a ese paso.
+    if (cita.anticipoOrigen) {
+      await cargarAnticiposPendientes();
+      if (!anticiposPendientes.some((a) => a.id === cita.anticipoOrigen.id)) {
+        cita.anticipo = 0;
+        cita.anticipoOrigen = null;
+        goTo('anticipo');
+      }
+    }
   }
 }

@@ -2,7 +2,7 @@
  * Base de datos de prueba para correr los handlers de api/ de verdad.
  *
  * Levanta Postgres dentro del proceso (PGlite, sin servidor ni Docker),
- * aplica TODAS las migraciones de scripts/migrations/ en orden (000 → 007)
+ * aplica TODAS las migraciones de scripts/migrations/ en orden (000 → 008)
  * y expone un `sql` con la misma forma que el de @neondatabase/serverless:
  * tagged template que devuelve un arreglo de filas.
  *

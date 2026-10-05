@@ -1,13 +1,13 @@
 # Estilo de código · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-09-26
+**Última revisión:** 2026-10-05
 
 Estas reglas salen del código que ya existe. Si algo nuevo se ve distinto a
 lo de alrededor, el código nuevo es el que se ajusta.
 
 ## 1. Idioma
 
-- **Dominio en español:** `clienta`, `cita`, `gasto`, `anticipo`, `trabajadora`, `agendar`, `cobrar`.
+- **Dominio en español:** `clienta`, `cita`, `gasto`, `anticipo`, `trabajadora`, `comision`, `cobrar`.
 - **Plumbing en inglés cuando ya es convención:** `render`, `init`, `fetchAPI`, `showToast`, `handler`, `req`, `res`.
 - Comentarios, mensajes de error y textos de UI: español de México.
 - Sin mezclar en una misma palabra (`getClientas` sí, `obtenerClients` no).
@@ -23,12 +23,12 @@ lo de alrededor, el código nuevo es el que se ajusta.
 
 | Qué | Estilo | Ejemplo |
 |---|---|---|
-| Variables y funciones | camelCase | `citasAgendadas`, `renderStepPago` |
+| Variables y funciones | camelCase | `anticiposPendientes`, `renderStepPago` |
 | Constantes de módulo | UPPER_SNAKE | `MAX_INTENTOS_FALLIDOS`, `RUTAS_TRABAJADORA` |
-| Archivos | kebab-case | `citas-agendadas.js`, `hora-picker.js` |
-| Campos de API y columnas | snake_case | `metodo_pago`, `anticipo_aplicado` |
-| Clases CSS | BEM ligero | `.home-action-card--sm`, `.agenda-estado-badge--pendiente` |
-| Booleans | pregunta | `esPendiente`, `tieneAnticipo`, `isTrabajadora()` |
+| Archivos | kebab-case | `trabajador-pin.js`, `install-banner.js` |
+| Campos de API y columnas | snake_case | `metodo_pago`, `anticipo_origen_id` |
+| Clases CSS | BEM ligero | `.home-action-card--sm`, `.anticipo-previo-card-monto` |
+| Booleans | pregunta | `esSoloAnticipo`, `tieneAnticipo`, `isTrabajadora()` |
 | Funciones de API cliente | verbo + recurso | `getCitas`, `createGasto`, `restoreCita` |
 
 ## 4. Frontend
@@ -62,10 +62,10 @@ export function init(s)   { session = s; estadoLocal = …; /* listeners */ }
 - Oculta en el frontend lo que no puede hacer **y** bloquéalo en el backend. Nunca solo uno de los dos.
 
 ### Utilidades existentes (úsalas, no las dupliques)
-`formatMXN`, `todayISO`, `nowTimestamp`, `formatFechaLarga`, `formatHora12`,
+`formatMXN`, `todayISO`, `nowTimestamp`,
 `formatRangoFecha`, `currentWeekRange`, `normalizeNombre`, `escapeHTML`,
 `showToast`, `showLoader` / `hideLoader`, `loadingHTML`, `METODOS_PAGO`,
-`renderHoraPicker` / `getHoraPickerValue`, `abrirWhatsApp`, `compartirTexto`.
+`abrirWhatsApp`, `compartirTexto`.
 
 ## 5. Backend
 
@@ -109,9 +109,9 @@ if (enviandoCita) return;
 
 - Rama por cambio. Nunca directo a `main`.
 - Mensaje de commit en español, en imperativo, que diga el resultado para la usuaria:
-  - "Agenda: confirmar antes de cancelar una cita"
+  - "Registrar Cita: paso de anticipo dentro del total"
   - "Corregir que la trabajadora veía toda la app"
-- Prefijo con la pantalla o área cuando ayuda (`Agenda:`, `Configuración:`, `WhatsApp:`).
+- Prefijo con la pantalla o área cuando ayuda (`Registrar Cita:`, `Configuración:`, `WhatsApp:`).
 - Cuerpo del commit: el problema, la causa y por qué esta solución.
 - Cada commit que cambia la app sube `CACHE_NAME` y actualiza el [CHANGELOG](../CHANGELOG.md).
 

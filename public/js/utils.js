@@ -70,24 +70,6 @@ export function todayFormatted() {
   });
 }
 
-/** "16:30" → "4:30 PM", "00:10" → "12:10 AM". Las horas se guardan en 24h
- * (lo que espera el backend); esto es solo para mostrarlas. */
-export function formatHora12(hora) {
-  const match = /^(\d{1,2}):(\d{2})/.exec(String(hora || ''));
-  if (!match) return hora || '';
-  const h = parseInt(match[1], 10);
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h12}:${match[2]} ${h >= 12 ? 'PM' : 'AM'}`;
-}
-
-/** "2026-10-09" → "Viernes, 9 de octubre" — con el día de la semana, para
- * cuando no basta con el número (ej. junto al campo de fecha al agendar). */
-export function formatFechaLarga(fechaISO) {
-  const d = new Date(fechaISO + 'T12:00:00');
-  const texto = d.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
-  return texto.charAt(0).toUpperCase() + texto.slice(1);
-}
-
 function toISODate(d) {
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');

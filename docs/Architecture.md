@@ -1,6 +1,6 @@
 # Arquitectura · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-09-26
+**Última revisión:** 2026-10-05
 
 ## 1. Vista general
 
@@ -55,7 +55,6 @@ Salida a terceros desde el navegador (no pasa por el backend):
 | `js/auth.js` | Sesión en `localStorage` (`jr_session`), rol y nombre de la trabajadora |
 | `js/api.js` | Cliente HTTP. Una función por operación. Agrega el token |
 | `js/utils.js` | Moneda, fechas, escape de HTML, toast, loader, `normalizeNombre` |
-| `js/hora-picker.js` | Selector de hora 12 h con minutos de 10 en 10 (guarda 24 h) |
 | `js/whatsapp.js` | Links `wa.me` y hoja nativa de compartir |
 | `js/push-client.js` | Permiso y suscripción push del dispositivo |
 | `js/webauthn-client.js` | Ceremonias de Face ID / Touch ID en el navegador |
@@ -84,8 +83,6 @@ El estado de cada pantalla vive en variables del módulo y **se reinicia en
 | `#login` | login.js | ✅ | ✅ | angosto |
 | `#home` | home.js | ✅ | ✅ (versión reducida) | 2 columnas (solo dueña) |
 | `#cita` | cita.js | ✅ | ✅ | angosto |
-| `#agenda` | agenda.js | ✅ | ✅ | 2 columnas |
-| `#agendar?fecha=YYYY-MM-DD` | agendar.js | ✅ | ✅ | angosto |
 | `#gasto` | gasto.js | ✅ | ❌ | angosto |
 | `#registros` | registros.js | ✅ | ❌ | normal |
 | `#comisiones` | comisiones.js | ✅ | ❌ | normal |
@@ -97,6 +94,7 @@ Guardas del router, en este orden:
 1. Sin sesión y fuera de `login` → `#login`.
 2. Con sesión y en `login` → `#home`.
 3. Trabajadora en una ruta fuera de `RUTAS_TRABAJADORA` → `#home`.
+4. Ruta que no existe (ej. `#agenda`, retirada en v50) → `#home`.
 
 ### 3.4 Sesión en el navegador
 
@@ -119,7 +117,7 @@ Otras llaves: `jr_install_banner_dismissed`, `jr_biometria_activa`, `jr_biometri
 
 Flujo de actualización:
 
-1. Un deploy sube `CACHE_NAME` (hoy `jr-salones-v49`).
+1. Un deploy sube `CACHE_NAME` (hoy `jr-salones-v50`).
 2. Al volver la app al frente (`visibilitychange`), `registration.update()` baja el SW nuevo.
 3. El SW nuevo hace `skipWaiting()` + `clients.claim()` y borra cachés viejos.
 4. `app.js` marca `actualizacionPendiente` y recarga en el siguiente cambio de hash.
@@ -131,16 +129,16 @@ Flujo de actualización:
 
 ### 4.1 Serverless functions
 
-Vercel Hobby permite **12 funciones por deploy. Hoy hay 12.** Agregar un
-endpoint nuevo obliga a fusionarlo con uno existente (así se hizo con
-`webauthn.js` y con ausencias dentro de `citas-agendadas.js`).
+Vercel Hobby permite **12 funciones por deploy. Hoy hay 11** (v50 retiró
+`citas-agendadas.js`). Antes de agregar más de uno, conviene fusionarlo con
+uno existente (así se hizo con `webauthn.js` y con los anticipos pendientes
+dentro de `citas.js`).
 
 | Función | Métodos | Rol mínimo |
 |---|---|---|
 | `api/login.js` | POST | público (rate limit) |
 | `api/webauthn.js` | GET, POST, DELETE | público para login; sesión para lo demás |
-| `api/citas.js` | GET, POST, PATCH, DELETE | POST: trabajadora · resto: dueña |
-| `api/citas-agendadas.js` | GET, POST, PATCH, DELETE | GET y POST cita: trabajadora · resto: dueña |
+| `api/citas.js` | GET, POST, PATCH, DELETE | POST y anticipos pendientes: trabajadora · resto: dueña |
 | `api/clientas.js` | GET, POST | lista: trabajadora (sin datos personales) · historial y POST: dueña |
 | `api/gastos.js` | GET, POST, PATCH, DELETE | dueña |
 | `api/comisiones.js` | GET | dueña |
@@ -148,7 +146,7 @@ endpoint nuevo obliga a fusionarlo con uno existente (así se hizo con
 | `api/config.js` | GET, POST | dueña |
 | `api/trabajador-pin.js` | POST | dueña |
 | `api/push-subscribe.js` | GET, POST, DELETE | dueña |
-| `api/cron/reminder-citas.js` | GET | Vercel Cron (`CRON_SECRET`) |
+| `api/cron/limpieza.js` | GET | Vercel Cron (`CRON_SECRET`) |
 
 Detalle de cada uno en [API-Guide.md](API-Guide.md).
 
@@ -158,7 +156,7 @@ Detalle de cada uno en [API-Guide.md](API-Guide.md).
 |---|---|
 | `db.js` | `getSql()`: cliente `neon()` reutilizado entre invocaciones. Cada query es una request HTTPS, sin pool |
 | `auth.js` | Crear y verificar tokens, `requireSession`, `requireOwnerSession`, `getSessionRole`, hash de PIN, `sanitizeTrabajadoras` |
-| `validate.js` | Validadores de entrada (fechas, horas, montos, PIN, teléfono, método de pago, estado) |
+| `validate.js` | Validadores de entrada (fechas, montos, PIN, teléfono, método de pago, uuid) |
 | `push.js` | `enviarPushSalon()`: manda a todos los dispositivos del salón y limpia suscripciones muertas (404/410) |
 | `webauthn.js` | Configuración de RP según el host y challenges firmados |
 | `fecha.js` | `fechaMexico()`: la fecha de hoy en Ciudad de México. Lo que fecha el servidor la usa, nunca la de UTC |
@@ -189,10 +187,10 @@ module.exports = async function handler(req, res) {
 |---|---|---|---|
 | Navegador | Vercel `/api/*` | `fetch` + JSON + Bearer token | Todo el CRUD |
 | Serverless | Neon | Driver HTTP `@neondatabase/serverless` | Consultas SQL parametrizadas |
-| Vercel Cron | `/api/cron/reminder-citas` | GET diario 00:00 UTC | Recordatorio de citas de mañana |
+| Vercel Cron | `/api/cron/limpieza` | GET diario 00:00 UTC | Borrar intentos de login de más de 30 días |
 | Serverless | Apple / Google push | `web-push` con VAPID | Notificaciones a la dueña |
 | Navegador | Enclave del dispositivo | WebAuthn (`navigator.credentials`) | Face ID / Touch ID |
-| Navegador | WhatsApp | `https://wa.me/52XXXXXXXXXX?text=…` | Confirmar citas, recibos |
+| Navegador | WhatsApp | `https://wa.me/52XXXXXXXXXX?text=…` | Recibos (en desktop) |
 | Navegador | App de compartir | `navigator.share` | Recibos por cualquier app |
 | Navegador | Google Fonts | CSS de Inter | Tipografía |
 
@@ -204,12 +202,13 @@ module.exports = async function handler(req, res) {
 | Token HMAC propio, no JWT de librería | Una función, cero dependencias, fácil de auditar | No hay revocación antes de las 8 h |
 | Identificar cita por `(fecha, timestamp, clienta)` | Heredado de cuando los datos vivían en Google Sheets | Frágil si dos citas coinciden al segundo |
 | Catálogo y trabajadoras en `jsonb` dentro de `salones` | Se leen y guardan completos, nunca por partes | Renombrar una trabajadora rompe el vínculo con sus comisiones y su PIN |
-| Anticipo como fila de `citas` con item `tipo: anticipo` | El dinero entra el día que se recibe y aparece en Registros y Dashboard | Hay que excluirlo al contar visitas y al rankear |
-| Endpoints fusionados (`webauthn`, ausencias) | Límite de 12 funciones | Handlers más largos, se distinguen por `mode`/`action`/`recurso` |
+| Anticipo dentro de la cita (`citas.anticipo`, parte de `total`) — v50 | Un registro, una fecha: el total completo cuenta el día de la cita y las comisiones salen del precio completo | El ingreso no refleja el día en que se pagó el anticipo |
+| Anticipos de la Agenda vieja: filas de `citas` con un solo item `tipo: anticipo` | Así los guardaba la Agenda (hasta v49). Al aplicarlos a una cita se ocultan (`deleted_at`) y la cita guarda `anticipo_origen_id` | Hay que excluirlas al contar visitas y al rankear mientras sigan vivas |
+| Endpoints fusionados (`webauthn`, anticipos pendientes en `citas`) | Límite de 12 funciones | Handlers más largos, se distinguen por `mode`/`action`/query |
 
 ## 7. Límites y escalabilidad
 
 - **Volumen esperado:** decenas de citas al día por salón. Todo cabe en consultas simples.
 - **Historial de clientas** trae todas las citas del salón en una llamada. Con miles de citas conviene paginar o agregar en SQL.
 - **Login** busca el PIN en todos los salones. Con muchos salones habrá que indexar `pin_hash_v2`.
-- **Funciones:** en el límite (12/12). Pasar a Vercel Pro o fusionar antes de agregar otra.
+- **Funciones:** 11 de 12. Queda lugar para una más; después, pasar a Vercel Pro o fusionar.

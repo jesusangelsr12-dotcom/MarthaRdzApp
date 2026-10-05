@@ -8,24 +8,22 @@ confidencial, se le aplica igual que a la dueña.
 
 Lo que una trabajadora **nunca** debe ver ni hacer:
 
-- Detalle de clientas: nota fija (alergias/preferencias) e historial
-  (`api/clientas.js` ya se los omite). El teléfono tampoco, **salvo** que la
-  dueña le prenda el permiso "Teléfonos de clientas" en Configuración: ahí
-  puede ver y agregar teléfonos en la Agenda y en Agendar, y confirmar por
-  WhatsApp. El servidor lo revisa en cada llamada (`permisosDeTrabajadora`
-  en `lib/auth.js`) y aun con permiso nunca le deja tocar la nota fija.
+- Detalle de clientas: nota fija (alergias/preferencias), teléfono e
+  historial (`api/clientas.js` ya se los omite). El permiso "Teléfonos de
+  clientas" se retiró junto con la Agenda en la v50.
 
 Permisos extra de una trabajadora: viven en `salones.trabajadoras[].permisos`,
-todos apagados por default. Uno nuevo se agrega a `PERMISOS_TRABAJADORA`
-(`lib/auth.js`) y a `PERMISOS` (`public/js/views/config.js`).
+todos apagados por default. Hoy no hay ninguno. Uno nuevo se agrega a
+`PERMISOS_TRABAJADORA` (`lib/auth.js`) y a `PERMISOS`
+(`public/js/views/config.js`); el servidor lo lee en cada llamada con
+`permisosDeTrabajadora`.
 - Dinero agregado del salón: resumen, dashboard, registros, gastos y
   comisiones.
 - Configuración (servicios, productos, trabajadoras, PINs).
-- Cambiar estado, reagendar, editar nota o eliminar citas agendadas, y todo lo
-  de ausencias/vacaciones (el backend lo bloquea; el front no le muestra
-  esos botones).
+- Ver Registros, editar nota o eliminar citas (el backend lo bloquea; el
+  front no le muestra esas pantallas).
 
-Pantallas a las que sí entra: `login`, `home`, `agenda`, `agendar`, `cita`
+Pantallas a las que sí entra: `login`, `home`, `cita`
 (`RUTAS_TRABAJADORA` en `public/js/app.js`). Si algo nuevo vive en una
 pantalla a la que ella no entra y sí le sirve (ej. "Actualizar app"), va
 también en su inicio (`renderTrabajadora` en `public/js/views/home.js`).
