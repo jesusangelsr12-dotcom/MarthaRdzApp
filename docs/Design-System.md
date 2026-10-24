@@ -155,6 +155,9 @@ evita el zoom por doble tap al teclear el PIN.
 | Banner de nota fija | `.nota-fija-banner` | Alergias y preferencias. Siempre visible antes de escribir la fórmula |
 | Editor de precios | `.record-precios-row` (botón "Corregir precios") → `.precios-editor` con `.precios-editor-row`, `.precios-editor-input` y `.precios-editor-total` | En línea dentro de la tarjeta de la cita, como el editor de nota. Montos alineados a la derecha, sin flechitas, total en vivo en verde. Cancelar / Guardar |
 | Aviso de anticipo | `.anticipo-previo-aviso` | Misma forma que el de nota fija, en slate. Bajo el nombre cuando la clienta ya tiene un anticipo registrado |
+| Tarjeta de ajuste | `.config-worker-card` + `.config-worker-top` + `.config-acceso-badge--on/--off/--error` + `.config-worker-actions` (`.btn-link`) | Notificaciones, Face ID, trabajadoras y Respaldo en Configuración. Distintivo verde = bien, gris = neutro, rojo (`--error`, con `--color-error-light`) = falla |
+| Filas de datos en una tarjeta | `.biometria-device-list` / `.biometria-device-row` (+ `.respaldo-valor` a la derecha) | Dispositivos con Face ID; datos e intentos del respaldo. Separadas por una línea gris 200 |
+| Respaldo | `.respaldo-error`, `.respaldo-intento-*`, `.respaldo-nota` | Error en rojo (`--color-error`) que parte palabras largas; cada intento con fecha, origen y tamaño o motivo. «Respaldar ahora» se desactiva y dice "Respaldando…" mientras corre |
 
 ## 8. Reglas de UX
 

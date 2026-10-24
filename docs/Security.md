@@ -55,7 +55,7 @@ Restricciones de trabajadora aplicadas **en el servidor**:
 - Permisos extra: hoy `PERMISOS_TRABAJADORA` está vacío. Si se agrega uno, se lee de la base en cada llamada (`permisosDeTrabajadora()`), no del token, y solo la dueña lo cambia (`POST /api/trabajador-pin` con `permisos`, solo llaves conocidas con valor booleano).
 - `POST /api/citas`: solo comisiones a su nombre. Puede aplicar un anticipo de la Agenda (`anticipo_origen_id`) y leer la lista de anticipos pendientes (`GET /api/citas?anticipos=pendientes`: id, clienta, fecha y monto de cada uno), porque la necesita para registrar bien la cita. No es dinero agregado del salón.
 - `GET /api/citas?fecha=`, `PATCH` y `DELETE` de citas: 403.
-- Gastos, comisiones, dashboard, config, PINs y push: 403.
+- Gastos, comisiones, dashboard, config (incluido el estado del respaldo y «Respaldar ahora»), PINs y push: 403.
 
 El frontend además esconde esas pantallas (`RUTAS_TRABAJADORA`) y botones. Es
 comodidad, no seguridad.
@@ -71,6 +71,7 @@ comodidad, no seguridad.
 | Inyectar un `pin_hash` o permisos al guardar el catálogo | `POST /api/config` solo toma el `nombre` de cada trabajadora; el PIN y los permisos se conservan de la base |
 | Borrado accidental o malicioso | Todo es soft-delete; se puede recuperar con SQL |
 | Acceso directo a la base | `DATABASE_URL` solo vive en Vercel. El navegador nunca habla con Neon |
+| Respaldo en Drive con datos personales | La carpeta es privada de la cuenta dueña. El archivo no lleva `PIN_PEPPER` (los hashes de PIN no sirven sin él). La URL del Apps Script y la clave nunca salen en una respuesta de la API (lo vigila `test/respaldo.test.js`). El script exige la clave, valida nombre, tamaño y huella, y solo borra archivos con el nombre del respaldo |
 
 ## 5. Encabezados HTTP (`vercel.json`)
 
@@ -93,7 +94,9 @@ Consecuencia del CSP: **no se pueden cargar scripts de CDNs.** Todo JS vive en e
 | `SESSION_SECRET` | Cualquiera firma sesiones de cualquier salón | Nuevo valor + redeploy. Todos vuelven a entrar con PIN. Los challenges de WebAuthn en curso fallan |
 | `PIN_PEPPER` | Permite fuerza bruta offline de los hashes | Nuevo valor + **reasignar todos los PINs** (los hashes viejos dejan de servir) |
 | `VAPID_PRIVATE_KEY` | Mandar push a los dispositivos suscritos | Nuevas llaves + todos reactivan notificaciones |
-| `CRON_SECRET` | Disparar la limpieza diaria a mano (solo borra intentos de login de más de 30 días) | Nuevo valor en Vercel |
+| `CRON_SECRET` | Disparar a mano la limpieza diaria (solo borra intentos de login de más de 30 días) o un respaldo extra a Drive (reemplaza el del día; no expone datos) | Nuevo valor en Vercel |
+| `RESPALDO_DRIVE_CLAVE` | Con la URL del script, alguien podría guardar archivos `marthardz-respaldo-*.json.gz` en la carpeta (no leerla: el script no tiene lectura) | Nueva clave en `CLAVE` del Apps Script **y** en Vercel, publicar nueva versión del script y redeploy |
+| `RESPALDO_DRIVE_URL` | Solo sirve con la clave | Nueva implementación del Apps Script y actualizar la variable |
 
 **Reglas:**
 - Nunca en el repo. `.env` está en `.gitignore`. `.env.example` solo lleva nombres vacíos.
@@ -112,6 +115,8 @@ Consecuencia del CSP: **no se pueden cargar scripts de CDNs.** Todo JS vive en e
 | S5 | `login_attempts` crecía sin límite | Tabla grande con el tiempo | ✅ Resuelto en v46 (C12): el cron borra lo de más de 30 días |
 | S6 | Token en `localStorage` | Un XSS podría leerlo | Abierto. Mitigado con CSP estricto + `escapeHTML` en todo |
 | S7 | Rate limit solo por IP | Un atacante con muchas IPs prueba más PINs | Abierto. 1 millón de combinaciones × 5 intentos / 15 min / IP |
+| S8 | Neon gratuito guarda solo 6 h de historia | Un borrado o daño descubierto al día siguiente no se podía recuperar | ✅ Resuelto en v51: respaldo diario en Google Drive, 30 días + día 1 de cada mes |
+| S9 | El estado del respaldo es de toda la base, no por salón | Con varios salones, cada dueña vería las fechas y tamaños del respaldo de todos (nunca los datos) | Aceptado: hoy hay un solo salón en producción. Si se agrega otro, restringir la sección a un salón administrador |
 
 ## 8. Checklist de seguridad para cada cambio
 

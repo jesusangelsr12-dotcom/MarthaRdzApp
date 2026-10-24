@@ -87,6 +87,17 @@ export function updateConfig(sheetId, servicios, productos, trabajadoras) {
   });
 }
 
+/** Estado del respaldo diario a Google Drive (solo la dueña):
+ * { configurado, estado, ultimo_ok, carpeta_url, ultimos } */
+export function getRespaldo() {
+  return fetchAPI('config?vista=respaldo');
+}
+
+/** Respaldar ahora (solo la dueña). Responde { success, archivo, estado }. */
+export function respaldarAhora() {
+  return fetchAPI('config', { method: 'POST', body: { accion: 'respaldar' } });
+}
+
 /** Obtener citas de hoy */
 export function getCitas(sheetId, fecha) {
   return fetchAPI(`citas?sheet_id=${encodeURIComponent(sheetId)}&fecha=${fecha}`);

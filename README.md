@@ -20,6 +20,7 @@ misma base de datos (una base de Neon propia, separada de cualquier otra app). C
 | Reporte de comisiones y dashboard mensual | |
 | Configurar catálogo, trabajadoras y sus PINs | |
 | Notificaciones push y Face ID / Touch ID | |
+| Respaldo diario de la base en Google Drive (estado y "Respaldar ahora") | |
 
 El detalle de qué ve y qué no ve cada rol está en [docs/PRD.md](docs/PRD.md)
 y en [CLAUDE.md](CLAUDE.md).
@@ -105,14 +106,14 @@ base de datos ni variables de entorno. Qué cubre y qué no, en
 
 ```
 api/                  Serverless functions (una por archivo, máximo 12 en Vercel Hobby)
-  cron/               Tareas programadas (limpieza diaria)
+  cron/               Tareas programadas (limpieza y respaldo diarios)
 lib/                  Código compartido del backend (auth, db, validación, push, webauthn)
 public/               Todo lo que se sirve al navegador
   js/views/           Una pantalla por archivo (render + init)
   js/                 Router, cliente de API, sesión y utilidades
   css/styles.css      Design system completo
   sw.js               Service Worker (subir CACHE_NAME en cada deploy)
-scripts/              Alta de salones y migraciones SQL
+scripts/              Alta de salones, migraciones SQL, Apps Script y restaurar el respaldo
 test/                 Pruebas con node --test
 docs/                 Documentación del proyecto
 ```

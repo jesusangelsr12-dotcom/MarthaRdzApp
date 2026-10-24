@@ -1,14 +1,15 @@
 /**
  * Pantalla Configuración
- * Editar catálogo de servicios, productos y trabajadoras del salón.
+ * Editar catálogo de servicios, productos y trabajadoras del salón, y ver
+ * el respaldo diario de la base en Google Drive (con «Respaldar ahora»).
  *
  * Sin botón "Guardar": cada alta o baja se guarda al momento (ver
  * guardarCatalogo). La pantalla se actualiza primero y el guardado corre
  * detrás; si falla, se vuelve a cargar lo que de verdad quedó en el servidor.
  */
 
-import { getConfig, updateConfig, setTrabajadorPin, setPermisosTrabajadora, getWebauthnRegisterOptions, verifyWebauthnRegister, getWebauthnDevices, deleteWebauthnDevice } from '../api.js';
-import { showToast, showLoader, hideLoader, escapeHTML, loadingHTML } from '../utils.js';
+import { getConfig, updateConfig, setTrabajadorPin, setPermisosTrabajadora, getWebauthnRegisterOptions, verifyWebauthnRegister, getWebauthnDevices, deleteWebauthnDevice, getRespaldo, respaldarAhora } from '../api.js';
+import { showToast, showLoader, hideLoader, escapeHTML, loadingHTML, formatoBytes, fechaHoraMexico } from '../utils.js';
 import { getSession, saveSession } from '../auth.js';
 import { navigateTo } from '../app.js';
 import { isPushSupported, getPushStatus, activarNotificaciones, desactivarNotificaciones } from '../push-client.js';
@@ -26,6 +27,10 @@ let biometriaSupported = false; // este dispositivo tiene Face ID/Touch ID/Windo
 let biometriaActivaAqui = false; // este dispositivo ya lo activó (bandera local)
 let biometriaDispositivos = []; // todos los dispositivos activados (de esta identidad)
 let biometriaLoaded = false;
+let respaldo = null; // estado de GET /api/config?vista=respaldo
+let respaldoStatus = 'loading'; // 'loading' | 'ok' | 'error'
+let respaldando = false; // «Respaldar ahora» en camino
+let respaldoIntentosAbiertos = false;
 // Servicios y productos empiezan contraídos (listas largas); se recuerda
 // mientras se está en la pantalla aunque se re-renderice.
 const seccionesAbiertas = { servicios: false, productos: false };
@@ -67,6 +72,8 @@ export function init(s) {
   notifStatus = 'loading';
   configLoaded = false;
   biometriaLoaded = false;
+  respaldoStatus = 'loading';
+  respaldoIntentosAbiertos = false;
   seccionesAbiertas.servicios = false;
   seccionesAbiertas.productos = false;
 
@@ -89,6 +96,7 @@ export function init(s) {
   load();
   loadNotifStatus();
   loadBiometriaStatus();
+  loadRespaldo();
 }
 
 /** Non-blocking: si tarda, la sección de notificaciones simplemente
@@ -184,6 +192,15 @@ function handleContentClick(e) {
     quitarDispositivoBiometria(actionBtn.dataset.id);
   } else if (actionBtn.dataset.action === 'actualizar-app') {
     actualizarApp();
+  } else if (actionBtn.dataset.action === 'respaldar') {
+    respaldarYa();
+  } else if (actionBtn.dataset.action === 'respaldo-intentos') {
+    respaldoIntentosAbiertos = !respaldoIntentosAbiertos;
+    pintarRespaldo();
+  } else if (actionBtn.dataset.action === 'respaldo-reintentar') {
+    respaldoStatus = 'loading';
+    pintarRespaldo();
+    loadRespaldo();
   }
 }
 
@@ -341,6 +358,152 @@ function renderBiometriaSection() {
   `;
 }
 
+/* ---------------------------------------------------------- respaldo */
+
+// La carpeta de Google Drive donde llega el respaldo de cada noche.
+const CARPETA_RESPALDO = 'Martha Rdz - Base de Datos';
+
+// estado (lib/respaldo.js) → [texto del distintivo, variante]
+const ESTADO_RESPALDO = {
+  al_dia: ['Al día', 'on'],
+  atrasado: ['Atrasado', 'error'],
+  fallo: ['Falló el último', 'error'],
+  nunca: ['Sin respaldos', 'off'],
+};
+
+/** Non-blocking, igual que loadNotifStatus: la sección aparece cuando llega. */
+async function loadRespaldo() {
+  try {
+    respaldo = await getRespaldo();
+    respaldoStatus = 'ok';
+  } catch {
+    respaldoStatus = 'error';
+  }
+  pintarRespaldo();
+}
+
+/** Repinta solo la sección (sin renderConfig): así no se pierde lo que se
+ * esté escribiendo en Servicios o Productos. */
+function pintarRespaldo() {
+  const cont = document.getElementById('config-respaldo');
+  if (cont) cont.innerHTML = renderRespaldoSection();
+}
+
+async function respaldarYa() {
+  if (respaldando) return;
+  respaldando = true;
+  pintarRespaldo();
+  try {
+    const res = await respaldarAhora();
+    respaldo = res.estado;
+    respaldoStatus = 'ok';
+    showToast('Respaldo guardado en Google Drive', 'success');
+  } catch (error) {
+    showToast(error.message || 'No se pudo respaldar', 'error', 5000);
+    // El intento fallido ya quedó anotado: se trae el estado nuevo.
+    try {
+      respaldo = await getRespaldo();
+      respaldoStatus = 'ok';
+    } catch {
+      respaldoStatus = 'error';
+    }
+  } finally {
+    respaldando = false;
+    pintarRespaldo();
+  }
+}
+
+function filaRespaldo(etiqueta, valor) {
+  return `
+    <div class="biometria-device-row">
+      <span class="biometria-device-nombre">${etiqueta}</span>
+      <span class="respaldo-valor">${escapeHTML(valor)}</span>
+    </div>
+  `;
+}
+
+function renderRespaldoIntentos(ultimos) {
+  if (!respaldoIntentosAbiertos) return '';
+  return `
+    <div class="biometria-device-list" id="respaldo-intentos">
+      ${ultimos.map((x) => `
+        <div class="biometria-device-row respaldo-intento">
+          <span class="respaldo-intento-texto">
+            <span class="biometria-device-nombre">${escapeHTML(fechaHoraMexico(x.at))}</span>
+            <span class="respaldo-intento-sub${x.ok ? '' : ' respaldo-intento-sub--error'}">
+              ${x.origen === 'manual' ? 'Manual' : 'Automático'} · ${escapeHTML(x.ok ? formatoBytes(x.bytes) : (x.error || 'Falló'))}
+            </span>
+          </span>
+          <span class="config-acceso-badge config-acceso-badge--${x.ok ? 'on' : 'error'}">${x.ok ? 'Bien' : 'Falló'}</span>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+/** Respaldo diario de la base en Google Drive (Configuración, solo la dueña). */
+function renderRespaldoSection() {
+  const titulo = '<span class="config-service-name">Respaldo en Google Drive</span>';
+  if (respaldoStatus === 'loading') {
+    return `<div class="config-worker-card">${loadingHTML('Revisando el respaldo...')}</div>`;
+  }
+  if (respaldoStatus === 'error' || !respaldo) {
+    return `
+      <div class="config-worker-card">
+        <div class="config-worker-top">${titulo}</div>
+        <p class="multi-select-hint">No se pudo revisar el respaldo.</p>
+        <div class="config-worker-actions">
+          <button class="btn-link" data-action="respaldo-reintentar">Reintentar</button>
+        </div>
+      </div>
+    `;
+  }
+
+  const r = respaldo;
+  if (!r.configurado) {
+    return `
+      <div class="config-worker-card">
+        <div class="config-worker-top">
+          ${titulo}
+          <span class="config-acceso-badge config-acceso-badge--off">Sin conectar</span>
+        </div>
+        <p class="multi-select-hint">Cuando se conecte, cada noche se guardará una copia completa de la base en la carpeta «${CARPETA_RESPALDO}» de Google Drive.</p>
+      </div>
+    `;
+  }
+
+  const [estado, variante] = ESTADO_RESPALDO[r.estado] || ESTADO_RESPALDO.nunca;
+  const ultimo = r.ultimos[0];
+  return `
+    <div class="config-worker-card">
+      <div class="config-worker-top">
+        ${titulo}
+        <span class="config-acceso-badge config-acceso-badge--${variante}">${estado}</span>
+      </div>
+      <p class="multi-select-hint">Cada noche a las 3:00 se guarda una copia completa de la base en la carpeta «${CARPETA_RESPALDO}». Se quedan los últimos 30 días y, para siempre, la del día 1 de cada mes.</p>
+      <div class="biometria-device-list">
+        ${filaRespaldo('Último respaldo bueno', r.ultimo_ok ? fechaHoraMexico(r.ultimo_ok.at) : 'Ninguno')}
+        ${r.ultimo_ok ? filaRespaldo('Tamaño', formatoBytes(r.ultimo_ok.bytes)) : ''}
+        ${r.ultimo_ok ? filaRespaldo('Registros', Number(r.ultimo_ok.filas).toLocaleString('es-MX')) : ''}
+      </div>
+      ${ultimo && !ultimo.ok ? `<p class="respaldo-error">Último error: ${escapeHTML(ultimo.error || 'desconocido')}</p>` : ''}
+      <div class="config-worker-actions">
+        <button class="btn-link" data-action="respaldar" ${respaldando ? 'disabled' : ''}>${respaldando ? 'Respaldando…' : 'Respaldar ahora'}</button>
+        ${r.carpeta_url ? `<a class="btn-link" href="${escapeHTML(r.carpeta_url)}" target="_blank" rel="noopener">Abrir la carpeta en Drive</a>` : ''}
+      </div>
+      <p class="multi-select-hint respaldo-nota">«Respaldar ahora» sirve antes de un cambio grande; no reemplaza al de la noche.</p>
+      ${r.ultimos.length ? `
+        <div class="config-worker-actions">
+          <button class="btn-link" data-action="respaldo-intentos" aria-expanded="${respaldoIntentosAbiertos}" aria-controls="respaldo-intentos">
+            ${respaldoIntentosAbiertos ? 'Ocultar últimos intentos' : `Ver últimos intentos (${r.ultimos.length})`}
+          </button>
+        </div>
+        ${renderRespaldoIntentos(r.ultimos)}
+      ` : ''}
+    </div>
+  `;
+}
+
 // Lo que se ejecuta al tocar "Sí, eliminar" en la confirmación
 let eliminarPendiente = null;
 
@@ -421,6 +584,7 @@ function renderConfig() {
     <div class="step-content">
       <div class="config-notif-section">${renderNotifSection()}</div>
       <div class="config-notif-section">${renderBiometriaSection()}</div>
+      <div class="config-notif-section" id="config-respaldo">${renderRespaldoSection()}</div>
 
       <!-- Sección Servicios -->
       ${renderSeccionToggle('servicios', 'Servicios del salón', servicios.length)}

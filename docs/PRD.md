@@ -174,11 +174,25 @@ todavía pendientes cuentan como ingreso en su día, pero no como cita.
 
 Catálogo de servicios y productos (secciones colapsables), trabajadoras,
 dar / cambiar / quitar PIN de trabajadora, notificaciones push, Face ID /
-Touch ID por dispositivo, versión instalada y "Actualizar app". No hay botón
+Touch ID por dispositivo, respaldo en Google Drive, versión instalada y "Actualizar app". No hay botón
 "Guardar": agregar o quitar un servicio, producto o trabajadora se guarda al
 momento. Quitar pide confirmación; un servicio o producto quitado se puede
 recuperar con "Deshacer" en el aviso. Si no se pudo guardar, avisa y vuelve a
 cargar lo que de verdad está guardado.
+
+**Respaldo en Google Drive (v51).** Cada noche a las 3:00 la app guarda una
+copia completa de la base en la carpeta «Martha Rdz - Base de Datos» de
+Google Drive (30 días + el día 1 de cada mes). En Configuración la dueña ve:
+
+- el estado: «Al día», «Atrasado» (más de 30 h sin uno bueno), «Falló el
+  último» (con el motivo), «Sin respaldos» o «Sin conectar»;
+- el último respaldo bueno, su tamaño y cuántos registros trae;
+- los últimos 10 intentos (automáticos y manuales), «Abrir la carpeta en
+  Drive» y **Respaldar ahora** (no pisa el de la noche).
+
+Si un día no llega el respaldo, el Apps Script manda un correo a las 7:00.
+La trabajadora no ve nada de esto (no entra a Configuración y el servidor le
+responde 403).
 
 ### F12 · Notificaciones push (solo dueña)
 

@@ -17,6 +17,16 @@
  * Una trabajadora que sale de la lista pierde también sus dispositivos con
  * Face ID/Touch ID (si no, podía seguir entrando con biometría).
  *
+ * Respaldo diario a Google Drive (lib/respaldo.js):
+ * GET  ?vista=respaldo → { configurado, estado, ultimo_ok, carpeta_url, ultimos }
+ *   estado: 'sin_configurar' | 'nunca' | 'al_dia' | 'atrasado' (más de 30 h) | 'fallo'.
+ *   Nunca trae la URL del Apps Script ni la clave.
+ * POST { accion: 'respaldar' } → respalda ahora y regresa { success, archivo, estado }.
+ *   409 si no está configurado; 502 (con `estado`) si falla. El archivo
+ *   lleva la hora en el nombre para no pisar el de la noche.
+ * Cualquier otra `accion` es 400: un POST con `accion` nunca cae en el
+ * guardado del catálogo (que reemplaza el arreglo completo).
+ *
  * Exclusivo de la dueña — fuera del alcance de una trabajadora.
  * Requiere `Authorization: Bearer <token>`; el salón se toma del token
  * verificado, nunca de un sheet_id que mande el cliente.
@@ -25,6 +35,7 @@
 const { getSql } = require('../lib/db');
 const { requireOwnerSession, sanitizeTrabajadoras } = require('../lib/auth');
 const { isNonEmptyString } = require('../lib/validate');
+const respaldo = require('../lib/respaldo');
 
 const MAX_ITEMS = 300;
 
@@ -44,6 +55,19 @@ module.exports = async function handler(req, res) {
 
   try {
     const sql = getSql();
+
+    if (req.method === 'GET' && req.query?.vista === 'respaldo') {
+      return res.status(200).json(await respaldo.leerEstado(sql));
+    }
+
+    if (req.method === 'POST' && req.body?.accion !== undefined) {
+      if (req.body.accion !== 'respaldar') return res.status(400).json({ error: 'Acción inválida' });
+      if (!respaldo.configurado()) return res.status(409).json({ error: 'El respaldo a Google Drive no está configurado' });
+      const r = await respaldo.respaldar(sql, { origen: 'manual' });
+      const estado = await respaldo.leerEstado(sql);
+      if (!r.ok) return res.status(502).json({ error: `No se pudo respaldar: ${r.error}`, estado });
+      return res.status(200).json({ success: true, archivo: r.archivo, estado });
+    }
 
     if (req.method === 'GET') {
       const rows = await sql`

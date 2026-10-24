@@ -77,6 +77,8 @@
     transform: translateY(calc(-100% - 30px * var(--inv)));
   }
   .section-label::before { content: ''; width: .4em; height: .4em; border-radius: .14em; background: var(--accent); flex-shrink: 0; }
+  /* Nunca más ancha que su grupo: al alejar, se corta con «…» en vez de salirse del tablero o encimarse con la de al lado. */
+  .section-label-t { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 
   /* ================= Marcos ================= */
   .frame {
@@ -297,7 +299,7 @@
   <div class="ui card topbar">
     <button class="icon-btn" id="toggle-panel" aria-label="Mostrar u ocultar el panel" aria-expanded="true" title="Panel (P)">☰</button>
     <span class="name">App<span>Flow</span> · Martha Rdz</span>
-    <span class="ver">v50 · 2026-10-05</span>
+    <span class="ver">v51 · 2026-10-24</span>
   </div>
 
   <aside class="ui card panel" id="panel" aria-label="Navegación del tablero">
@@ -352,7 +354,7 @@
    y termina en un nodo 'retired'.
    ===================================================================== */
 
-const META = { version: 'v50', fecha: '2026-10-05', endpoints: 11, limiteEndpoints: 12, tablas: 10, tablasSinUso: 2 };
+const META = { version: 'v51', fecha: '2026-10-24', endpoints: 11, limiteEndpoints: 12, tablas: 11, tablasSinUso: 2 };
 
 const KINDS = {
   screen: { ic: '▢', label: 'Pantalla', color: 'var(--ink)' },
@@ -652,7 +654,7 @@ const FLOWS = [
         ] },
       ] },
     ],
-    notes: ['Permisos de trabajadora: hoy no hay ninguno, así que “Puede usar” no aparece. “Teléfonos de clientas” se retiró en v50.'],
+    notes: ['Permisos de trabajadora: hoy no hay ninguno, así que “Puede usar” no aparece. “Teléfonos de clientas” se retiró en v50.', 'Respaldo en Google Drive (estado y «Respaldar ahora»): ver F15.'],
     tablas: ['salones', 'webauthn_credentials'], issues: ['C4', 'C6', 'C8'],
   },
   {
@@ -705,6 +707,45 @@ const FLOWS = [
       { b: 'Deshacer con candado', t: 'Si mientras tanto se aplicó a otra cita, la cita borrada no se restaura (409).', x: 712, y: 300, w: 220 },
     ],
     foot: 'La trabajadora puede aplicar un anticipo al registrar la cita (ve la lista de pendientes). Eliminar y Deshacer son solo de la dueña.',
+  },
+  {
+    id: 'F15', title: 'Respaldo diario en Google Drive', roles: ['duena'],
+    entrada: 'Cron de las 3:00 o «Respaldar ahora» en Configuración', fin: 'marthardz-respaldo-AAAA-MM-DD.json.gz en Drive, o el motivo anotado',
+    steps: [
+      { k: 'decision', t: '¿Qué lo dispara?', b: [
+        { c: 'Cron 3:00', s: [
+          { k: 'ext', t: 'Vercel Cron', d: '0 9 * * * UTC = 3:00 en México' },
+          { k: 'api', t: 'GET /api/cron/limpieza?tarea=respaldo', d: 'Exige CRON_SECRET (503 sin ella · 401)' },
+        ] },
+        { c: 'Respaldar ahora', s: [
+          { k: 'screen', t: 'Configuración → Respaldo' },
+          { k: 'api', t: 'POST /api/config', d: 'accion: respaldar · trabajadora 403 · el nombre lleva la hora' },
+        ] },
+      ] },
+      { k: 'decision', t: '¿Variables puestas y sin DEMO?', b: [
+        { c: 'No', s: [{ k: 'ok', t: '«Sin conectar» · no hace nada', d: 'Configuración responde 409' }] },
+        { c: 'Sí', s: [] },
+      ] },
+      { k: 'sys', t: 'Exporta todas las tablas', d: 'to_jsonb, menos login_attempts y respaldos · gzip + SHA-256' },
+      { k: 'ext', t: 'Apps Script · POST /exec', d: 'Revisa clave, nombre, tamaño y huella · límite 40 s' },
+      { k: 'decision', t: '¿Lo guardó?', b: [
+        { c: 'No', s: [
+          { k: 'db', t: 'respaldos', d: 'ok = false + motivo' },
+          { k: 'err', t: '502 · «Falló el último»', d: 'Cron en rojo · toast con el motivo' },
+        ] },
+        { c: 'Sí', s: [
+          { k: 'ext', t: 'Drive: reemplaza el del día y limpia', d: '30 días + el día 1 de cada mes · no toca lo ajeno' },
+          { k: 'db', t: 'respaldos', d: 'ok = true, tamaño y registros' },
+          { k: 'ok', t: '«Al día»' },
+        ] },
+      ] },
+    ],
+    notes: [
+      'Vigilante del Apps Script a las 7:00: si ese día no llegó nada, manda un correo a la cuenta dueña.',
+      '«Atrasado» si pasan más de 30 h sin un respaldo bueno.',
+      'Restaurar: scripts/restaurar-respaldo.js en un branch nuevo «solo esquema», en una transacción y nunca encima de datos.',
+    ],
+    tablas: ['respaldos'], issues: [],
   },
 ];
 
@@ -810,9 +851,10 @@ const ISSUES = [
    así para que "Ver todo" tenga la forma de una pantalla y no de una tira. */
 const ROWS = [
   [
-    { title: 'Acceso y plataforma', ids: ['F0', 'F1', 'F2', 'F13'] },
+    { title: 'Acceso', ids: ['F0', 'F1', 'F2'] },
     { title: 'Citas', ids: ['F3', 'F14'] },
     { title: 'Referencia', ids: ['DINERO', 'CABOS'] },
+    { title: 'Plataforma', ids: ['F13', 'F15'] },
   ],
   [
     { title: 'Operación diaria', ids: ['F7', 'F8', 'F9'] },
@@ -1065,20 +1107,31 @@ function buildFlowFrame(f) {
   measure(f.steps);
   const size = sizeSeq(f.steps);
 
-  let notesH = 0;
   const noteEls = (f.notes || []).map((t) => {
     const n = el('div', 'note-sticky', `<b>Nota</b>${esc(t)}`);
     body.appendChild(n);
     return n;
   });
-  noteEls.forEach((n) => { notesH = Math.max(notesH, n.offsetHeight); });
 
   const headW = Math.max(fr.querySelector('.frame-head').scrollWidth, 460);
   const innerW = Math.max(size.w + PAD * 2, headW);
   placeSeq(f.steps, innerW / 2, PAD / 2);
+  // Notas en filas de las que quepan a lo ancho del marco (nunca se salen).
+  const porFila = Math.max(1, Math.floor((innerW - PAD * 2 + 20) / 240));
+  const altoFila = [];
+  noteEls.forEach((n, i) => {
+    const fila = Math.floor(i / porFila);
+    altoFila[fila] = Math.max(altoFila[fila] || 0, n.offsetHeight);
+  });
+  const notesH = altoFila.length ? altoFila.reduce((a, b) => a + b, 0) + (altoFila.length - 1) * 18 : 0;
   body.style.width = `${innerW}px`;
   body.style.height = `${size.h + PAD + (notesH ? notesH + 36 : 0)}px`;
-  noteEls.forEach((n, i) => { n.style.left = `${PAD + i * 240}px`; n.style.top = `${size.h + PAD + 12}px`; });
+  noteEls.forEach((n, i) => {
+    const fila = Math.floor(i / porFila);
+    const arriba = altoFila.slice(0, fila).reduce((a, b) => a + b + 18, 0);
+    n.style.left = `${PAD + (i % porFila) * 240}px`;
+    n.style.top = `${size.h + PAD + 12 + arriba}px`;
+  });
   svg.setAttribute('width', innerW);
   svg.setAttribute('height', size.h + PAD);
 
@@ -1249,10 +1302,12 @@ function buildBoard() {
     let x = 0;
     let rowH = 0;
     for (const group of row) {
-      const lab = el('div', 'section-label', esc(group.title));
+      const lab = el('div', 'section-label', `<span class="section-label-t">${esc(group.title)}</span>`);
+      lab.title = group.title;
       world.appendChild(lab);
       lab.style.left = `${x}px`;
       lab.style.top = `${y}px`;
+      const x0 = x;
       for (const id of group.ids) {
         const { f, el: fr } = built[id];
         const w = fr.offsetWidth;
@@ -1263,6 +1318,7 @@ function buildBoard() {
         x += w + FRAME_GAP;
         rowH = Math.max(rowH, h);
       }
+      lab.style.maxWidth = `${x - FRAME_GAP - x0}px`;
       x += GROUP_GAP - FRAME_GAP;
     }
     maxW = Math.max(maxW, x - GROUP_GAP);

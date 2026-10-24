@@ -143,10 +143,10 @@ dentro de `citas.js`).
 | `api/gastos.js` | GET, POST, PATCH, DELETE | dueña |
 | `api/comisiones.js` | GET | dueña |
 | `api/dashboard.js` | GET | dueña |
-| `api/config.js` | GET, POST | dueña |
+| `api/config.js` | GET, POST | dueña (incluye el estado del respaldo y «Respaldar ahora») |
 | `api/trabajador-pin.js` | POST | dueña |
 | `api/push-subscribe.js` | GET, POST, DELETE | dueña |
-| `api/cron/limpieza.js` | GET | Vercel Cron (`CRON_SECRET`) |
+| `api/cron/limpieza.js` | GET | Vercel Cron (`CRON_SECRET`): limpieza y, con `?tarea=respaldo`, el respaldo diario |
 
 Detalle de cada uno en [API-Guide.md](API-Guide.md).
 
@@ -159,7 +159,8 @@ Detalle de cada uno en [API-Guide.md](API-Guide.md).
 | `validate.js` | Validadores de entrada (fechas, montos, PIN, teléfono, método de pago, uuid) |
 | `push.js` | `enviarPushSalon()`: manda a todos los dispositivos del salón y limpia suscripciones muertas (404/410) |
 | `webauthn.js` | Configuración de RP según el host y challenges firmados |
-| `fecha.js` | `fechaMexico()`: la fecha de hoy en Ciudad de México. Lo que fecha el servidor la usa, nunca la de UTC |
+| `fecha.js` | `fechaMexico()` y `horaMexico()`: la fecha y la hora de ahora en Ciudad de México. Lo que fecha el servidor las usa, nunca las de UTC |
+| `respaldo.js` | Respaldo diario a Google Drive: `planDeCarga` (orden de llaves foráneas y ciclos), `exportar`, `empaquetar`, `subir`, `respaldar` (nunca lanza), `leerEstado`, `leerArchivo` y `restaurar` |
 
 ### 4.3 Anatomía de un handler
 
@@ -188,6 +189,8 @@ module.exports = async function handler(req, res) {
 | Navegador | Vercel `/api/*` | `fetch` + JSON + Bearer token | Todo el CRUD |
 | Serverless | Neon | Driver HTTP `@neondatabase/serverless` | Consultas SQL parametrizadas |
 | Vercel Cron | `/api/cron/limpieza` | GET diario 00:00 UTC | Borrar intentos de login de más de 30 días |
+| Vercel Cron | `/api/cron/limpieza?tarea=respaldo` | GET diario 09:00 UTC (3:00 México) | Respaldo de la base |
+| Serverless | Google Apps Script (`scripts/respaldo-drive.gs`) | POST JSON a la URL `/exec` (sigue el 302 de Google), límite 40 s | Guardar el `.json.gz` en la carpeta «Martha Rdz - Base de Datos» de Drive |
 | Serverless | Apple / Google push | `web-push` con VAPID | Notificaciones a la dueña |
 | Navegador | Enclave del dispositivo | WebAuthn (`navigator.credentials`) | Face ID / Touch ID |
 | Navegador | WhatsApp | `https://wa.me/52XXXXXXXXXX?text=…` | Recibos (en desktop) |
@@ -204,7 +207,8 @@ module.exports = async function handler(req, res) {
 | Catálogo y trabajadoras en `jsonb` dentro de `salones` | Se leen y guardan completos, nunca por partes | Renombrar una trabajadora rompe el vínculo con sus comisiones y su PIN |
 | Anticipo dentro de la cita (`citas.anticipo`, parte de `total`) — v50 | Un registro, una fecha: el total completo cuenta el día de la cita y las comisiones salen del precio completo | El ingreso no refleja el día en que se pagó el anticipo |
 | Anticipos de la Agenda vieja: filas de `citas` con un solo item `tipo: anticipo` | Así los guardaba la Agenda (hasta v49). Al aplicarlos a una cita se ocultan (`deleted_at`) y la cita guarda `anticipo_origen_id` | Hay que excluirlas al contar visitas y al rankear mientras sigan vivas |
-| Endpoints fusionados (`webauthn`, anticipos pendientes en `citas`) | Límite de 12 funciones | Handlers más largos, se distinguen por `mode`/`action`/query |
+| Endpoints fusionados (`webauthn`, anticipos pendientes en `citas`, respaldo en `cron/limpieza` y `config`) | Límite de 12 funciones | Handlers más largos, se distinguen por `mode`/`action`/`accion`/query |
+| Respaldo por Google Apps Script, no por cuenta de servicio | En un Drive personal una cuenta de servicio no tiene espacio («Service Accounts do not have storage quota»). El script corre como la dueña de la carpeta y no tiene tokens que venzan | El script se pega a mano en script.google.com y se publica como app web |
 
 ## 7. Límites y escalabilidad
 

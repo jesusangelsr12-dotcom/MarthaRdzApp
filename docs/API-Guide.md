@@ -171,6 +171,21 @@ trabajadora solo toma el `nombre`; conserva su `pin_hash` y sus `permisos` si
 sigue en la lista con el mismo nombre. Las
 trabajadoras que salen de la lista pierden también sus credenciales de Face ID.
 
+**Respaldo diario en Google Drive** (mismo endpoint, solo dueña; la trabajadora recibe `403`):
+
+| Método | Entrada | Salida |
+|---|---|---|
+| `GET` | `?vista=respaldo` | `{configurado, estado, ultimo_ok:{at, bytes, filas}\|null, carpeta_url, ultimos:[{at, origen, ok, archivo, bytes, filas, error}]}` (los últimos 10 intentos) |
+| `POST` | `{accion:'respaldar'}` | `{success, archivo, estado}` — respalda en ese momento. El archivo lleva la hora (`marthardz-respaldo-AAAA-MM-DD-HHMM.json.gz`) para no pisar el de la noche |
+
+`estado`: `sin_configurar` (faltan las variables o `DEMO=1`) · `nunca` ·
+`al_dia` · `atrasado` (más de 30 h sin uno bueno) · `fallo` (el último
+intento falló; `ultimos[0].error` dice por qué). `POST` responde `409` si no
+está configurado y `502` con `{error, estado}` si el respaldo falló (el
+intento queda anotado). Cualquier otra `accion` es `400` y nunca cae en el
+guardado del catálogo. Ninguna respuesta trae la URL del Apps Script ni la
+clave.
+
 #### `POST /api/trabajador-pin`
 
 | Body | Efecto |
@@ -194,8 +209,24 @@ trabajadoras que salen de la lista pierden también sus credenciales de Face ID.
 #### `GET /api/cron/limpieza`
 
 Lo llama Vercel Cron a las 00:00 UTC (18:00 en Ciudad de México). Si existe
-`CRON_SECRET`, exige `Authorization: Bearer $CRON_SECRET`. Borra los
-intentos de login de más de 30 días. Responde `{intentos_borrados: N}`.
+`CRON_SECRET`, exige `Authorization: Bearer $CRON_SECRET` (comparación de
+tiempo constante). Borra los intentos de login de más de 30 días. Responde
+`{intentos_borrados: N}`.
+
+#### `GET /api/cron/limpieza?tarea=respaldo`
+
+Lo llama Vercel Cron a las 09:00 UTC (3:00 en Ciudad de México). **Exige**
+`CRON_SECRET` (sin ella responde `503`) y el header `Authorization`
+(`401`). Exporta la base, la manda al Apps Script y anota el intento en
+`respaldos`:
+
+| Respuesta | Cuándo |
+|---|---|
+| `200 {respaldo:'ok', archivo, bytes, filas}` | Quedó en Drive (`marthardz-respaldo-AAAA-MM-DD.json.gz`) |
+| `200 {respaldo:'sin_configurar'}` | Faltan `RESPALDO_DRIVE_URL`/`RESPALDO_DRIVE_CLAVE`, o `DEMO=1` |
+| `502 {respaldo:'error', archivo, bytes, filas, error}` | Falló (clave, Google, red…). Vercel lo marca en rojo en Cron Jobs |
+
+Otra `tarea` responde `400`.
 (Hasta v49 se llamaba `reminder-citas` y además mandaba el recordatorio de
 citas de mañana de la Agenda.)
 
@@ -208,6 +239,7 @@ citas de mañana de la Agenda.)
 | WebAuthn | Navegador + `@simplewebauthn/server` | RP ID = host del request. Cambiar de dominio invalida las credenciales |
 | WhatsApp | Navegador | `https://wa.me/52<10 dígitos>?text=<mensaje>`. Abre el chat, la persona toca Enviar |
 | Hoja de compartir | Navegador | `navigator.share({text})`. En desktop cae a `wa.me` |
+| Google Apps Script | Backend (`lib/respaldo.js`) | `POST` a `RESPALDO_DRIVE_URL` con `{clave, nombre, bytes, sha256, contenido (base64)}`. Responde `{ok, id, url, carpeta_url, borrados}` o `{ok:false, error}`. Código en `scripts/respaldo-drive.gs` |
 
 ## 4. Cliente del frontend
 

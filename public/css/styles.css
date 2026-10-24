@@ -1418,6 +1418,59 @@ small { font-size: 0.8rem; color: var(--color-gray-500); }
   color: var(--color-ink);
 }
 
+/* --- Respaldo en Google Drive (Configuración) --- */
+.config-acceso-badge--error {
+  background: var(--color-error-light);
+  color: var(--color-error);
+}
+
+.respaldo-valor {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  text-align: right;
+}
+
+.respaldo-error {
+  font-size: 0.82rem;
+  color: var(--color-error);
+  overflow-wrap: anywhere;
+}
+
+.respaldo-nota {
+  margin: 0;
+}
+
+.config-worker-actions a.btn-link {
+  text-decoration: none;
+}
+
+.config-worker-actions .btn-link:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.respaldo-intento {
+  align-items: flex-start;
+}
+
+.respaldo-intento-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.respaldo-intento-sub {
+  font-size: 0.78rem;
+  color: var(--color-gray-500);
+  overflow-wrap: anywhere;
+}
+
+.respaldo-intento-sub--error {
+  color: var(--color-error);
+}
+
 .config-worker-pin-editor {
   display: flex;
   gap: 10px;

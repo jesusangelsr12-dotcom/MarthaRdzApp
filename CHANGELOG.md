@@ -13,6 +13,29 @@ Secciones: **Agregado** · **Cambiado** · **Corregido** · **Seguridad** · **B
 
 ## [Sin publicar]
 
+## v51 · 2026-10-24
+
+### Agregado
+- **Respaldo diario de la base en Google Drive.** Cada noche a las 3:00 (Ciudad de México) la app exporta la base completa a `marthardz-respaldo-AAAA-MM-DD.json.gz` (gzip, con huella SHA-256) y la guarda en la carpeta «Martha Rdz - Base de Datos» de Google Drive. Se quedan los últimos 30 días y, para siempre, el del día 1 de cada mes. Neon gratuito solo guardaba 6 horas de historia.
+- **Configuración → Respaldo en Google Drive** (solo la dueña): estado («Al día», «Atrasado» si pasan más de 30 h, «Falló el último» con el motivo, «Sin respaldos», «Sin conectar»), último respaldo bueno con tamaño y registros, los últimos 10 intentos, «Abrir la carpeta en Drive» y **Respaldar ahora** (lleva la hora en el nombre para no pisar el de la noche).
+- `scripts/respaldo-drive.gs`: el Google Apps Script que recibe el archivo en la cuenta dueña de la carpeta. Revisa clave, nombre, tamaño y huella; reemplaza el del mismo día; borra los viejos sin tocar archivos ajenos; y un vigilante manda un correo a las 7:00 si ese día no llegó el respaldo.
+- `scripts/restaurar-respaldo.js`: revisa un respaldo o lo carga en un branch nuevo de Neon «solo esquema», en una sola transacción y nunca encima de datos. El ciclo `citas.agenda_id` ↔ `citas_agendadas.deposito_cita_id` y `citas.anticipo_origen_id` se cargan en dos pasos.
+- Variables `RESPALDO_DRIVE_URL` y `RESPALDO_DRIVE_CLAVE` (solo Production). Pasos en `docs/Deployment.md` §8.
+
+### Cambiado
+- `/api/cron/limpieza` acepta `?tarea=respaldo` (nuevo cron `0 9 * * *`); sin `tarea` sigue limpiando los intentos de login como antes. `maxDuration` de 60 s para `cron/limpieza` y `config`. Siguen siendo 11 funciones.
+- `POST /api/config` con `accion` desconocida responde 400 en vez de caer en el guardado del catálogo.
+
+### Base de datos
+- Migración `009_respaldos.sql` (aditiva): tabla `respaldos`, una fila por intento (bueno o malo, con su motivo). Aplicada en producción antes del deploy.
+
+### Seguridad
+- El respaldo exige `CRON_SECRET` (sin ella responde 503), compara el header en tiempo constante y con `DEMO=1` no hace nada. La URL del Apps Script y la clave nunca salen en una respuesta. La trabajadora recibe 403 en el estado y en «Respaldar ahora».
+
+### Docs
+- Deployment §8 (conectar, si algo falla, regresar un respaldo), Database (tabla `respaldos`, ciclos de llaves foráneas), API-Guide, Architecture, Security (S8, S9), Testing (58 pruebas), Error-Handling (E5), Design-System, PRD, AppFlow (F15).
+- Tablero AppFlow: marco F15 en el grupo «Plataforma» (con F13); las notas de un marco pasan a la fila siguiente cuando no caben y las etiquetas de grupo ya no se salen ni se enciman al usar «Ver todo» en celular.
+
 ## v50 · 2026-10-05
 
 ### Agregado

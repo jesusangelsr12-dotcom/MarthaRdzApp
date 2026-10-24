@@ -101,6 +101,32 @@ export function formatRangoFecha(desdeISO, hastaISO) {
   return `${d1.getDate()} de ${mesD1} al ${d2.getDate()} de ${mesD2}`;
 }
 
+/** 52300 → "51 KB"; 1250000 → "1.2 MB" */
+export function formatoBytes(n) {
+  if (!Number.isFinite(n)) return '';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
+const ZONA_SALON = 'America/Mexico_City';
+const fechaEnMexico = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: ZONA_SALON }).format(d);
+
+/** Un instante ISO del servidor → "Hoy · 3:02 a. m.", "Ayer · …" o
+ * "21 oct · …", en la hora de México (como lo fecha el servidor). */
+export function fechaHoraMexico(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const hora = d.toLocaleTimeString('es-MX', { timeZone: ZONA_SALON, hour: 'numeric', minute: '2-digit' });
+  const dia = fechaEnMexico(d);
+  const hoy = new Date();
+  const ayer = new Date(hoy.getTime() - 24 * 3600e3);
+  if (dia === fechaEnMexico(hoy)) return `Hoy · ${hora}`;
+  if (dia === fechaEnMexico(ayer)) return `Ayer · ${hora}`;
+  const fecha = d.toLocaleDateString('es-MX', { timeZone: ZONA_SALON, day: 'numeric', month: 'short' }).replace('.', '');
+  return `${fecha} · ${hora}`;
+}
+
 /** Devuelve timestamp actual: "14:30:05" */
 export function nowTimestamp() {
   return new Date().toLocaleTimeString('es-MX', {

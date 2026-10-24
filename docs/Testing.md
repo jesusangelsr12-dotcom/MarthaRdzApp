@@ -1,6 +1,6 @@
 # Pruebas · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-10-05 · **Estado actual:** 47 pruebas, 47 en verde (`npm test`)
+**Última revisión:** 2026-10-24 · **Estado actual:** 58 pruebas, 58 en verde (`npm test`)
 
 ## 1. Cómo correrlas
 
@@ -11,8 +11,9 @@ npm test          # node --test: corre todo lo que está en test/
 No necesita base de datos ni variables de entorno. Las pruebas de
 integración levantan Postgres dentro del proceso con
 [PGlite](https://pglite.dev) (dependencia de desarrollo), le aplican todas
-las migraciones (`000` a `008`) y corren los handlers de `api/` de verdad.
-El ayudante vive en `test/helpers/db.js`.
+las migraciones (`000` a `009`) y corren los handlers de `api/` de verdad.
+El ayudante vive en `test/helpers/db.js`; su `sql` tiene la misma forma que
+el de Neon, incluidos `sql.query()` y `sql.transaction()`.
 
 ## 2. Qué se prueba hoy
 
@@ -22,6 +23,8 @@ El ayudante vive en `test/helpers/db.js`.
 | `test/validate.test.js` | Fechas, números con rango, strings, métodos de pago, PIN, teléfono, uuid | Es la única barrera contra datos con forma inválida |
 | `test/normalize-parity.test.js` | Que `normalizeNombre` dé lo mismo en frontend y backend | Si difieren, una misma clienta se parte en dos |
 | `test/api.test.js` | Handlers contra Postgres real: cita con comisiones, comisión solo a sí misma, PIN repetido, Face ID revocado, limpieza del cron, login por rol, trabajadora sin teléfonos ni notas fijas (aunque tenga guardado el permiso viejo), permisos desconocidos, catálogo que conserva el PIN. **Anticipo (v50):** va dentro del total (2500 con 500 cuenta 2500 en el Dashboard y la comisión sale de 2500), nunca mayor que el total (API y base), aplicar un anticipo de la Agenda lo mueve al día de la cita sin contarlo doble, no se aplica dos veces, monto/salón/tipo deben coincidir, todo o nada si algo falla, eliminar la cita lo regresa a pendiente y "Deshacer" no lo cuenta doble. **Corregir precios:** recalcula total y comisión (mismo %) y se ve en el Dashboard, conserva el anticipo si no se manda, no cambia servicios ni deja el anticipo arriba del total (sin tocar nada si falla), el anticipo de la Agenda no cambia de monto, la fila de solo-anticipo no se corrige, el cobro viejo de la Agenda conserva su descuento, solo la dueña y 404 | Aquí vive el dinero y los permisos. Cubre los cabos sueltos de backend que siguen vigentes |
+
+| `test/respaldo.test.js` | **Respaldo diario (v51).** `ULTIMA_MIGRACION` = la última migración del repo. Exportar → restaurar en una base vacía deja cada tabla idéntica, con el ciclo `citas.agenda_id` ↔ `citas_agendadas.deposito_cita_id` y `citas.anticipo_origen_id` (montos, fechas, `bigint`, `jsonb`), y la dueña entra con su PIN en la base restaurada. Restaurar nunca carga encima de datos y es todo o nada. `leerArchivo` rechaza lo ajeno. `respaldar` manda clave, nombre, tamaño y huella; anota cada intento; las fallas (clave, 500, sin red, tiempo, página en vez de JSON, base caída) se anotan sin lanzar. Estados nunca → fallo → al día → atrasado (30/31 h). Con `DEMO=1` no respalda. La clave y la URL nunca salen. Cron: 503 sin `CRON_SECRET`, 401, 200/502. Configuración: trabajadora 403, sin configurar 409, una `accion` desconocida no toca el catálogo. **El Apps Script corrido en una VM de Node con Drive simulado:** clave, nombre, tamaño y huella; reemplaza el del día; 30 días + día 1; no toca archivos ajenos; el manual no pisa el de la noche; el vigilante avisa solo si no llegó; `instalar` no duplica el disparador | Es la red de seguridad de todos los datos: si falla en silencio, se descubre el día que hace falta |
 
 ## 3. Qué NO se prueba todavía
 
@@ -52,7 +55,8 @@ Un cambio está terminado cuando cumple **todo** esto:
 
 **Entrega**
 - [ ] Subí `CACHE_NAME` en `public/sw.js`. JS nuevo en `STATIC_ASSETS`.
-- [ ] Migración aplicada en la base **antes** del deploy.
+- [ ] Migración aplicada en la base **antes** del deploy, y `ULTIMA_MIGRACION` de `lib/respaldo.js` al día (si no, `npm test` falla).
+- [ ] Si la migración agrega una llave foránea, el respaldo sigue restaurando (la prueba de ida y vuelta lo cubre).
 - [ ] Docs y CHANGELOG actualizados.
 - [ ] Después del deploy: abrí la app instalada y vi la versión nueva en Configuración o en el inicio de la trabajadora.
 

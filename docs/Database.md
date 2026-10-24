@@ -191,6 +191,23 @@ Se borra sola cuando el push service responde 404 o 410.
 
 `(id, ip, success, attempted_at)` con índice `(ip, attempted_at)`. El cron diario (`/api/cron/limpieza`) borra las filas de más de 30 días.
 
+### `respaldos` (mig. 009)
+
+Bitácora del respaldo diario a Google Drive: **una fila por intento**, bueno
+o malo. No es por salón (el respaldo es de toda la base). Se borran solas
+las de más de 400 días.
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| `creado_at` | timestamptz | Índice descendente |
+| `origen` | text | `cron` o `manual` («Respaldar ahora») |
+| `ok` | boolean | |
+| `archivo` | text | `marthardz-respaldo-AAAA-MM-DD.json.gz` (el manual lleva `-HHMM`) |
+| `bytes`, `filas` | integer | Tamaño del `.json.gz` y registros que trae |
+| `drive_id`, `carpeta_url` | text | Lo que respondió el Apps Script |
+| `error` | text | Por qué falló (máx. 300 caracteres) |
+| `duracion_ms` | integer | |
+
 ## 4. Reglas de datos
 
 1. **Todo borrado es lógico.** `update … set deleted_at = now()`. Toda lectura filtra `deleted_at is null`.
@@ -241,6 +258,7 @@ where salon_id = $1 and fecha = $2 and clienta = $3 and deleted_at is not null;
 | 006 | `006_webauthn.sql` | `webauthn_credentials` |
 | 007 | `007_ausencias.sql` | `ausencias` |
 | 008 | `008_anticipo_en_cita.sql` | `citas.anticipo` (check `0 ≤ anticipo ≤ total`), `citas.anticipo_origen_id` y su índice |
+| 009 | `009_respaldos.sql` | `respaldos` (bitácora del respaldo diario) y su índice. Al agregar una migración, sube `ULTIMA_MIGRACION` en `lib/respaldo.js` (una prueba lo vigila) |
 
 **Reglas para una migración nueva:**
 - Nombre `NNN_descripcion.sql`, número siguiente.
@@ -251,6 +269,27 @@ where salon_id = $1 and fecha = $2 and clienta = $3 and deleted_at is not null;
 
 ## 7. Respaldos
 
-Neon guarda historial del branch principal (point-in-time restore según el
-plan contratado). Antes de una migración con riesgo, crear un branch de Neon
-como respaldo. Detalle en [Deployment.md](Deployment.md).
+- **Neon** guarda solo 6 horas de historia en el plan gratuito
+  (point-in-time restore). Antes de una migración con riesgo, crear un
+  branch de Neon como respaldo.
+- **Respaldo diario en Google Drive** (desde v51): cada noche a las 3:00 se
+  exporta la base completa a `marthardz-respaldo-AAAA-MM-DD.json.gz` en la
+  carpeta «Martha Rdz - Base de Datos». Se quedan 30 días y el del día 1 de
+  cada mes para siempre.
+  - Entran todas las tablas de `public` menos `login_attempts` y
+    `respaldos`. Cada fila sale con `to_jsonb` (fechas en ISO, `numeric`
+    como número, `jsonb` tal cual).
+  - Formato: `{formato:'marthardz-respaldo', version, creado_at, migracion,
+    orden, omitidas, columnas, tablas}`, comprimido con gzip y con huella
+    SHA-256.
+  - **Ciclos de llaves foráneas:** `citas.agenda_id` → `citas_agendadas` y
+    `citas_agendadas.deposito_cita_id` → `citas` forman un ciclo, y
+    `citas.anticipo_origen_id` apunta a su propia tabla. Al restaurar,
+    `citas.agenda_id` y `citas.anticipo_origen_id` entran vacías y se llenan
+    al final con un `update` por llave primaria (`planDeCarga` lo calcula de
+    `pg_constraint` de la base de destino, así que una llave nueva no rompe
+    nada; si un ciclo no tuviera columna que acepte null, falla con aviso).
+  - Se restaura en un branch nuevo «solo esquema», en una sola transacción y
+    nunca encima de datos.
+
+  Pasos para conectarlo y para restaurar en [Deployment.md §8](Deployment.md#8-respaldo-diario-en-google-drive).

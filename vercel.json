@@ -37,7 +37,12 @@
     }
   ],
   "outputDirectory": "public",
+  "functions": {
+    "api/cron/limpieza.js": { "maxDuration": 60 },
+    "api/config.js": { "maxDuration": 60 }
+  },
   "crons": [
-    { "path": "/api/cron/limpieza", "schedule": "0 0 * * *" }
+    { "path": "/api/cron/limpieza", "schedule": "0 0 * * *" },
+    { "path": "/api/cron/limpieza?tarea=respaldo", "schedule": "0 9 * * *" }
   ]
 }

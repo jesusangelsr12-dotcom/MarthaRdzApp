@@ -2,7 +2,7 @@
  * Base de datos de prueba para correr los handlers de api/ de verdad.
  *
  * Levanta Postgres dentro del proceso (PGlite, sin servidor ni Docker),
- * aplica TODAS las migraciones de scripts/migrations/ en orden (000 → 008)
+ * aplica TODAS las migraciones de scripts/migrations/ en orden (000 → 009)
  * y expone un `sql` con la misma forma que el de @neondatabase/serverless:
  * tagged template que devuelve un arreglo de filas.
  *
@@ -22,14 +22,25 @@ process.env.PIN_PEPPER = process.env.PIN_PEPPER || 'test-pin-pepper';
 
 const MIGRACIONES = path.join(__dirname, '../../scripts/migrations');
 
-/** Tagged template estilo neon() sobre PGlite. */
+/** Tagged template estilo neon() sobre PGlite, con sql.query y sql.transaction. */
 function crearSql(db) {
-  return async function sql(strings, ...values) {
+  async function sql(strings, ...values) {
     let texto = strings[0];
     values.forEach((_, i) => { texto += `$${i + 1}${strings[i + 1]}`; });
     const r = await db.query(texto, values);
     return r.rows;
-  };
+  }
+  // Como en neon: sql.query() se puede esperar sola o pasar a transaction(),
+  // que las corre todo o nada.
+  sql.query = (texto, params = []) => ({
+    texto, params, then: (ok, mal) => db.query(texto, params).then((r) => r.rows).then(ok, mal),
+  });
+  sql.transaction = (consultas) => db.transaction(async (tx) => {
+    const resultados = [];
+    for (const { texto, params } of consultas) resultados.push((await tx.query(texto, params)).rows);
+    return resultados;
+  });
+  return sql;
 }
 
 let sqlActual = null;

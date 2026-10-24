@@ -115,6 +115,8 @@ Si falla la carga principal, reemplaza el contenido por el mensaje y un botón "
 | Registrar Cita | 409 "Ese anticipo ya se aplicó a otra cita o ya no existe" | Toast con el mensaje, recarga la lista de anticipos y regresa al paso de anticipo sin él |
 | Registros · Corregir precios | Precio en cero, anticipo mayor que el total o rechazo del servidor (400/409) | Toast con el motivo; el editor sigue abierto con lo escrito y no se guarda nada |
 | Registros | 409 al "Deshacer" una cita cuyo anticipo ya se aplicó a otra | Toast con el mensaje del servidor; la cita se queda eliminada |
+| Configuración · Respaldo | «Respaldar ahora» falla (502 con el motivo: clave, Google, red, tiempo) | Toast rojo de 5 s "No se pudo respaldar: <motivo>"; la tarjeta se recarga y muestra «Falló el último» con el error y el intento en la lista |
+| Configuración · Respaldo | No se pudo leer el estado | La tarjeta dice "No se pudo revisar el respaldo" con "Reintentar"; el resto de Configuración sigue funcionando |
 
 ### Validación en el cliente
 Se valida antes de llamar al servidor para dar respuesta inmediata
@@ -128,6 +130,7 @@ Se valida antes de llamar al servidor para dar respuesta inmediata
 | Serverless functions | `console.error('Error en <recurso>:', error)` | Vercel → Project → Logs (o Runtime Logs del deployment) |
 | Service Worker | `console.warn('SW registration failed:', err)` | Consola del navegador |
 | Base de datos | Intentos de login (`login_attempts`), borrados (`deleted_at`) | SQL en Neon |
+| Respaldo diario | Cada intento en `respaldos` (con `error`), `console.error('Respaldo a Drive:', …)` y el 502 del cron | Configuración → Respaldo, Vercel → Cron Jobs / Logs, y el correo del vigilante (7:00) si ese día no llegó nada |
 
 **Nunca se registra:** PINs, tokens, secretos, teléfonos ni el body completo de un request.
 
@@ -142,6 +145,7 @@ llega al servidor hoy solo lo ve la usuaria.
 | E2 | `fetchAPI` asumía que toda respuesta era JSON | ✅ Resuelto en v46 (C9) |
 | E3 | El cobro de una cita agendada no era atómico | ✅ Resuelto en v46 (C3): una sola sentencia. Desde v50 la Agenda no existe; aplicar un anticipo de la Agenda sigue el mismo patrón (una sola sentencia) |
 | E4 | Sin monitoreo de errores de frontend | Abierto. Errores de JavaScript en el celular pasan desapercibidos |
+| E5 | Un respaldo que falla en silencio | ✅ Resuelto en v51: `respaldar()` nunca lanza y anota cada intento con su motivo; el cron responde 502; la dueña ve «Falló el último» o «Atrasado» (más de 30 h); el Apps Script manda un correo a las 7:00 si ese día no llegó nada |
 
 ## 7. Cómo diagnosticar un reporte
 

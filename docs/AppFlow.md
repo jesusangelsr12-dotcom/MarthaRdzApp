@@ -1,6 +1,6 @@
 # AppFlow · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-10-05 · **Versión de la app:** v50 · **Tablero interactivo:** [AppFlow.html](AppFlow.html) (arrastra, acerca y aleja como en Miro)
+**Última revisión:** 2026-10-24 · **Versión de la app:** v51 · **Tablero interactivo:** [AppFlow.html](AppFlow.html) (arrastra, acerca y aleja como en Miro)
 
 Este documento sigue cada acción desde que la persona toca algo hasta donde
 termina: qué pantalla la recibe, qué endpoint llama, qué tablas toca, qué ve
@@ -38,6 +38,7 @@ rombos son decisiones y los cilindros son tablas. En los textos,
 | F12 | [Notificaciones push](#f12--notificaciones-push) | 👑 recibe |
 | F13 | [Actualización de la app](#f13--actualización-de-la-app) | 👤 |
 | F14 | [Anticipos que dejó la Agenda](#f14--anticipos-que-dejó-la-agenda) | 👤 aplica · 👑 elimina |
+| F15 | [Respaldo diario en Google Drive](#f15--respaldo-diario-en-google-drive) | 👑 (y el cron) |
 | | [Mapa del dinero](#mapa-del-dinero) | |
 | | [Cabos sueltos](#cabos-sueltos) | |
 
@@ -298,6 +299,7 @@ flowchart TD
 - **Permisos:** hoy no hay ninguno, así que la sección "Puede usar" no aparece. "Teléfonos de clientas" se retiró en la v50 junto con la Agenda; lo que quedó guardado en `salones.trabajadoras[].permisos` ya no vale. Un permiso nuevo se agrega en `PERMISOS_TRABAJADORA` (`lib/auth.js`) y en `PERMISOS` (`public/js/views/config.js`).
 - **Deshacer:** solo para servicios y productos. Quitar a una trabajadora le borra PIN y Face ID en el servidor, por eso no se ofrece.
 - **PIN libre:** se revisa contra dueñas (hash nuevo y legacy) y trabajadoras de todos los salones, excepto ella misma.
+- **Respaldo en Google Drive:** la tarjeta con el estado y «Respaldar ahora» vive aquí; el flujo completo está en [F15](#f15--respaldo-diario-en-google-drive).
 - **Resueltos:** [C4](#c4) (guardar ya no alarga la sesión local), [C6](#c6) (PIN único en todo el sistema), [C8](#c8) (quitar acceso corta también su Face ID).
 
 ## F12 · Notificaciones push
@@ -377,6 +379,43 @@ stateDiagram-v2
 - **Candado:** al registrar la cita, la fila vieja se oculta en **la misma sentencia** que inserta la cita, y solo si sigue viva, es del mismo salón y el monto coincide. Si no, responde 409 y no inserta nada. Así el mismo anticipo no se aplica dos veces.
 - **Termina en:** el anticipo dentro de una cita, o pendiente en su día.
 - **Cabos ligados:** [C3](#c3) (el candado va en la misma sentencia que la cita) y [C7](#c7) (el anticipo de otra clienta se suelta).
+
+## F15 · Respaldo diario en Google Drive
+
+Neon gratuito solo guarda 6 horas de historia. Desde la v51, cada noche se
+guarda una copia completa de la base en la carpeta «Martha Rdz - Base de
+Datos» de Google Drive. Pasos para conectarlo y para restaurar en
+[Deployment.md §8](Deployment.md#8-respaldo-diario-en-google-drive).
+
+```mermaid
+flowchart TD
+  A{¿Qué lo dispara?} -- Cron 3:00 --> B[Vercel Cron 0 9 * * * UTC]
+  B --> B1[GET /api/cron/limpieza?tarea=respaldo<br/>exige CRON_SECRET: 503 / 401]
+  A -- Respaldar ahora 👑 --> C[Configuración → Respaldo]
+  C --> C1[POST /api/config accion: respaldar<br/>trabajadora 403 · nombre con la hora]
+  B1 --> D{¿Variables puestas y sin DEMO?}
+  C1 --> D
+  D -- No --> D1[«Sin conectar» · no hace nada<br/>Configuración: 409]
+  D -- Sí --> E[Exporta todas las tablas con to_jsonb<br/>menos login_attempts y respaldos<br/>gzip + SHA-256]
+  E --> F[Apps Script POST /exec<br/>clave, nombre, tamaño y huella · 40 s]
+  F --> G{¿Lo guardó?}
+  G -- No --> H[(respaldos ok = false + motivo)] --> H1[502 · «Falló el último»<br/>cron en rojo · toast con el motivo]
+  G -- Sí --> I[Drive: reemplaza el del día<br/>borra lo de más de 30 días menos el día 1] --> J[(respaldos ok = true)] --> K[«Al día»]
+```
+
+| Estado en Configuración | Cuándo |
+|---|---|
+| Al día | El último intento salió y fue hace 30 h o menos |
+| Atrasado | El último bueno fue hace más de 30 h (el cron no corrió) |
+| Falló el último | El intento más reciente falló; se muestra el motivo |
+| Sin respaldos | Conectado, pero todavía no hay ninguno |
+| Sin conectar | Faltan `RESPALDO_DRIVE_URL`/`RESPALDO_DRIVE_CLAVE`, o `DEMO=1` |
+
+- **Vigilante:** el Apps Script revisa a las 7:00 si llegó el de ese día; si no, manda un correo a la cuenta dueña de la carpeta. Así se entera aunque la app ni siquiera haya podido llamar al script.
+- **Nunca lanza:** cada intento, bueno o malo, queda en `respaldos` con su motivo.
+- **Restaurar:** `scripts/restaurar-respaldo.js` en un branch nuevo de Neon «solo esquema», en una sola transacción y nunca encima de datos. El ciclo `citas.agenda_id` ↔ `citas_agendadas.deposito_cita_id` y `citas.anticipo_origen_id` entran en dos pasos.
+- **Trabajadora:** no ve nada de esto (no entra a Configuración; el servidor le responde 403).
+- **Termina en:** el archivo en Drive y «Al día», o el motivo anotado y «Falló el último».
 
 ## Mapa del dinero
 
