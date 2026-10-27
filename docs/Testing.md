@@ -1,6 +1,6 @@
 # Pruebas · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-10-24 · **Estado actual:** 58 pruebas, 58 en verde (`npm test`)
+**Última revisión:** 2026-10-27 · **Estado actual:** 68 pruebas, 68 en verde (`npm test`)
 
 ## 1. Cómo correrlas
 
@@ -11,7 +11,9 @@ npm test          # node --test: corre todo lo que está en test/
 No necesita base de datos ni variables de entorno. Las pruebas de
 integración levantan Postgres dentro del proceso con
 [PGlite](https://pglite.dev) (dependencia de desarrollo), le aplican todas
-las migraciones (`000` a `009`) y corren los handlers de `api/` de verdad.
+las migraciones (`000` a `009`; la `010` crea un rol y es solo para psql,
+el ayudante salta los archivos con comandos de psql) y corren los handlers
+de `api/` de verdad.
 El ayudante vive en `test/helpers/db.js`; su `sql` tiene la misma forma que
 el de Neon, incluidos `sql.query()` y `sql.transaction()`.
 
@@ -19,6 +21,7 @@ el de Neon, incluidos `sql.query()` y `sql.transaction()`.
 
 | Archivo | Cubre | Por qué es crítico |
 |---|---|---|
+| `test/db.test.js` | **Conexión (v52).** Con `APP_DB_PASSWORD` entra como `app_runtime` (nunca como el dueño), conserva la base, usa el host `-pooler` sin duplicarlo, exige `sslmode` y `channel_binding`, una contraseña con `+ / =` sobrevive. En Production y Preview sin la contraseña no se conecta y el error no lleva nada de la conexión. En local usa `.env` tal cual | Si falla, la app entraría como el rol dueño (puede borrar tablas) o no entraría |
 | `test/auth.test.js` | Crear y verificar tokens, rol de trabajadora, tokens legacy sin `role`, firma alterada, token de otro salón, expiración, entradas basura, hash de PIN con pepper | Un error aquí abre el acceso a todos los salones |
 | `test/validate.test.js` | Fechas, números con rango, strings, métodos de pago, PIN, teléfono, uuid | Es la única barrera contra datos con forma inválida |
 | `test/normalize-parity.test.js` | Que `normalizeNombre` dé lo mismo en frontend y backend | Si difieren, una misma clienta se parte en dos |
@@ -35,6 +38,7 @@ el de Neon, incluidos `sql.query()` y `sql.transaction()`.
 | Frontend | Wizards, router, guardas de rol | Hoy se prueba a mano o con un navegador automatizado contra la app local. Falta dejarlo como suite en el repo |
 | Service Worker | Actualización sin perder captura | Prueba manual (ver §5) |
 | WebAuthn y push | Dependen del dispositivo real | Prueba manual en iPhone |
+| Permisos de `app_runtime` | PGlite no tiene roles: que el rol no pueda `create`, `drop`, `truncate` ni `setval`, y que sí lea y escriba, no se prueba en `npm test` | A mano con psql ([Deployment.md §9](Deployment.md#9-rol-de-la-app-en-la-base-app_runtime)). Se probó en un Postgres local con los roles de Neon al hacer la v52 |
 
 ## 4. Definición de "terminado"
 
@@ -55,7 +59,7 @@ Un cambio está terminado cuando cumple **todo** esto:
 
 **Entrega**
 - [ ] Subí `CACHE_NAME` en `public/sw.js`. JS nuevo en `STATIC_ASSETS`.
-- [ ] Migración aplicada en la base **antes** del deploy, y `ULTIMA_MIGRACION` de `lib/respaldo.js` al día (si no, `npm test` falla).
+- [ ] Migración aplicada en la base **antes** del deploy, con `DATABASE_URL_MIGRATIONS` (rol dueño), y `ULTIMA_MIGRACION` de `lib/respaldo.js` al día (si no, `npm test` falla).
 - [ ] Si la migración agrega una llave foránea, el respaldo sigue restaurando (la prueba de ida y vuelta lo cubre).
 - [ ] Docs y CHANGELOG actualizados.
 - [ ] Después del deploy: abrí la app instalada y vi la versión nueva en Configuración o en el inicio de la trabajadora.
@@ -90,4 +94,4 @@ Correr antes de un cambio grande o de tocar dinero, permisos o el Service Worker
 
 - Usa un salón de prueba creado con `npm run crear-salon -- --nombre "Pruebas" --pin <PIN único>`.
 - Nunca pruebes en el salón real de un cliente.
-- Para pruebas de integración, crea un branch de Neon desde producción y apunta `DATABASE_URL` a él.
+- Para pruebas de integración, crea un branch de Neon desde producción y apunta `DATABASE_URL` a él (con `app_runtime` y `APP_DB_PASSWORD` si quieres probar con los permisos reales).

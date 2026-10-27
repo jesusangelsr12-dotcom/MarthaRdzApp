@@ -1,6 +1,6 @@
 # AppFlow · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-10-24 · **Versión de la app:** v51 · **Tablero interactivo:** [AppFlow.html](AppFlow.html) (arrastra, acerca y aleja como en Miro)
+**Última revisión:** 2026-10-27 · **Versión de la app:** v52 · **Tablero interactivo:** [AppFlow.html](AppFlow.html) (arrastra, acerca y aleja como en Miro)
 
 Este documento sigue cada acción desde que la persona toca algo hasta donde
 termina: qué pantalla la recibe, qué endpoint llama, qué tablas toca, qué ve
@@ -413,7 +413,7 @@ flowchart TD
 
 - **Vigilante:** el Apps Script revisa a las 7:00 si llegó el de ese día; si no, manda un correo a la cuenta dueña de la carpeta. Así se entera aunque la app ni siquiera haya podido llamar al script.
 - **Nunca lanza:** cada intento, bueno o malo, queda en `respaldos` con su motivo.
-- **Restaurar:** `scripts/restaurar-respaldo.js` en un branch nuevo de Neon «solo esquema», en una sola transacción y nunca encima de datos. El ciclo `citas.agenda_id` ↔ `citas_agendadas.deposito_cita_id` y `citas.anticipo_origen_id` entran en dos pasos.
+- **Restaurar:** `scripts/restaurar-respaldo.js`, con el rol dueño (`DATABASE_URL_MIGRATIONS`), en un branch nuevo de Neon «solo esquema», en una sola transacción y nunca encima de datos. El ciclo `citas.agenda_id` ↔ `citas_agendadas.deposito_cita_id` y `citas.anticipo_origen_id` entran en dos pasos.
 - **Trabajadora:** no ve nada de esto (no entra a Configuración; el servidor le responde 403).
 - **Termina en:** el archivo en Drive y «Al día», o el motivo anotado y «Falló el último».
 
@@ -640,7 +640,7 @@ la pide desde la v43. Tiene "Deshacer", pero rompe la regla del design system.
 desde cero solo con `scripts/migrations/`.
 **Propuesta:** exportar el esquema real a `000_base.sql`.
 
-**Resuelto en v46.** `scripts/migrations/000_base.sql`, exportado de la base real en Neon. Con 000 a 007 se levanta la base completa; las pruebas de integración lo hacen en cada corrida. Desde la v50 son 000 a 008.
+**Resuelto en v46.** `scripts/migrations/000_base.sql`, exportado de la base real en Neon. Con 000 a 007 se levanta la base completa; las pruebas de integración lo hacen en cada corrida. Desde la v50 son 000 a 008, y desde la v52 000 a 010 (la 010 crea el rol `app_runtime`; las pruebas aplican 000 a 009).
 
 ### C14
 

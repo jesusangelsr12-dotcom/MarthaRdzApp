@@ -299,7 +299,7 @@
   <div class="ui card topbar">
     <button class="icon-btn" id="toggle-panel" aria-label="Mostrar u ocultar el panel" aria-expanded="true" title="Panel (P)">☰</button>
     <span class="name">App<span>Flow</span> · Martha Rdz</span>
-    <span class="ver">v51 · 2026-10-24</span>
+    <span class="ver">v52 · 2026-10-27</span>
   </div>
 
   <aside class="ui card panel" id="panel" aria-label="Navegación del tablero">
@@ -354,7 +354,7 @@
    y termina en un nodo 'retired'.
    ===================================================================== */
 
-const META = { version: 'v51', fecha: '2026-10-24', endpoints: 11, limiteEndpoints: 12, tablas: 11, tablasSinUso: 2 };
+const META = { version: 'v52', fecha: '2026-10-27', endpoints: 11, limiteEndpoints: 12, tablas: 11, tablasSinUso: 2 };
 
 const KINDS = {
   screen: { ic: '▢', label: 'Pantalla', color: 'var(--ink)' },
@@ -743,7 +743,7 @@ const FLOWS = [
     notes: [
       'Vigilante del Apps Script a las 7:00: si ese día no llegó nada, manda un correo a la cuenta dueña.',
       '«Atrasado» si pasan más de 30 h sin un respaldo bueno.',
-      'Restaurar: scripts/restaurar-respaldo.js en un branch nuevo «solo esquema», en una transacción y nunca encima de datos.',
+      'Restaurar: scripts/restaurar-respaldo.js con el rol dueño, en un branch nuevo «solo esquema», en una transacción y nunca encima de datos.',
     ],
     tablas: ['respaldos'], issues: [],
   },
@@ -842,7 +842,7 @@ const ISSUES = [
   { id: 'C12', v: 'v46', ok: 'El cron diario borra los intentos de más de 30 días.', nota: 'v50: el cron es ahora /api/cron/limpieza y solo hace esto.', sev: 'baja', flow: 'F1', t: 'login_attempts nunca se limpia',
     p: 'Cada intento de login agrega una fila para siempre.',
     fix: 'Borrar filas de más de 30 días en el cron diario.' },
-  { id: 'C13', v: 'v46', ok: 'scripts/migrations/000_base.sql, exportado de la base real. Las pruebas levantan la base con todas las migraciones (000 a 008 en v50).', sev: 'baja', flow: null, t: 'Las tablas base no tienen DDL en el repo',
+  { id: 'C13', v: 'v46', ok: 'scripts/migrations/000_base.sql, exportado de la base real. Las pruebas levantan la base con las migraciones (000 a 009; la 010 de v52 es un rol).', sev: 'baja', flow: null, t: 'Las tablas base no tienen DDL en el repo',
     p: 'No se puede levantar una base desde cero solo con las migraciones.',
     fix: 'Exportar el esquema real a 000_base.sql.' },
 ];

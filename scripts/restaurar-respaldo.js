@@ -6,10 +6,12 @@
  *   node scripts/restaurar-respaldo.js respaldo.json.gz              → solo lo revisa
  *   node scripts/restaurar-respaldo.js respaldo.json.gz --restaurar  → lo carga
  *
- * Usa DATABASE_URL (en .env o en la terminal), que debe apuntar a un branch
- * NUEVO de Neon creado «solo esquema» (sin datos), con las migraciones hasta
- * la del respaldo. Nunca pisa datos: si alguna tabla ya tiene filas, no hace
- * nada. Carga todo en una sola transacción: o entra completo o no entra nada.
+ * Usa DATABASE_URL_MIGRATIONS (rol dueño, en .env o en la terminal): al
+ * final ajusta las secuencias con setval, que app_runtime no puede. Debe
+ * apuntar a un branch NUEVO de Neon creado «solo esquema» (sin datos), con
+ * las migraciones hasta la del respaldo. Nunca pisa datos: si alguna tabla
+ * ya tiene filas, no hace nada. Carga todo en una sola transacción: o entra
+ * completo o no entra nada.
  * Ya cargado, se revisa en ese branch y, si está bien, se vuelve el principal.
  */
 
@@ -60,15 +62,16 @@ async function main() {
   console.log(`  (no van en el respaldo: ${datos.omitidas.join(', ')})`);
 
   if (!cargar) {
-    console.log('\nSolo se revisó. Para cargarlo agrega --restaurar (DATABASE_URL de un branch nuevo «solo esquema»).');
+    console.log('\nSolo se revisó. Para cargarlo agrega --restaurar (DATABASE_URL_MIGRATIONS de un branch nuevo «solo esquema»).');
     return;
   }
-  if (!process.env.DATABASE_URL) fallar('Falta DATABASE_URL (en .env o en la terminal).');
+  const url = process.env.DATABASE_URL_MIGRATIONS;
+  if (!url) fallar('Falta DATABASE_URL_MIGRATIONS (rol dueño, en .env o en la terminal).');
   const { neon } = require('@neondatabase/serverless');
-  const host = new URL(process.env.DATABASE_URL).host;
+  const host = new URL(url).host;
   console.log(`\nCargando en ${host}…`);
   try {
-    const r = await restaurar(neon(process.env.DATABASE_URL), datos);
+    const r = await restaurar(neon(url), datos);
     console.log(`✅ Listo: ${r.filas.toLocaleString('es-MX')} registros en ${r.tablas} tablas.`);
   } catch (e) {
     fallar(e.message);

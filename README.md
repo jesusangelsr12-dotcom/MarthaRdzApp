@@ -51,9 +51,12 @@ Variables mínimas para entrar a la app:
 
 | Variable | Para qué |
 |---|---|
-| `DATABASE_URL` | Conexión a Postgres (Neon) |
+| `DATABASE_URL` | Conexión a Postgres (Neon). En local se usa tal cual |
 | `SESSION_SECRET` | Firma los tokens de sesión y los challenges de Face ID |
 | `PIN_PEPPER` | Se combina con el PIN para calcular su hash |
+
+Para migraciones: `DATABASE_URL_MIGRATIONS` (rol dueño, solo en tu `.env`).
+En Vercel además va `APP_DB_PASSWORD`: la app entra como `app_runtime`.
 
 Opcionales: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (push) y
 `CRON_SECRET` (protege la limpieza diaria). La lista completa y cómo
@@ -65,15 +68,17 @@ generarlas está en [docs/Deployment.md](docs/Deployment.md).
 ### Base de datos
 
 Todo el esquema vive en `scripts/migrations/`: `000_base.sql` crea las
-tablas base (`salones`, `citas`, `clientas`, `comisiones`, `gastos`) y de la
-`001` a la `007` agregan el resto. Se aplican en orden:
+tablas base (`salones`, `citas`, `clientas`, `comisiones`, `gastos`), de la
+`001` a la `009` agregan el resto y la `010` crea el rol `app_runtime` con el
+que entra la app. Se aplican en orden, con el rol dueño (psql 15 o más nuevo):
 
 ```bash
-for f in scripts/migrations/*.sql; do psql "$DATABASE_URL" -f "$f"; done
+export APP_RUNTIME_PWD="$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n')"
+for f in scripts/migrations/*.sql; do psql "$DATABASE_URL_MIGRATIONS" -v ON_ERROR_STOP=1 -f "$f" || break; done
 ```
 
-Todas son aditivas (`if not exists`), así que correrlas dos veces no rompe
-nada. El esquema completo está en [docs/Database.md](docs/Database.md).
+Todas son aditivas e idempotentes, así que correrlas dos veces no rompe
+nada. Más sobre el rol en [docs/Deployment.md §9](docs/Deployment.md#9-rol-de-la-app-en-la-base-app_runtime). El esquema completo está en [docs/Database.md](docs/Database.md).
 
 ### Dar de alta un salón
 

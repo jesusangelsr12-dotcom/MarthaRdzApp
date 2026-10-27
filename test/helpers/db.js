@@ -2,7 +2,8 @@
  * Base de datos de prueba para correr los handlers de api/ de verdad.
  *
  * Levanta Postgres dentro del proceso (PGlite, sin servidor ni Docker),
- * aplica TODAS las migraciones de scripts/migrations/ en orden (000 → 009)
+ * aplica las migraciones de scripts/migrations/ en orden (000 → 009; la 010
+ * crea un rol y es solo para psql, aquí se salta)
  * y expone un `sql` con la misma forma que el de @neondatabase/serverless:
  * tagged template que devuelve un arreglo de filas.
  *
@@ -58,7 +59,10 @@ async function crearEntorno() {
   const db = new PGlite();
   const archivos = fs.readdirSync(MIGRACIONES).filter((f) => f.endsWith('.sql')).sort();
   for (const f of archivos) {
-    await db.exec(fs.readFileSync(path.join(MIGRACIONES, f), 'utf8'));
+    const texto = fs.readFileSync(path.join(MIGRACIONES, f), 'utf8');
+    // Las de roles son scripts de psql (\getenv, \gexec): no cambian tablas.
+    if (/^\\/m.test(texto)) continue;
+    await db.exec(texto);
   }
   const sql = crearSql(db);
   sqlActual = sql;

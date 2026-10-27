@@ -38,10 +38,10 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Método no permitido' });
   }
 
-  const sql = getSql();
   const ip = getClientIp(req);
 
   try {
+    const sql = getSql();
     // Rate limit: bloquea intentos de fuerza bruta por IP (el PIN es de
     // solo 6 dígitos, así que sin esto se puede probar el millón de
     // combinaciones en minutos).

@@ -1,6 +1,6 @@
 # Arquitectura · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-10-05
+**Última revisión:** 2026-10-27
 
 ## 1. Vista general
 
@@ -154,7 +154,7 @@ Detalle de cada uno en [API-Guide.md](API-Guide.md).
 
 | Archivo | Qué hace |
 |---|---|
-| `db.js` | `getSql()`: cliente `neon()` reutilizado entre invocaciones. Cada query es una request HTTPS, sin pool |
+| `db.js` | `getSql()`: cliente `neon()` reutilizado entre invocaciones. Cada query es una request HTTPS, sin pool. `urlDeConexion()` entra como `app_runtime` (host y base de `DATABASE_URL`, contraseña `APP_DB_PASSWORD`, host `-pooler`); en Production y Preview sin la contraseña no se conecta |
 | `auth.js` | Crear y verificar tokens, `requireSession`, `requireOwnerSession`, `getSessionRole`, hash de PIN, `sanitizeTrabajadoras` |
 | `validate.js` | Validadores de entrada (fechas, montos, PIN, teléfono, método de pago, uuid) |
 | `push.js` | `enviarPushSalon()`: manda a todos los dispositivos del salón y limpia suscripciones muertas (404/410) |
@@ -187,7 +187,7 @@ module.exports = async function handler(req, res) {
 | Desde | Hacia | Cómo | Para qué |
 |---|---|---|---|
 | Navegador | Vercel `/api/*` | `fetch` + JSON + Bearer token | Todo el CRUD |
-| Serverless | Neon | Driver HTTP `@neondatabase/serverless` | Consultas SQL parametrizadas |
+| Serverless | Neon | Driver HTTP `@neondatabase/serverless`, rol `app_runtime` por el pooler | Consultas SQL parametrizadas |
 | Vercel Cron | `/api/cron/limpieza` | GET diario 00:00 UTC | Borrar intentos de login de más de 30 días |
 | Vercel Cron | `/api/cron/limpieza?tarea=respaldo` | GET diario 09:00 UTC (3:00 México) | Respaldo de la base |
 | Serverless | Google Apps Script (`scripts/respaldo-drive.gs`) | POST JSON a la URL `/exec` (sigue el 302 de Google), límite 40 s | Guardar el `.json.gz` en la carpeta «Martha Rdz - Base de Datos» de Drive |
@@ -208,6 +208,7 @@ module.exports = async function handler(req, res) {
 | Anticipo dentro de la cita (`citas.anticipo`, parte de `total`) — v50 | Un registro, una fecha: el total completo cuenta el día de la cita y las comisiones salen del precio completo | El ingreso no refleja el día en que se pagó el anticipo |
 | Anticipos de la Agenda vieja: filas de `citas` con un solo item `tipo: anticipo` | Así los guardaba la Agenda (hasta v49). Al aplicarlos a una cita se ocultan (`deleted_at`) y la cita guarda `anticipo_origen_id` | Hay que excluirlas al contar visitas y al rankear mientras sigan vivas |
 | Endpoints fusionados (`webauthn`, anticipos pendientes en `citas`, respaldo en `cron/limpieza` y `config`) | Límite de 12 funciones | Handlers más largos, se distinguen por `mode`/`action`/`accion`/query |
+| La app entra como `app_runtime`, armado sobre la `DATABASE_URL` de la integración — v52 | Mínimo privilegio: solo leer y escribir filas. Se toman host y base de la integración para que cada Preview siga en su propio branch | La credencial del dueño sigue en las variables de Vercel aunque la app no la use (Security S11) |
 | Respaldo por Google Apps Script, no por cuenta de servicio | En un Drive personal una cuenta de servicio no tiene espacio («Service Accounts do not have storage quota»). El script corre como la dueña de la carpeta y no tiene tokens que venzan | El script se pega a mano en script.google.com y se publica como app web |
 
 ## 7. Límites y escalabilidad

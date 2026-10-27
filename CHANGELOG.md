@@ -13,6 +13,26 @@ Secciones: **Agregado** · **Cambiado** · **Corregido** · **Seguridad** · **B
 
 ## [Sin publicar]
 
+## v52 · 2026-10-27
+
+### Seguridad
+- **La app ya no entra a Neon como el rol dueño.** Entra como `app_runtime`, que solo lee y escribe filas: no puede crear, alterar, vaciar ni borrar tablas, crear roles o bases, ni saltarse RLS, y no es miembro de `neon_superuser` (Security S10). Antes usaba `neondb_owner`.
+- `lib/db.js` toma host y base de la `DATABASE_URL` que pone la integración Neon ↔ Vercel (en cada Preview, la de su propio branch) y cambia usuario y contraseña por `app_runtime` + `APP_DB_PASSWORD`, siempre por el host `-pooler` y con `sslmode=require&channel_binding=require`. En Production y Preview, sin `APP_DB_PASSWORD` no se conecta: nunca cae al rol dueño. El error no lleva nada de la conexión.
+- La credencial del dueño sigue en las variables de Vercel porque la pone la integración, aunque la app ya no la use (Security S11, aceptado).
+
+### Cambiado
+- Variables nuevas: `APP_DB_PASSWORD` (Vercel, Production y Preview) y `DATABASE_URL_MIGRATIONS` (rol dueño, solo en el `.env` local, para migraciones y restauración).
+- `scripts/restaurar-respaldo.js` usa `DATABASE_URL_MIGRATIONS`: al final ajusta las secuencias con `setval`, que `app_runtime` no puede.
+- Las migraciones se aplican con `psql "$DATABASE_URL_MIGRATIONS" -v ON_ERROR_STOP=1`.
+- `api/login.js` pide la conexión dentro del `try`, como los demás endpoints: un fallo de conexión responde «Error al validar PIN» en vez de un error crudo de Vercel.
+- El respaldo anota `010_rol_app_runtime` como su migración (`ULTIMA_MIGRACION`); el formato no cambia.
+
+### Base de datos
+- Migración `010_rol_app_runtime.sql` (script de psql, idempotente): crea `app_runtime` con `select, insert, update, delete` en las tablas de `public`, `usage, select` en las secuencias y privilegios por default para lo que creen las migraciones futuras. La contraseña sale de la variable de entorno `APP_RUNTIME_PWD` (`\getenv`): nunca va en el archivo, en la línea de comandos ni en la salida. Se probó en un Postgres 16 local con los roles de Neon: el rol sale con todo en `false`, entra como `app_runtime`, lee y escribe, y `create role`, `drop table`, `create table`, `alter table`, `truncate` y `setval` fallan. Aplicada en producción el 2026-10-27 (mismas sentencias, por el SQL de Neon), con un branch de respaldo previo (`respaldo-antes-v52-2026-10-27`); verificado: todo en `false`, DML en las 11 tablas, sin `truncate`, sin `update` en la secuencia, sin `create` en `public`, y entra como `app_runtime`.
+
+### Docs
+- Deployment §9 (cómo se conecta, publicar la v52 paso a paso, probar el rol), variables y comandos de migración. Database §8 (roles) y migración 010. Security (§4, §6: rotar la contraseña y quitar el rol; S10, S11). Error-Handling, Testing (68 pruebas, `test/db.test.js`), Architecture, API-Guide, README, `.env.example`. AppFlow: C13 y la nota de restaurar de F15.
+
 ## v51 · 2026-10-24
 
 ### Agregado

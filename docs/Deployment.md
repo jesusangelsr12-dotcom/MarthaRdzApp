@@ -1,13 +1,13 @@
 # Deployment · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-10-24 · **Plataforma:** Vercel (Hobby) + Neon
+**Última revisión:** 2026-10-27 · **Plataforma:** Vercel (Hobby) + Neon
 
 ## 1. Ambientes
 
 | Ambiente | Cómo se crea | Base de datos | Uso |
 |---|---|---|---|
 | **Local** | `npm run dev` (`vercel dev`) | La de `.env` (idealmente un branch de Neon) | Desarrollo |
-| **Preview** | Cada push a una rama que no es `main` | La que tenga configurada el ambiente Preview en Vercel | Revisar un cambio en el celular antes de publicarlo |
+| **Preview** | Cada push a una rama que no es `main` | Su propio branch de Neon (`preview/<rama>`), copia de `main` que crea la integración Neon ↔ Vercel | Revisar un cambio en el celular antes de publicarlo |
 | **Producción** | Merge a `main` | Neon, branch principal | Salones reales |
 
 > Face ID queda atado al dominio exacto. Una credencial creada en un Preview
@@ -22,7 +22,9 @@ Se configuran en Vercel → Project → Settings → Environment Variables, por 
 
 | Variable | Obligatoria | Cómo generarla | Para qué |
 |---|:---:|---|---|
-| `DATABASE_URL` | ✅ | Neon → Connection string (con `sslmode=require`) | Conexión a Postgres |
+| `DATABASE_URL` | ✅ | La pone sola la integración Neon ↔ Vercel (en Preview, la de su branch). No se edita a mano | Conexión con el rol dueño. La app solo toma de aquí host y base (`lib/db.js`) |
+| `APP_DB_PASSWORD` | ✅ Production y Preview | `openssl rand -base64 32 \| tr '+/' '-_' \| tr -d '=\n'` (§9) | Contraseña del rol `app_runtime`, con el que entra la app. Sin ella, en Production y Preview la app no se conecta |
+| `DATABASE_URL_MIGRATIONS` | Solo en tu `.env` | Neon → Connect → rol `neondb_owner` | Migraciones y `restaurar-respaldo.js`. **Nunca en Vercel** |
 | `SESSION_SECRET` | ✅ | `openssl rand -hex 32` | Firma tokens de sesión y challenges de WebAuthn |
 | `PIN_PEPPER` | ✅ | `openssl rand -hex 32` (distinto al anterior) | Hash de PINs |
 | `VAPID_PUBLIC_KEY` | Para push | `npx web-push generate-vapid-keys` | Suscripción en el navegador |
@@ -46,10 +48,12 @@ Ver [Security.md §6](Security.md#6-secretos) para qué pasa si se filtra o se r
 
 ### Si hay migración
 1. Crea un branch de Neon como respaldo (Neon → Branches → Create branch desde `main`).
-2. Aplica la migración a producción **antes** del deploy:
+2. Aplica la migración a producción **antes** del deploy, con el rol dueño:
    ```bash
-   psql "$DATABASE_URL" -f scripts/migrations/NNN_nombre.sql
+   psql "$DATABASE_URL_MIGRATIONS" -v ON_ERROR_STOP=1 -f scripts/migrations/NNN_nombre.sql
    ```
+   Con el rol dueño las tablas nuevas quedan de `neondb_owner` y
+   `app_runtime` las puede usar sin otro `grant`.
 3. Verifica que las tablas o columnas existen.
 4. Ahora sí, haz merge.
 
@@ -68,6 +72,7 @@ Merge a `main` → Vercel construye y publica solo. No hay paso de build
 |---|---|
 | El código nuevo falla | Vercel → Deployments → el anterior → **Promote to Production** (instantáneo). Luego revertir el commit en `main` |
 | Los celulares siguen con código roto en caché | Publica un deploy con `CACHE_NAME` nuevo. El Service Worker trae el JS fresco |
+| La app dice «Error del servidor» en todo y el log de Vercel dice «Falta APP_DB_PASSWORD» o `password authentication failed for user "app_runtime"` | Falta `APP_DB_PASSWORD` en ese ambiente, no coincide con la del rol, o ese branch de Neon se creó antes de la 010. Ver §9 |
 | Una migración salió mal | Las migraciones son aditivas: casi nunca hace falta revertirlas. Si se dañaron datos, restaura desde el branch de respaldo de Neon |
 | Se borró algo por error | Todo borrado es lógico: `update <tabla> set deleted_at = null where …` |
 
@@ -92,19 +97,24 @@ Esta app tiene su propia base de datos en Neon, separada de cualquier otra.
 Para levantarla desde cero:
 
 1. Neon → **New project** → copia la connection string (con `sslmode=require`).
-2. Aplica todas las migraciones en orden (crean todas las tablas):
+2. Aplica todas las migraciones en orden (crean todas las tablas y, con la
+   010, el rol `app_runtime`). `DATABASE_URL_MIGRATIONS` es la connection
+   string de `neondb_owner`:
    ```bash
-   for f in scripts/migrations/*.sql; do psql "$DATABASE_URL" -f "$f"; done
+   export APP_RUNTIME_PWD="$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n')"
+   for f in scripts/migrations/*.sql; do psql "$DATABASE_URL_MIGRATIONS" -v ON_ERROR_STOP=1 -f "$f" || break; done
    ```
+   Guarda `APP_RUNTIME_PWD` en tu gestor de contraseñas: va en
+   `APP_DB_PASSWORD` de Vercel.
 3. Genera `SESSION_SECRET`, `PIN_PEPPER` y `CRON_SECRET` nuevos (nunca reutilices los de otra app) y las llaves VAPID.
-4. Vercel → **Add New Project** → importa este repo → carga las variables de la sección 2 → Deploy.
+4. Vercel → **Add New Project** → importa este repo → conecta la integración de Neon (pone `DATABASE_URL`) → carga las demás variables de la sección 2, con `APP_DB_PASSWORD` en Production y Preview → Deploy.
 5. Da de alta el salón con `crear-salon` (abajo) usando el mismo `PIN_PEPPER` que cargaste en Vercel.
 6. Entra con el PIN desde el celular, carga servicios, productos y trabajadoras en Configuración, e instala la app en el inicio.
 
 **Estado de la base de producción (2026-10-24):** el proyecto de Neon
 "Martha Rdz App" (`broad-darkness-60286616`, branch `main`) ya tiene el
 esquema completo (000 a 009; la 009 se aplicó el 2026-10-24, antes de
-publicar la v51) y el salón
+publicar la v51; la 010 se aplicó el 2026-10-27, antes de publicar la v52, ver §9) y el salón
 `salon_002` "Martha Rodriguez Hair Artist" con su catálogo e historial, así
 que los pasos 2 y 5 ya no hacen falta. La dueña entra con su PIN de siempre:
 su hash es del formato anterior (sin pepper) y en el primer login se guarda
@@ -230,20 +240,89 @@ versión**. La URL no cambia.
 2. Revísalo: `node scripts/restaurar-respaldo.js marthardz-respaldo-AAAA-MM-DD.json.gz`
    (dice la fecha, la migración y cuántos registros trae cada tabla).
 3. En Neon crea un branch nuevo (ej. `restaurado-AAAA-MM-DD`) con la opción
-   **Schema only** (copia las tablas sin datos), o usa una base vacía con las
-   migraciones `000`–`009` aplicadas. Si el respaldo es de una migración
+   **Schema only** (copia las tablas sin datos y el rol `app_runtime`), o usa
+   una base vacía con las migraciones `000`–`010` aplicadas. Si el respaldo es de una migración
    anterior a la del branch, no pasa nada: las columnas nuevas quedan con su
    valor por defecto.
-4. Cárgalo: `DATABASE_URL="<conexión del branch nuevo>" node scripts/restaurar-respaldo.js archivo.json.gz --restaurar`.
+4. Cárgalo con el rol dueño (al final ajusta las secuencias con `setval`,
+   que `app_runtime` no puede):
+   `DATABASE_URL_MIGRATIONS="<conexión de neondb_owner al branch nuevo>" node scripts/restaurar-respaldo.js archivo.json.gz --restaurar`.
    Todo entra en una transacción; si alguna tabla ya tiene datos no hace
    nada. El ciclo `citas.agenda_id` ↔ `citas_agendadas.deposito_cita_id` y
    la referencia de `citas.anticipo_origen_id` a su propia tabla se cargan
    en dos pasos (primero vacías, al final con un `update`).
 5. Revisa ese branch (un Preview apuntando a él, o la consola de Neon).
-   Cuando esté bien, en Neon vuélvelo el branch principal (o cambia
-   `DATABASE_URL` de Production a ese branch) y haz un redeploy.
+   Cuando esté bien, en Neon → Integrations → Vercel → **Production
+   branch** elige ese branch y haz un redeploy. Antes revisa que tenga
+   `app_runtime` con la contraseña de `APP_DB_PASSWORD` (en una base vacía,
+   la que le diste al aplicar la 010).
 
 Lo que no viene en el respaldo: los intentos de login (se borran solos) y la
 bitácora de respaldos. Los dispositivos con Face ID y las suscripciones de
 push sí vienen y siguen sirviendo si `PIN_PEPPER` y el dominio son los
 mismos.
+
+## 9. Rol de la app en la base (`app_runtime`)
+
+Desde la v52 la app no entra a Neon como `neondb_owner` (dueño de todo y
+miembro de `neon_superuser`), sino como `app_runtime`, que solo lee y
+escribe filas ([Database.md §8](Database.md#8-roles)).
+
+**Cómo se conecta.** La integración Neon ↔ Vercel sigue poniendo
+`DATABASE_URL` con el rol dueño; en cada Preview pone la de su propio
+branch al momento del deploy (no se ve en Settings). `lib/db.js` toma de ahí
+el host y la base, cambia usuario y contraseña por `app_runtime` +
+`APP_DB_PASSWORD`, usa el host `-pooler` y exige
+`sslmode=require&channel_binding=require`. Como cada branch nuevo copia el
+rol con su contraseña, la misma `APP_DB_PASSWORD` sirve en Production y en
+todos los Preview. En local (`vercel dev`), sin `APP_DB_PASSWORD`, usa la
+`DATABASE_URL` de `.env` tal cual.
+
+### Publicar la v52 (una sola vez, en este orden)
+
+1. **Branch de respaldo** en Neon desde `main` (§3, «Si hay migración»).
+2. **Crear el rol en `main`** desde tu terminal (psql 15 o más nuevo; la
+   contraseña no se imprime ni queda en el historial):
+   ```bash
+   export APP_RUNTIME_PWD="$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n')"
+   psql "$DATABASE_URL_MIGRATIONS" -v ON_ERROR_STOP=1 -f scripts/migrations/010_rol_app_runtime.sql
+   ```
+   Debe terminar con `CREATE ROLE`, cuatro `GRANT` y dos
+   `ALTER DEFAULT PRIVILEGES`. Si ya existía el rol, no lo toca.
+3. **Revisar el rol** con la consulta de [Database.md §8](Database.md#8-roles):
+   todo en `f`.
+4. **Vercel → Settings → Environment Variables → Add:** `APP_DB_PASSWORD`
+   con el valor de `APP_RUNTIME_PWD` (cópialo con
+   `printf %s "$APP_RUNTIME_PWD" | pbcopy` en Mac), marcada **Sensitive**,
+   en **Production y Preview**. No toques `DATABASE_URL`.
+5. **Preview.** Haz push de la rama: Vercel crea un branch de Neon nuevo
+   (ya trae el rol). Un Preview cuyo branch se creó antes del paso 2 no lo
+   tiene: bórralo en Neon y vuelve a desplegar.
+6. **Probar en el Preview** (dueña y trabajadora): entrar con PIN, registrar
+   una cita, editar su nota, un gasto. En el log de la función no debe haber
+   `permission denied`.
+7. **Merge a `main`.** En Production repite la prueba y además
+   Configuración → Respaldo → **Respaldar ahora** (solo Production tiene
+   Drive).
+8. **Confirmar que entra como `app_runtime`** en Neon → SQL Editor:
+   ```sql
+   select usename, count(*) from pg_stat_activity
+   where datname = 'neondb' group by usename;
+   ```
+   Con la app en uso aparece `app_runtime`.
+
+Si algo falla en el paso 7: Vercel → el deploy anterior → **Promote to
+Production** (§4). El rol puede quedarse: no estorba.
+
+### Probar el rol a mano
+
+```bash
+PGPASSWORD="$APP_RUNTIME_PWD" psql "host=<host>-pooler.<region>.aws.neon.tech dbname=neondb user=app_runtime sslmode=require channel_binding=require" <<'SQL'
+select current_user;          -- app_runtime
+create role prueba;           -- ERROR: permission denied to create role
+drop table citas;             -- ERROR: must be owner of table citas
+create table x (id int);      -- ERROR: permission denied for schema public
+SQL
+```
+
+Cambiar la contraseña o quitar el rol: [Security.md §6](Security.md#6-secretos).

@@ -1,6 +1,6 @@
 # Manejo de errores · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-10-05
+**Última revisión:** 2026-10-27
 
 ## 1. Principios
 
@@ -71,6 +71,7 @@ if (role === 'trabajadora') {
 
 - Push a un dispositivo que ya no existe (404/410): se borra la suscripción, no se registra como error.
 - Falta de configuración (secretos, VAPID): `500` con "Error de configuración del servidor" o "Notificaciones push no configuradas en el servidor".
+- `getSql()` va **dentro** del `try`. En Production y Preview lanza «Falta APP_DB_PASSWORD…» si no está la contraseña de `app_runtime` (nunca cae al rol dueño); así ese caso también sale como el 500 genérico del endpoint y queda en el log. El mensaje no lleva nada de la conexión.
 
 ## 4. Frontend
 
@@ -152,5 +153,6 @@ llega al servidor hoy solo lo ve la usuaria.
 1. Pide la pantalla, la hora aproximada y el mensaje exacto que vio.
 2. Busca en los logs de Vercel `Error en <recurso>` alrededor de esa hora.
 3. Si es de datos, revisa la fila en Neon (incluye `deleted_at`).
+   Si el log dice `Falta APP_DB_PASSWORD`, `password authentication failed for user "app_runtime"` o `permission denied for table …`, es la conexión de la app, no los datos: [Deployment.md §9](Deployment.md#9-rol-de-la-app-en-la-base-app_runtime).
 4. Si es de versión vieja, pide que abra Configuración (o su inicio) y lea "Versión N". Compara con `CACHE_NAME`.
 5. Reproduce con un salón de prueba antes de tocar datos reales.
