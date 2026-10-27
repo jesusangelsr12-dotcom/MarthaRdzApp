@@ -1,6 +1,6 @@
 # Seguridad · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-10-05
+**Última revisión:** 2026-10-27
 
 ## 1. Qué protegemos
 
@@ -70,7 +70,8 @@ comodidad, no seguridad.
 | Hash de PIN expuesto | `sanitizeTrabajadoras()` reemplaza `pin_hash` por `tiene_acceso` en cada respuesta |
 | Inyectar un `pin_hash` o permisos al guardar el catálogo | `POST /api/config` solo toma el `nombre` de cada trabajadora; el PIN y los permisos se conservan de la base |
 | Borrado accidental o malicioso | Todo es soft-delete; se puede recuperar con SQL |
-| Acceso directo a la base | `DATABASE_URL` solo vive en Vercel. El navegador nunca habla con Neon |
+| Acceso directo a la base | La conexión solo vive en Vercel. El navegador nunca habla con Neon |
+| La app con más poder del que necesita | Entra como `app_runtime` (`lib/db.js`): solo lee y escribe filas. No puede borrar ni alterar tablas, crear roles ni saltarse RLS ([Database.md §8](Database.md#8-roles)). En Production y Preview, sin `APP_DB_PASSWORD` no se conecta: nunca cae al rol dueño |
 | Respaldo en Drive con datos personales | La carpeta es privada de la cuenta dueña. El archivo no lleva `PIN_PEPPER` (los hashes de PIN no sirven sin él). La URL del Apps Script y la clave nunca salen en una respuesta de la API (lo vigila `test/respaldo.test.js`). El script exige la clave, valida nombre, tamaño y huella, y solo borra archivos con el nombre del respaldo |
 
 ## 5. Encabezados HTTP (`vercel.json`)
@@ -90,7 +91,9 @@ Consecuencia del CSP: **no se pueden cargar scripts de CDNs.** Todo JS vive en e
 
 | Variable | Si se filtra | Cómo rotarla |
 |---|---|---|
-| `DATABASE_URL` | Acceso total a los datos | Reset del password del rol en Neon, actualizar en Vercel, redeploy |
+| `DATABASE_URL` (rol dueño; la pone la integración Neon ↔ Vercel) | Acceso total a los datos **y al esquema** (borrar tablas, crear roles) | Neon → Roles → `neondb_owner` → Reset password. La integración actualiza la variable en Vercel; redeploy. Actualiza también `DATABASE_URL_MIGRATIONS` en tu `.env` |
+| `APP_DB_PASSWORD` (rol `app_runtime`) | Leer y escribir filas de todos los salones (no el esquema) | Nueva contraseña con SQL (abajo), el mismo valor en Vercel (Production y Preview) y redeploy |
+| `DATABASE_URL_MIGRATIONS` (solo tu `.env`, nunca en Vercel) | Igual que `DATABASE_URL` | Igual que `DATABASE_URL` |
 | `SESSION_SECRET` | Cualquiera firma sesiones de cualquier salón | Nuevo valor + redeploy. Todos vuelven a entrar con PIN. Los challenges de WebAuthn en curso fallan |
 | `PIN_PEPPER` | Permite fuerza bruta offline de los hashes | Nuevo valor + **reasignar todos los PINs** (los hashes viejos dejan de servir) |
 | `VAPID_PRIVATE_KEY` | Mandar push a los dispositivos suscritos | Nuevas llaves + todos reactivan notificaciones |
@@ -103,6 +106,36 @@ Consecuencia del CSP: **no se pueden cargar scripts de CDNs.** Todo JS vive en e
 - `SESSION_SECRET` y `PIN_PEPPER` distintos entre sí, de al menos 32 bytes (`openssl rand -hex 32`).
 - Nunca imprimir un secreto en logs ni en mensajes de error.
 - `crear-salon.js` necesita el mismo `PIN_PEPPER` que producción.
+- Las contraseñas de Postgres no van en un archivo ni en la línea de comandos
+  (quedan en el historial y en `ps`): se leen de una variable de entorno con
+  `\getenv` de psql.
+
+**Cambiar la contraseña de `app_runtime`** (psql 15 o más nuevo). Va por la
+entrada estándar porque `psql -c` no sustituye variables:
+
+```bash
+export APP_RUNTIME_PWD="$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n')"
+psql "$DATABASE_URL_MIGRATIONS" -v ON_ERROR_STOP=1 <<'SQL'
+\getenv pwd APP_RUNTIME_PWD
+select format('alter role app_runtime password %L', :'pwd') \gexec
+SQL
+```
+
+Luego el mismo valor en `APP_DB_PASSWORD` de Vercel y redeploy. Entre el
+cambio y el redeploy la app no entra a la base: hazlo en un horario sin
+citas. Los roles son por branch: los Preview que ya existen conservan la
+contraseña vieja; los nuevos copian la nueva.
+
+**Quitar `app_runtime`** (regresar al rol dueño): primero publica un
+`lib/db.js` que vuelva a usar `DATABASE_URL` tal cual (revertir el commit de
+la v52). Si borras el rol o `APP_DB_PASSWORD` antes, la app deja de entrar a
+la base. Después:
+
+```sql
+grant app_runtime to neondb_owner;   -- sin esto, drop owned da «permission denied»
+drop owned by app_runtime;            -- quita sus permisos
+drop role app_runtime;
+```
 
 ## 7. Riesgos
 
@@ -117,6 +150,8 @@ Consecuencia del CSP: **no se pueden cargar scripts de CDNs.** Todo JS vive en e
 | S7 | Rate limit solo por IP | Un atacante con muchas IPs prueba más PINs | Abierto. 1 millón de combinaciones × 5 intentos / 15 min / IP |
 | S8 | Neon gratuito guarda solo 6 h de historia | Un borrado o daño descubierto al día siguiente no se podía recuperar | ✅ Resuelto en v51: respaldo diario en Google Drive, 30 días + día 1 de cada mes |
 | S9 | El estado del respaldo es de toda la base, no por salón | Con varios salones, cada dueña vería las fechas y tamaños del respaldo de todos (nunca los datos) | Aceptado: hoy hay un solo salón en producción. Si se agrega otro, restringir la sección a un salón administrador |
+| S10 | La app entraba a Neon como `neondb_owner` (miembro de `neon_superuser`) | Un fallo en el servidor podía borrar tablas, crear roles o saltarse RLS | ✅ Resuelto en v52: rol `app_runtime` (migración 010) |
+| S11 | La credencial del dueño sigue en Vercel (`DATABASE_URL`, la pone la integración) aunque la app ya no la use | Quien lea las variables de Vercel tiene acceso total | Aceptado: quitarla obliga a desconectar la integración y perder el branch automático por Preview |
 
 ## 8. Checklist de seguridad para cada cambio
 
@@ -127,3 +162,4 @@ Consecuencia del CSP: **no se pueden cargar scripts de CDNs.** Todo JS vive en e
 - [ ] ¿Todo texto dinámico en HTML pasa por `escapeHTML`?
 - [ ] ¿La respuesta evita mandar hashes, secretos o datos de más?
 - [ ] ¿Un error de servidor responde un mensaje genérico, sin detalles internos?
+- [ ] ¿La migración nueva se aplica con `DATABASE_URL_MIGRATIONS` (rol dueño), para que `app_runtime` alcance las tablas nuevas?

@@ -1,6 +1,6 @@
 # Guía de API · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-10-05 · **Base:** `/api` (mismo dominio que la app)
+**Última revisión:** 2026-10-27 · **Base:** `/api` (mismo dominio que la app)
 
 ## 1. Reglas generales
 
@@ -234,7 +234,7 @@ citas de mañana de la Agenda.)
 
 | Servicio | Quién lo llama | Detalle |
 |---|---|---|
-| Neon | Backend | `@neondatabase/serverless`, una request HTTPS por query |
+| Neon | Backend (`lib/db.js`) | `@neondatabase/serverless`, una request HTTPS por query, como `app_runtime` por el host `-pooler` con `sslmode=require&channel_binding=require` |
 | Web Push (APNs, FCM) | Backend (`lib/push.js`) | Payload `{title, body, url}`. El SW lo muestra y al tocarlo abre `url`. Hoy solo el aviso de cita nueva de una trabajadora |
 | WebAuthn | Navegador + `@simplewebauthn/server` | RP ID = host del request. Cambiar de dominio invalida las credenciales |
 | WhatsApp | Navegador | `https://wa.me/52<10 dígitos>?text=<mensaje>`. Abre el chat, la persona toca Enviar |

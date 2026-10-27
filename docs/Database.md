@@ -1,6 +1,6 @@
 # Base de datos · Martha Rdz Hair Artist
 
-**Última revisión:** 2026-10-05 · **Motor:** PostgreSQL en Neon · **Acceso:** solo desde las serverless functions
+**Última revisión:** 2026-10-27 · **Motor:** PostgreSQL en Neon · **Acceso:** solo desde las serverless functions, con el rol `app_runtime` (§8)
 
 ## 1. Modelo
 
@@ -35,9 +35,10 @@ salón porque todas filtran por el `salon_id` que viene del token verificado.
 | Parte | De dónde sale |
 |---|---|
 | `salones`, `citas`, `clientas`, `comisiones`, `gastos` | `scripts/migrations/000_base.sql`, exportado de la base real (Neon) tal como estaba antes de la 001 |
-| Todo lo demás | `scripts/migrations/001` a `008`, en orden |
+| Todo lo demás | `scripts/migrations/001` a `009`, en orden |
+| Rol `app_runtime` | `scripts/migrations/010_rol_app_runtime.sql` (script de psql, no cambia tablas) |
 
-Con `000` a `008` se levanta una base completa desde cero. Las pruebas de
+Con `000` a `010` se levanta una base completa desde cero. Las pruebas de
 integración lo hacen en cada corrida (ver [Testing.md](Testing.md)).
 
 ## 3. Tablas
@@ -258,12 +259,19 @@ where salon_id = $1 and fecha = $2 and clienta = $3 and deleted_at is not null;
 | 006 | `006_webauthn.sql` | `webauthn_credentials` |
 | 007 | `007_ausencias.sql` | `ausencias` |
 | 008 | `008_anticipo_en_cita.sql` | `citas.anticipo` (check `0 ≤ anticipo ≤ total`), `citas.anticipo_origen_id` y su índice |
-| 009 | `009_respaldos.sql` | `respaldos` (bitácora del respaldo diario) y su índice. Al agregar una migración, sube `ULTIMA_MIGRACION` en `lib/respaldo.js` (una prueba lo vigila) |
+| 009 | `009_respaldos.sql` | `respaldos` (bitácora del respaldo diario) y su índice |
+| 010 | `010_rol_app_runtime.sql` | Rol `app_runtime` (solo leer y escribir filas) y sus permisos, también para las tablas futuras. Script de psql: lee la contraseña de `APP_RUNTIME_PWD` (§8) |
+
+Al agregar una migración, sube `ULTIMA_MIGRACION` en `lib/respaldo.js` (una
+prueba lo vigila).
 
 **Reglas para una migración nueva:**
 - Nombre `NNN_descripcion.sql`, número siguiente.
 - Solo aditiva e idempotente (`if not exists`). Nada de `drop` ni `rename` sin plan de datos.
 - Encabezado con qué hace y el comando para aplicarla.
+- Se aplica con el rol dueño: `psql "$DATABASE_URL_MIGRATIONS" -v ON_ERROR_STOP=1 -f …`.
+  Así las tablas nuevas son de `neondb_owner` y `app_runtime` las puede usar
+  sin otro `grant` (privilegios por default de la 010).
 - Se aplica **antes** de desplegar el código que la usa.
 - Se documenta aquí y en el [CHANGELOG](../CHANGELOG.md).
 
@@ -293,3 +301,33 @@ where salon_id = $1 and fecha = $2 and clienta = $3 and deleted_at is not null;
     nunca encima de datos.
 
   Pasos para conectarlo y para restaurar en [Deployment.md §8](Deployment.md#8-respaldo-diario-en-google-drive).
+
+## 8. Roles
+
+| Rol | Quién lo usa | Qué puede |
+|---|---|---|
+| `neondb_owner` | Migraciones y `scripts/restaurar-respaldo.js`, desde tu terminal (`DATABASE_URL_MIGRATIONS`). La integración Neon ↔ Vercel también lo pone en `DATABASE_URL`, pero la app ya no entra con él | Todo: es dueño de las tablas y miembro de `neon_superuser` |
+| `app_runtime` | La app en Vercel (`lib/db.js`) | `select`, `insert`, `update`, `delete` en las tablas de `public`; `usage, select` en las secuencias. No es miembro de `neon_superuser` |
+
+`app_runtime` **no puede**: crear, alterar, vaciar ni borrar tablas
+(`create`, `alter`, `truncate`, `drop`), crear roles o bases, saltarse RLS,
+ni mover una secuencia con `setval` (por eso la restauración usa el rol
+dueño).
+
+- Se crea con SQL (migración 010), no desde la consola de Neon: lo que se crea
+  en la consola entra a `neon_superuser`.
+- Los roles son por branch. Un branch nuevo copia `app_runtime` con su
+  contraseña (los Preview de Vercel lo tienen). Un branch creado antes de la
+  010, o desde un punto en el tiempo anterior, no lo tiene.
+- Si una migración futura crea una tabla con otro rol que no sea
+  `neondb_owner`, hay que darle el `grant` a mano.
+
+Revisar el rol (todo debe salir `f`):
+
+```sql
+select rolname, rolsuper, rolcreaterole, rolcreatedb, rolbypassrls, rolreplication,
+       pg_has_role('app_runtime', 'neon_superuser', 'member') as en_neon_superuser
+from pg_roles where rolname = 'app_runtime';
+```
+
+Cambiar la contraseña o quitar el rol: [Security.md §6](Security.md#6-secretos).
